@@ -1,4 +1,5 @@
 import { crossShopIds, sanitizeCrossShopOrderState, type CrossShopOrder } from './crossShopOrders'
+import type { HeldConsumable } from './crossShopOrders'
 import type { PhoneNotification } from './phoneNotifications'
 
 export type CafeStoryDeliveryRecord = {
@@ -9,18 +10,28 @@ export type CafeStoryDeliveryRecord = {
   /** Missing on legacy records, which are Lao Zhou story deliveries. */
   deliveryKind?: 'story' | 'table'
   seatId?: string
+  /** Persisted route phase lets an interrupted delivery resume toward the counter. */
+  deliveryPhase?: 'to-seat' | 'returning-to-counter'
 }
 
 export type CafeStoryOrderState = {
   shopOrders: Record<string, CrossShopOrder>
-  heldConsumable: { shopId: string; sourceOrderId: string | null } | null
+  heldConsumable: HeldConsumable | { shopId: string; sourceOrderId: string | null } | null
   cafeStoryDeliveries: Record<string, CafeStoryDeliveryRecord>
   phoneNotifications?: PhoneNotification[]
 }
 
-export type CafeStoryOrderStatus = 'none' | 'queued' | 'ready' | 'legacy-unmapped' | 'claimed' | 'delivered-pending-presentation' | 'delivered'
+export type CafeStoryOrderStatus = 'none' | 'queued' | 'ready' | 'legacy-unmapped' | 'claimed' | 'returning-to-counter' | 'delivered-pending-presentation' | 'delivered'
 
-export type CafeTableOrderDeliveryState = 'none' | 'queued' | 'ready' | 'claimed' | 'table-delivery-pending' | 'delivered'
+export type CafeTableOrderDeliveryState = 'none' | 'queued' | 'ready' | 'claimed' | 'returning-to-counter' | 'table-delivery-pending' | 'delivered'
+
+export type CafeTableOrderDeliveryTarget =
+  | { orderId: string; seatId: string; phase: 'to-seat' }
+  | { orderId: string; seatId: string; phase: 'returning-to-counter' }
+
+export type CafeTableDeliveryCompletion =
+  | { ok: true; state: CafeStoryOrderState; heldConsumable: HeldConsumable }
+  | { ok: false; state: CafeStoryOrderState; reason: 'not-at-target' | 'hand-full' | 'order-changed' }
 
 function finiteGameTime(value: number): boolean {
   return Number.isFinite(value) && value >= 0
@@ -30,11 +41,14 @@ export function cafeStoryOrderStatus(state: CafeStoryOrderState, eventId: string
   const delivery = state.cafeStoryDeliveries[eventId]
   if (delivery && delivery.deliveryKind !== 'table') return delivery.presentation === 'complete' ? 'delivered' : 'delivered-pending-presentation'
   const order = state.shopOrders[crossShopIds.cafeTakeaway]
-  if (order && Object.values(state.cafeStoryDeliveries).some(record => record.deliveryKind === 'table' && record.order.id === order.id && record.presentation === 'pending')) return 'claimed'
+  const tableDelivery = order ? Object.values(state.cafeStoryDeliveries).find(record => record.deliveryKind === 'table' && record.order.id === order.id && record.presentation === 'pending') : undefined
+  if (tableDelivery?.deliveryPhase === 'returning-to-counter') return 'returning-to-counter'
+  if (tableDelivery) return 'claimed'
   if (order) {
     if (order.status === 'legacy-unmapped') return 'legacy-unmapped'
     return order.readyAtGameTimeMs !== null && finiteGameTime(gameTimeMs) && gameTimeMs >= order.readyAtGameTimeMs ? 'ready' : 'queued'
   }
+  if (state.heldConsumable?.sourceOrderId && Object.values(state.cafeStoryDeliveries).some(record => record.deliveryKind === 'table' && record.order.id === state.heldConsumable?.sourceOrderId && record.presentation === 'complete')) return 'delivered'
   if (state.heldConsumable?.shopId === crossShopIds.cafeTakeaway) return 'claimed'
   if (Object.values(state.cafeStoryDeliveries).some(record => record.order.shopId === crossShopIds.cafeTakeaway && record.deliveryKind !== 'table')) return 'delivered'
   return 'none'
@@ -44,13 +58,15 @@ export function cafeStoryOrderStatus(state: CafeStoryOrderState, eventId: string
 export function beginCafeTableOrderDelivery(state: CafeStoryOrderState, seatId: string, gameTimeMs: number) {
   if (!seatId || !finiteGameTime(gameTimeMs)) return { ok: false as const, state, reason: 'invalid-seat' as const }
   const existing = Object.values(state.cafeStoryDeliveries).find(record => record.deliveryKind === 'table' && record.order.shopId === crossShopIds.cafeTakeaway)
-  if (existing) return { ok: true as const, state, record: existing, replayed: true }
+  if (existing) return existing.deliveryPhase === 'returning-to-counter'
+    ? { ok: false as const, state, reason: 'returning-to-counter' as const }
+    : { ok: true as const, state, record: existing, replayed: true }
   const order = state.shopOrders[crossShopIds.cafeTakeaway]
   if (!order) return { ok: false as const, state, reason: state.heldConsumable?.shopId === crossShopIds.cafeTakeaway ? 'claimed' as const : 'no-order' as const }
   if (order.status === 'legacy-unmapped') return { ok: false as const, state, reason: 'legacy-unmapped' as const }
   if (order.readyAtGameTimeMs === null || gameTimeMs < order.readyAtGameTimeMs) return { ok: false as const, state, reason: 'not-ready' as const }
   const eventId = `cafe-table-order:${order.id}`
-  const record: CafeStoryDeliveryRecord = { eventId, order, deliveredAtGameTimeMs: gameTimeMs, presentation: 'pending', deliveryKind: 'table', seatId }
+  const record: CafeStoryDeliveryRecord = { eventId, order, deliveredAtGameTimeMs: gameTimeMs, presentation: 'pending', deliveryKind: 'table', seatId, deliveryPhase: 'to-seat' }
   return { ok: true as const, state: { ...state, cafeStoryDeliveries: { ...state.cafeStoryDeliveries, [eventId]: record } }, record, replayed: false }
 }
 
@@ -58,24 +74,55 @@ export function retargetCafeTableOrderDelivery(deliveries: Readonly<Record<strin
   const entry = Object.entries(deliveries).find(([, record]) => record.deliveryKind === 'table')
   if (!entry) return deliveries
   const [eventId, record] = entry
-  if (!seatId) { const next = { ...deliveries }; delete next[eventId]; return next }
-  if (record.seatId === seatId) return deliveries
-  return { ...deliveries, [eventId]: { ...record, seatId } }
+  if (!seatId) return record.deliveryPhase === 'returning-to-counter' ? deliveries : { ...deliveries, [eventId]: { ...record, deliveryPhase: 'returning-to-counter' } }
+  if (record.deliveryPhase === 'returning-to-counter' || (record.seatId === seatId && record.deliveryPhase === 'to-seat')) return deliveries
+  return { ...deliveries, [eventId]: { ...record, seatId, deliveryPhase: 'to-seat' } }
 }
 
 export function completeCafeTableOrderDelivery(state: CafeStoryOrderState, orderId: string, seatId: string) {
   const entry = Object.entries(state.cafeStoryDeliveries).find(([, record]) => record.deliveryKind === 'table' && record.order.id === orderId && record.seatId === seatId)
   const current = state.shopOrders[crossShopIds.cafeTakeaway]
-  if (!entry || current?.id !== orderId || current.status !== 'queued') return state
+  if (!entry || entry[1].deliveryPhase === 'returning-to-counter' || current?.id !== orderId || current.status !== 'queued' || state.heldConsumable) return state
   const [eventId, record] = entry
   const shopOrders = { ...state.shopOrders }; delete shopOrders[crossShopIds.cafeTakeaway]
   const phoneNotifications = state.phoneNotifications?.filter(notification => notification.id !== `shop-order-ready:${orderId}`)
-  return { ...state, shopOrders, heldConsumable: state.heldConsumable, cafeStoryDeliveries: { ...state.cafeStoryDeliveries, [eventId]: { ...record, presentation: 'complete' as const } }, ...(phoneNotifications ? { phoneNotifications } : {}) }
+  const heldConsumable: HeldConsumable = { id: `held-${record.order.id}`, shopId: record.order.shopId, productId: record.order.productId, kind: 'drink', sourceOrderId: record.order.id }
+  return { ...state, shopOrders, heldConsumable, cafeStoryDeliveries: { ...state.cafeStoryDeliveries, [eventId]: { ...record, presentation: 'complete' as const } }, ...(phoneNotifications ? { phoneNotifications } : {}) }
 }
 
 export function cafeTableOrderDelivery(state: CafeStoryOrderState) {
   const record = Object.values(state.cafeStoryDeliveries).find(item => item.deliveryKind === 'table' && item.presentation === 'pending')
-  return record ? { orderId: record.order.id, seatId: record.seatId! } : null
+  return record ? { orderId: record.order.id, seatId: record.seatId!, phase: record.deliveryPhase ?? 'to-seat' } as CafeTableOrderDeliveryTarget : null
+}
+
+/** Release the return route only after the floor server reaches its counter point. */
+export function completeCafeTableOrderDeliveryReturn(state: CafeStoryOrderState, orderId: string): CafeStoryOrderState {
+  const entry = Object.entries(state.cafeStoryDeliveries).find(([, record]) => record.deliveryKind === 'table' && record.order.id === orderId && record.presentation === 'pending' && record.deliveryPhase === 'returning-to-counter')
+  if (!entry) return state
+  const [eventId, record] = entry
+  const current = state.shopOrders[crossShopIds.cafeTakeaway]
+  if (current && current.id !== orderId) return state
+  const shopOrders = current ? state.shopOrders : { ...state.shopOrders, [crossShopIds.cafeTakeaway]: record.order }
+  const cafeStoryDeliveries = { ...state.cafeStoryDeliveries }
+  delete cafeStoryDeliveries[eventId]
+  return { ...state, shopOrders, cafeStoryDeliveries }
+}
+
+/** Authoritative completion result distinguishes a full-hand return from a delivered order. */
+export function completeCafeTableOrderDeliveryResult(state: CafeStoryOrderState, orderId: string, seatId: string): CafeTableDeliveryCompletion {
+  const delivery = cafeTableOrderDelivery(state)
+  if (!delivery || delivery.phase !== 'to-seat' || delivery.orderId !== orderId || delivery.seatId !== seatId) return { ok: false, state, reason: 'not-at-target' }
+  const current = state.shopOrders[crossShopIds.cafeTakeaway]
+  if (!current || current.id !== orderId || current.status !== 'queued') return { ok: false, state, reason: 'order-changed' }
+  if (state.heldConsumable) return { ok: false, state, reason: 'hand-full' }
+  const next = completeCafeTableOrderDelivery(state, orderId, seatId)
+  const heldConsumable = next.heldConsumable as HeldConsumable
+  return next === state ? { ok: false, state, reason: 'order-changed' } : { ok: true, state: next, heldConsumable }
+}
+
+/** A persisted pending target is the refresh contract: resume from the saved seat or counter route. */
+export function cafeTableOrderDeliveryAfterRefresh(state: CafeStoryOrderState): CafeTableOrderDeliveryTarget | null {
+  return cafeTableOrderDelivery(state)
 }
 
 /**
@@ -139,10 +186,10 @@ export function sanitizeCafeStoryDeliveries(value: unknown): Record<string, Cafe
       || !finiteGameTime(record.deliveredAtGameTimeMs)
       || (record.presentation !== 'pending' && record.presentation !== 'complete')
       || (record.deliveryKind !== undefined && record.deliveryKind !== 'story' && record.deliveryKind !== 'table')
-      || (record.deliveryKind === 'table' && typeof record.seatId !== 'string')) continue
+      || (record.deliveryKind === 'table' && (typeof record.seatId !== 'string' || (record.deliveryPhase !== undefined && record.deliveryPhase !== 'to-seat' && record.deliveryPhase !== 'returning-to-counter')))) continue
     const order = sanitizeCrossShopOrderState({ ordersByShop: { [crossShopIds.cafeTakeaway]: record.order }, heldConsumable: null }).ordersByShop[crossShopIds.cafeTakeaway]
     if (!order || order.status !== 'queued') continue
-    result[eventId] = { eventId, order, deliveredAtGameTimeMs: record.deliveredAtGameTimeMs, presentation: record.presentation, ...(record.deliveryKind ? { deliveryKind: record.deliveryKind } : {}), ...(record.seatId ? { seatId: record.seatId } : {}) }
+    result[eventId] = { eventId, order, deliveredAtGameTimeMs: record.deliveredAtGameTimeMs, presentation: record.presentation, ...(record.deliveryKind ? { deliveryKind: record.deliveryKind } : {}), ...(record.seatId ? { seatId: record.seatId } : {}), ...(record.deliveryPhase ? { deliveryPhase: record.deliveryPhase } : {}) }
   }
   return result
 }
@@ -194,6 +241,18 @@ export function createCafeStoryOrderDeliveryController<TSave extends CafeStoryOr
         const result = completeCafeTableOrderDelivery(current, orderId, seatId)
         return result === current ? current : { ...current, ...result }
       })
+    },
+    completeTableDeliveryResult(orderId: string, seatId: string) {
+      let outcome: CafeTableDeliveryCompletion | null = null
+      options.commitSave(current => {
+        const result = completeCafeTableOrderDeliveryResult(current, orderId, seatId)
+        outcome = result
+        return result.ok ? { ...current, ...result.state } : current
+      })
+      return outcome
+    },
+    completeTableDeliveryReturn(orderId: string) {
+      options.commitSave(current => completeCafeTableOrderDeliveryReturn(current, orderId))
     },
   }
 }

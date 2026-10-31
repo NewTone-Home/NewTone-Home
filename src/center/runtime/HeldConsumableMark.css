@@ -1,0 +1,32 @@
+.held-consumable-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28em;
+  min-width: 1.8em;
+  color: currentColor;
+  line-height: 1;
+  vertical-align: middle;
+  pointer-events: none;
+}
+
+.held-consumable-mark__icon {
+  width: 1.2em;
+  height: 1.2em;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.held-consumable-mark__icon circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.held-consumable-mark__label {
+  font-size: 0.78em;
+  white-space: nowrap;
+}
