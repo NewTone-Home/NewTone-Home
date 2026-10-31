@@ -43,9 +43,7 @@ export type ManualShopOrderStepResult = Readonly<{
   submitted?: { ok: boolean; reason?: string }
 }>
 
-const cancelChoice = { id: 'cancel', label: '取消' } as const
-const returnToCatalogChoice = { id: 'back:catalog', label: '返回商品' } as const
-const returnToDialogueChoice = { id: 'back:dialogue', label: '返回' } as const
+const cancelChoice = { id: 'cancel', label: '我再看看吧' } as const
 
 function productFor(session: ManualShopOrderSession): ManualShopOrderProduct | null {
   return shopProductsFor(session.shopId).find(product => product.id === session.productId) as ManualShopOrderProduct | undefined ?? null
@@ -89,7 +87,7 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
   if (session.phase === 'catalog') {
     return {
       text: '想点哪一款？',
-      choices: [...products.map(product => ({ id: `product:${product.id}`, label: `${product.name} ${product.price}元` })), returnToDialogueChoice, cancelChoice],
+      choices: [...products.map(product => ({ id: `product:${product.id}`, label: `${product.name} ${product.price}元` })), cancelChoice],
     }
   }
 
@@ -99,7 +97,7 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
   if (session.phase === 'sugar') {
     return {
       text: `${product.name}想要几分甜？`,
-      choices: [...(product.customization?.sugar ?? []).map(value => ({ id: `sugar:${value}`, label: value })), returnToCatalogChoice, cancelChoice],
+      choices: [...(product.customization?.sugar ?? []).map(value => ({ id: `sugar:${value}`, label: value })), cancelChoice],
     }
   }
 
@@ -108,8 +106,7 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
       text: product.customization?.sugar === null
         ? '糖是固定的噢，请问要多少冰呢？'
         : `${product.name}的糖度选好了，请问要多少冰呢？`,
-      choices: [...(product.customization?.ice ?? []).map(value => ({ id: `ice:${value}`, label: value })),
-        ...(product.customization?.sugar ? [{ id: 'back:sugar', label: '返回糖度' }] : [returnToCatalogChoice]), cancelChoice],
+      choices: [...(product.customization?.ice ?? []).map(value => ({ id: `ice:${value}`, label: value })), cancelChoice],
     }
   }
 
@@ -117,7 +114,7 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
     const details = [session.sugar, session.ice].filter(Boolean).join('、')
     return {
       text: `${product.name}${details ? `，${details}` : ''}，合计${product.price}元，确认下单吗？`,
-      choices: [{ id: 'confirm', label: '确认下单' }, { id: 'back:edit', label: '返回修改' }, cancelChoice],
+      choices: [{ id: 'confirm', label: '确认下单' }, cancelChoice],
     }
   }
 
@@ -146,10 +143,8 @@ export function chooseManualShopOrderOption(
   submitOrder: ManualShopOrderSubmit,
 ): ManualShopOrderStepResult {
   if (choiceId === 'cancel') return { session: null, view: null }
-  if (choiceId === 'back:dialogue') return { session: null, view: null }
 
   if (session.phase === 'catalog') {
-    if (choiceId === 'back:catalog') return { session: null, view: null }
     if (!choiceId.startsWith('product:')) return { session, view: manualShopOrderView(session) }
     const productId = choiceId.slice('product:'.length)
     const product = shopProductsFor(session.shopId).find(candidate => candidate.id === productId) as ManualShopOrderProduct | undefined
@@ -160,19 +155,6 @@ export function chooseManualShopOrderOption(
 
   const product = productFor(session)
   if (!product) return { session, view: manualShopOrderView(session) }
-
-  if (choiceId === 'back:catalog') {
-    const next = { ...session, phase: 'catalog' as const, productId: null, sugar: null, ice: null }
-    return { session: next, view: manualShopOrderView(next) }
-  }
-  if (choiceId === 'back:sugar') {
-    const next = { ...session, phase: 'sugar' as const, ice: null }
-    return { session: next, view: manualShopOrderView(next) }
-  }
-  if (choiceId === 'back:edit') {
-    const next = { ...session, phase: product.customization?.sugar ? 'sugar' as const : product.customization?.ice ? 'ice' as const : 'catalog' as const }
-    return { session: next, view: manualShopOrderView(next) }
-  }
 
   if (choiceId.startsWith('sugar:') && session.phase === 'sugar') {
     const sugar = choiceId.slice('sugar:'.length)
