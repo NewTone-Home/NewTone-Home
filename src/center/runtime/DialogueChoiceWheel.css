@@ -59,6 +59,12 @@
 .narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__viewport {
   top: calc(50% + 13px);
 }
+.narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__option {
+  min-height: 44px;
+  padding: 4px 12px;
+  font-size: 15px;
+  line-height: 1.2;
+}
 .narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-entering .dialogue-choice-wheel__viewport {
   animation-name: dialogue-choice-wheel-mobile-fade-in;
 }

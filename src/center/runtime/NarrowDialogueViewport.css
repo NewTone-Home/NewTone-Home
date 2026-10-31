@@ -33,6 +33,12 @@
   padding-top: var(--narrow-dialogue-safe-top);
 }
 
+/* Manual order prompts share the compact 15vh phone panel with the wheel. */
+.narrow-dialogue-content--choice-prompt .narrow-dialogue-text {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
 .narrow-dialogue-slot--current.narrow-dialogue-slot--incoming {
   animation: narrow-dialogue-roll-in 220ms ease-out both;
 }
