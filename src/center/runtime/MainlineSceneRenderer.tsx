@@ -1015,7 +1015,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
         options={dialogueChoiceWheel.options}
         phase={dialogueChoiceWheel.phase}
         placement="wide-right"
-        wideLayout={content.kind === 'text' && content.choicePrompt ? 'inline' : 'overlay'}
+        wideLayout="inline"
         onSelectionLocked={lockWideChoice}
         onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
         onCancel={() => onSceneActionCancel?.()}

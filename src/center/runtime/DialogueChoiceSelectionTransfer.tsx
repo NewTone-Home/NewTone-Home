@@ -31,34 +31,39 @@ export function DialogueChoiceSelectionTransfer({ transferId, text, sourceRect, 
     const element = elementRef.current
     if (!element) return
     let completed = false
+    let frame = 0
     const finish = () => {
       if (completed) return
       completed = true
       onCompleteRef.current(transferId)
     }
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const duration = reducedMotion ? 1 : Math.max(0, durationMs)
-    const scaleX = sourceRect.width > 0 ? targetRect.width / sourceRect.width : 1
-    const scaleY = sourceRect.height > 0 ? targetRect.height / sourceRect.height : 1
-    const deltaX = targetRect.left - sourceRect.left
-    const deltaY = targetRect.top - sourceRect.top
-
-    if (duration <= 1) {
-      finish()
-      return
+    const duration = Math.max(1, reducedMotion ? 1 : durationMs)
+    const startedAt = performance.now()
+    const update = (now: number) => {
+      if (completed) return
+      const targetNode = Array.from(document.querySelectorAll<HTMLElement>('[data-choice-transfer-target]'))
+        .find(node => node.dataset.choiceTransferTarget === transferId)
+      const target = targetNode?.getBoundingClientRect()
+      const destination = target && target.width > 0 && target.height > 0 ? target : targetRect
+      const progress = Math.min(1, Math.max(0, (now - startedAt) / duration))
+      const eased = 1 - Math.pow(1 - progress, 3)
+      const scaleX = sourceRect.width > 0 ? destination.width / sourceRect.width : 1
+      const scaleY = sourceRect.height > 0 ? destination.height / sourceRect.height : 1
+      const deltaX = destination.left - sourceRect.left
+      const deltaY = destination.top - sourceRect.top
+      element.style.transform = `translate3d(${deltaX * eased}px, ${deltaY * eased}px, 0) scale(${1 + (scaleX - 1) * eased}, ${1 + (scaleY - 1) * eased})`
+      element.style.opacity = String(1 - .92 * eased)
+      if (progress >= 1) {
+        finish()
+        return
+      }
+      frame = window.requestAnimationFrame(update)
     }
-    const animation = element.animate([
-      { transform: 'translate3d(0, 0, 0) scale(1, 1)', opacity: 1 },
-      { transform: `translate3d(${deltaX}px, ${deltaY}px, 0) scale(${scaleX}, ${scaleY})`, opacity: .08 },
-    ], {
-      duration,
-      easing: 'cubic-bezier(.2,.75,.25,1)',
-      fill: 'forwards',
-    })
-    animation.onfinish = finish
+    frame = window.requestAnimationFrame(update)
     return () => {
-      animation.onfinish = null
-      animation.cancel()
+      completed = true
+      window.cancelAnimationFrame(frame)
     }
   }, [durationMs, sourceRect.height, sourceRect.left, sourceRect.top, sourceRect.width, targetRect.height, targetRect.left, targetRect.top, targetRect.width, transferId])
 
