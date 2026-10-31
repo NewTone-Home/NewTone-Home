@@ -1,0 +1,14 @@
+.dialogue-choice-selection-transfer {
+  position: fixed;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  color: inherit;
+  background: rgba(255, 255, 255, .13);
+  border-radius: 8px;
+  white-space: nowrap;
+  transform-origin: top left;
+  will-change: transform, opacity;
+}

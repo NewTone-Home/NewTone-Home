@@ -18,8 +18,14 @@ export type DialogueChoiceWheelProps = {
   options: readonly string[]
   phase: 'active' | 'committing' | 'exiting'
   placement: 'wide-right' | 'narrow-bottom'
+  /** Use normal document flow when the wide wheel is placed below its prompt. */
+  wideLayout?: 'overlay' | 'inline'
+  /** First entry only. Manual wheel motion keeps its existing timing. */
+  entryDurationMs?: number
   promptAbove?: boolean
   onConfirm: (actionId: number, optionIndex: number) => void
+  onEntranceSettled?: (actionId: number, optionIndex: number) => void
+  onSelectionLocked?: (actionId: number, optionIndex: number) => void
   onCancel?: (actionId: number) => void
   onExitComplete?: (actionId: number, optionIndex: number) => void
 }
@@ -30,8 +36,12 @@ type PointerDrag = { pointerId: number; startY: number; startPosition: number; l
  * Focus-only wheel: movement never invokes business callbacks. A settled
  * center click is the sole confirmation path.
  */
-export function DialogueChoiceWheel({ sessionId, actionId, options, phase, placement, promptAbove = false, onConfirm, onCancel, onExitComplete }: DialogueChoiceWheelProps) {
+const dialogueChoiceWheelEntryStart = (optionCount: number) => Math.min(2, Math.max(0, optionCount - 1))
+
+export function DialogueChoiceWheel({ sessionId, actionId, options, phase, placement, wideLayout = 'overlay', entryDurationMs = 1000, promptAbove = false, onConfirm, onEntranceSettled, onSelectionLocked, onCancel, onExitComplete }: DialogueChoiceWheelProps) {
   const [position, setPosition] = useState(0)
+  const [entryVisualPosition, setEntryVisualPosition] = useState<number | null>(() => dialogueChoiceWheelEntryStart(options.length))
+  const [entryProgress, setEntryProgress] = useState(0)
   const positionRef = useRef(0)
   const [scrolling, setScrolling] = useState(false)
   const [settled, setSettled] = useState(false)
@@ -40,15 +50,20 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   const [narrowItemGapsPx, setNarrowItemGapsPx] = useState({ above: dialogueChoiceWheelItemGapPx, below: dialogueChoiceWheelItemGapPx })
   const wheelRef = useRef<HTMLDivElement>(null)
   const idleTimerRef = useRef<number | null>(null)
-  const enterTimerRef = useRef<number | null>(null)
+  const entryFrameRef = useRef<number | null>(null)
   const settleTimerRef = useRef<number | null>(null)
   const inertiaFrameRef = useRef<number | null>(null)
   const dragRef = useRef<PointerDrag | null>(null)
   const onConfirmRef = useRef(onConfirm)
+  const onEntranceSettledRef = useRef(onEntranceSettled)
+  const onSelectionLockedRef = useRef(onSelectionLocked)
   const onCancelRef = useRef(onCancel)
   const onExitCompleteRef = useRef(onExitComplete)
   const exitedActionRef = useRef<number | null>(null)
+  const confirmedActionKeyRef = useRef<string | null>(null)
   onConfirmRef.current = onConfirm
+  onEntranceSettledRef.current = onEntranceSettled
+  onSelectionLockedRef.current = onSelectionLocked
   onCancelRef.current = onCancel
   onExitCompleteRef.current = onExitComplete
   const itemGapPx = placement === 'narrow-bottom' ? narrowItemGapsPx : { above: dialogueChoiceWheelItemGapPx, below: dialogueChoiceWheelItemGapPx }
@@ -104,13 +119,13 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
 
   const clearTimers = useCallback(() => {
     if (idleTimerRef.current !== null) window.clearTimeout(idleTimerRef.current)
-    if (enterTimerRef.current !== null) window.clearTimeout(enterTimerRef.current)
     if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current)
     if (inertiaFrameRef.current !== null) window.cancelAnimationFrame(inertiaFrameRef.current)
+    if (entryFrameRef.current !== null) window.cancelAnimationFrame(entryFrameRef.current)
     idleTimerRef.current = null
-    enterTimerRef.current = null
     settleTimerRef.current = null
     inertiaFrameRef.current = null
+    entryFrameRef.current = null
   }, [])
 
   const positionDeltaForPixels = (deltaPixels: number) => {
@@ -143,26 +158,62 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     }, dialogueChoiceWheelIdleDelayMs)
   }, [finishSettle])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     clearTimers()
     const initial = dialogueChoiceWheelClampPosition(0, options.length)
+    const entryStart = dialogueChoiceWheelEntryStart(options.length)
     positionRef.current = initial
     setPosition(initial)
-    setScrolling(false)
+    setEntryVisualPosition(entryStart)
+    setEntryProgress(0)
+    setScrolling(options.length > 1)
     setSettled(false)
     setEntering(true)
     setConfirmed(false)
+    confirmedActionKeyRef.current = null
     dragRef.current = null
-    enterTimerRef.current = window.setTimeout(() => {
-      enterTimerRef.current = null
+    if (!options.length) return clearTimers
+    const settleEntry = () => {
+      if (entryFrameRef.current !== null) window.cancelAnimationFrame(entryFrameRef.current)
+      entryFrameRef.current = null
+      setEntryVisualPosition(null)
+      setEntryProgress(1)
       setEntering(false)
+      setScrolling(false)
       setSettled(true)
-    }, 620)
+      onEntranceSettledRef.current?.(actionId, initial)
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || options.length < 2) {
+      settleEntry()
+      return clearTimers
+    }
+    const duration = Math.max(0, entryDurationMs)
+    if (duration <= 0) {
+      settleEntry()
+      return clearTimers
+    }
+    let startAt: number | null = null
+    const animateEntry = (now: number) => {
+      startAt ??= now
+      const progress = Math.min(1, Math.max(0, (now - startAt) / duration))
+      // A single decelerating pass brings the initially displaced rows to the
+      // default choice. This is only the group entrance; manual wheel motion
+      // continues to use the existing focus/inertia path below.
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setEntryVisualPosition(entryStart + (initial - entryStart) * eased)
+      setEntryProgress(eased)
+      if (progress >= 1) {
+        settleEntry()
+        return
+      }
+      entryFrameRef.current = window.requestAnimationFrame(animateEntry)
+    }
+    entryFrameRef.current = window.requestAnimationFrame(animateEntry)
     return clearTimers
-  }, [actionId, clearTimers, options.length, sessionId])
+  }, [actionId, clearTimers, entryDurationMs, options.length, sessionId])
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    if (phase !== 'active' || options.length < 2) return
+    if (phase !== 'active' || entering || confirmed || options.length < 2) return
     event.preventDefault()
     event.stopPropagation()
     setSettled(false)
@@ -172,7 +223,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   }
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (phase !== 'active') return
+    if (phase !== 'active' || entering || confirmed) return
     event.stopPropagation()
     if (options.length < 2 || event.button !== 0) return
     const canTapCenter = event.target instanceof HTMLButtonElement && settled && !scrolling && !entering
@@ -245,8 +296,13 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     event.preventDefault()
     event.stopPropagation()
     if (!dialogueChoiceWheelCanConfirm({ entering, scrolling, settled, position, optionCount: options.length }) || phase !== 'active') return
+    const confirmationKey = `${sessionId}:${actionId}`
+    if (confirmedActionKeyRef.current === confirmationKey) return
+    confirmedActionKeyRef.current = confirmationKey
     setConfirmed(true)
-    onConfirmRef.current(actionId, dialogueChoiceWheelNearestIndex(position, options.length))
+    const selectedIndex = dialogueChoiceWheelNearestIndex(position, options.length)
+    onSelectionLockedRef.current?.(actionId, selectedIndex)
+    onConfirmRef.current(actionId, selectedIndex)
   }
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -259,22 +315,40 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
 
   if (!options.length) return null
   const centerIndex = dialogueChoiceWheelNearestIndex(position, options.length)
+  const visualPosition = entryVisualPosition ?? position
   const indices = Array.from({ length: Math.min(options.length, 5) }, (_, slot) => {
     const first = Math.max(0, Math.min(options.length - Math.min(options.length, 5), centerIndex - 2))
     return first + slot
   })
   const locked = phase !== 'active'
+  const entryOffset = 1 - entryProgress
+  const entryTransform = placement === 'narrow-bottom'
+    ? `translate3d(-50%, ${18 * entryOffset}px, 0) scale(${.98 + .02 * entryProgress})`
+    : wideLayout === 'inline'
+      ? `translate3d(0, ${10 * entryOffset}px, 0) scale(${.99 + .01 * entryProgress})`
+      : `translate3d(${20 * entryOffset}px, -50%, 0) scale(${.98 + .02 * entryProgress})`
 
   return (
     <div
       ref={wheelRef}
-      className={`dialogue-choice-wheel dialogue-choice-wheel--${placement}${entering ? ' is-entering' : ''}${scrolling ? ' is-scrolling' : ''}${settled ? ' is-settled' : ''}${locked ? ' is-locked' : ''}${confirmed ? ' is-confirmed' : ''}${phase === 'exiting' ? ' is-exiting' : ''}`}
+      className={`dialogue-choice-wheel dialogue-choice-wheel--${placement}${placement === 'wide-right' && wideLayout === 'inline' ? ' dialogue-choice-wheel--wide-inline' : ''}${entering ? ' is-entering' : ''}${scrolling ? ' is-scrolling' : ''}${settled ? ' is-settled' : ''}${locked ? ' is-locked' : ''}${confirmed ? ' is-confirmed' : ''}${phase === 'exiting' ? ' is-exiting' : ''}`}
       role="group"
       aria-label="对话选项"
       data-dialogue-choice-wheel="true"
       data-dialogue-choice-session={sessionId}
       data-dialogue-choice-action={actionId}
       data-dialogue-choice-phase={phase}
+      data-dialogue-choice-entering={entering}
+      data-dialogue-choice-settled={settled}
+      data-dialogue-choice-confirmed={confirmed}
+      data-dialogue-choice-selected-index={dialogueChoiceWheelNearestIndex(position, options.length)}
+      data-dialogue-choice-entry-duration-ms={entryDurationMs}
+      style={{
+        ['--dialogue-choice-entry-duration' as string]: `${Math.max(0, entryDurationMs)}ms`,
+        opacity: .2 + .8 * entryProgress,
+        transform: entering ? entryTransform : undefined,
+        transition: entering ? 'none' : undefined,
+      } as React.CSSProperties}
       data-dialogue-choice-item-gap-above={placement === 'narrow-bottom' ? narrowItemGapsPx.above : undefined}
       data-dialogue-choice-item-gap-below={placement === 'narrow-bottom' ? narrowItemGapsPx.below : undefined}
       onWheel={handleWheel}
@@ -287,9 +361,17 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     >
       <div className="dialogue-choice-wheel__viewport" aria-live="polite" aria-atomic="true">
         {indices.map(index => {
-          const distance = index - position
+          const distance = index - visualPosition
+          const distanceFromCenter = Math.abs(distance)
+          const candidateOpacity = Math.max(.18, 1 - distanceFromCenter * .34)
+          const candidateBlurPx = Math.min(5, distanceFromCenter * 2)
           const isCenter = index === centerIndex
           const label = options[index]!
+          const candidateStyle = {
+            transform: `translate3d(0, ${distance * (distance < 0 ? itemGapPx.above : itemGapPx.below)}px, 0)`,
+            opacity: candidateOpacity,
+            filter: candidateBlurPx > 0 ? `blur(${candidateBlurPx}px)` : 'none',
+          }
           return isCenter
             ? <button
                 key={`${sessionId}:${index}`}
@@ -299,7 +381,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
                 aria-current={settled && !entering ? 'true' : undefined}
                 disabled={locked || !settled || entering || scrolling}
                 data-dialogue-choice-index={index}
-                style={{ transform: `translate3d(0, ${distance * (distance < 0 ? itemGapPx.above : itemGapPx.below)}px, 0)` }}
+                style={candidateStyle}
                 onClick={confirm}
               >{label}</button>
             : <span
@@ -308,7 +390,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
                 aria-hidden="true"
                 data-dialogue-choice-index={index}
                 data-dialogue-choice-neighbor-side={distance < 0 ? 'above' : 'below'}
-                style={{ transform: `translate3d(0, ${distance * (distance < 0 ? itemGapPx.above : itemGapPx.below)}px, 0)` }}
+                style={candidateStyle}
               ><span className="dialogue-choice-wheel__neighbor-copy">{label}</span></span>
         })}
       </div>
