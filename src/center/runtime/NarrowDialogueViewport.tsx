@@ -304,7 +304,12 @@ export function NarrowDialogueViewport({
       ? { ...current, phase: 'animating', completion: `waapi-query:${animationNames}@${performance.now().toFixed(1)}` }
       : current)
     const rollIn = animations.find((animation) => (animation as CSSAnimation).animationName === 'narrow-dialogue-roll-in')
-    if (!rollIn) return
+    if (!rollIn || rollIn.playState === 'finished') {
+      setTransitionDiagnostic(current => current.id === transitionRun
+        ? { ...current, completion: `waapi-not-running:${animationNames}@${performance.now().toFixed(1)}` }
+        : current)
+      return
+    }
     rollIn.finished.then(
       () => completeRollIn(identityKey, transitionRun, 'waapi-animation-finished'),
       () => {
@@ -513,6 +518,7 @@ export function NarrowDialogueViewport({
       </div>
     </div>}
     <div
+      key={identityKey}
       ref={currentSlotRef}
       className={`narrow-dialogue-slot narrow-dialogue-slot--current${presentedSnapshot.outgoing ? ' narrow-dialogue-slot--incoming' : ''}${isOptions ? ' narrow-dialogue-slot--options' : ''}${choicePrompt ? ' narrow-dialogue-slot--choice-prompt' : ''}`}
       onAnimationStart={(event) => {
