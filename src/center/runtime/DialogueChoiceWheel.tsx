@@ -61,8 +61,8 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       const centerIndex = center ? Number(center.dataset.dialogueChoiceIndex) : 0
       const safeViewportHeight = element.getBoundingClientRect().height
       const centerRowHeight = center?.getBoundingClientRect().height ?? 48
-      const clipHeight = Math.min(safeViewportHeight, Math.max(64, centerRowHeight))
-      if (clipHeight > 0) element.style.setProperty('--narrow-wheel-clip-height', `${Math.round(clipHeight)}px`)
+      const centerFontSize = Number.parseFloat(center ? window.getComputedStyle(center).fontSize : '') || 16
+      const previewHeight = centerFontSize * 0.8
       const measureNeighborGap = (index: number) => {
         const neighbor = element.querySelector<HTMLElement>(`.dialogue-choice-wheel__option[data-dialogue-choice-index="${index}"]`)
         if (!neighbor) return 34
@@ -76,6 +76,9 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       }
       const above = measureNeighborGap(centerIndex - 1)
       const below = measureNeighborGap(centerIndex + 1)
+      const previewExtent = Math.max(above, below) + previewHeight / 2 + 3
+      const clipHeight = Math.max(centerRowHeight, Math.min(safeViewportHeight, previewExtent * 2))
+      if (clipHeight > 0) element.style.setProperty('--narrow-wheel-clip-height', `${Math.round(clipHeight)}px`)
       setNarrowItemGapsPx(current => current.above === above && current.below === below ? current : { above, below })
     }
     updateGap()

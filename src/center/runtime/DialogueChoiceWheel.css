@@ -170,14 +170,15 @@
 }
 
 .narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor {
-  opacity: .76;
+  opacity: .9;
   filter: none;
   box-sizing: border-box;
-  height: 1.1em;
+  height: 0.8em;
   min-height: 0;
   overflow: hidden;
   padding: 0 14px;
   line-height: 1.35;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .94), 0 0 6px rgba(0, 0, 0, .8);
 }
 
 /* A long wrapped neighbor must not overlap the focused choice. Show only the
@@ -188,7 +189,7 @@
 }
 
 .narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor[data-dialogue-choice-neighbor-side="above"] > .dialogue-choice-wheel__neighbor-copy {
-  transform: translateY(calc(1.1em - 100%));
+  transform: translateY(calc(0.8em - 100%));
 }
 
 @media (prefers-reduced-motion: reduce) {
