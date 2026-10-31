@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CrossShopOrder, HeldConsumable } from './crossShopOrders'
 import { milkTeaIceOptions, milkTeaSugarOptions } from './commercialStreetMilkTea'
+import { commercialStreetDrinkCatalog } from './commercialStreetDrinkCatalog'
+import { commercialCafeTakeawayCatalog } from './commercialCafeTakeawayCatalog'
 import './shopOrderApp.css'
 
 export type ShopOrderProduct = {
@@ -12,7 +14,7 @@ export type ShopOrderProduct = {
 
 export function ShopOrderApp({
   shopId, title, products, order, heldConsumable, walletBalance = 800, gameTimeMs, preparationConfigured,
-  availableShops = [], onShopSelect, onConfirm, onCancelLegacy, initialProductId = null, onOrderPlaced, onOrderReady,
+  availableShops = [], ordersByShop = {}, onShopSelect, onConfirm, onCancelLegacy, initialProductId = null, onOrderPlaced, onOrderReady,
 }: {
   shopId: string
   title: string
@@ -26,6 +28,7 @@ export function ShopOrderApp({
   onOrderPlaced?: (selection: { shopId: string; productId: string }) => void
   onOrderReady?: (order: { id: string; shopId: string; productId: string; productName: string }) => void
   availableShops?: readonly { id: string; label: string }[]
+  ordersByShop?: Readonly<Record<string, CrossShopOrder>>
   onShopSelect?: (shopId: string) => void
   onConfirm: (selection: { shopId: string; productId: string; idempotencyKey: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
   onCancelLegacy?: (shopId: string) => { ok: boolean; reason?: string }
@@ -48,6 +51,24 @@ export function ShopOrderApp({
   return <section className="shop-order-app" aria-label={`${title}点单`} data-shop-id={shopId}>
     <p className="shop-order-app__balance" aria-label={'\u4e2a\u4eba\u4f59\u989d'}>{'\u4e2a\u4eba\u4f59\u989d\uff1a'}{walletBalance}</p>
     {availableShops.length > 1 && <nav className="shop-order-app__shops" aria-label="Drink shops">{availableShops.map(shop => <button key={shop.id} type="button" data-shop-option={shop.id} aria-pressed={shop.id === shopId} onClick={() => onShopSelect?.(shop.id)}>{shop.label}</button>)}</nav>}
+    {availableShops.length > 0 && <section className="shop-order-app__all-orders" aria-label={'\u4e09\u5bb6\u5e97\u8ba2\u5355\u72b6\u6001'}>
+      <ul>{availableShops.map(shop => {
+        const shopOrder = ordersByShop[shop.id]
+        const productName = shopOrder
+          ? commercialStreetDrinkCatalog.find(product => product.storeId === shop.id && product.id === shopOrder.productId)?.name
+            ?? commercialCafeTakeawayCatalog.find(product => product.id === shopOrder.productId)?.name
+            ?? shopOrder.productId
+          : null
+        const isReady = shopOrder?.status === 'queued' && shopOrder.readyAtGameTimeMs !== null && gameTimeMs >= shopOrder.readyAtGameTimeMs
+        const status = !shopOrder ? '\u6682\u65e0\u8ba2\u5355'
+          : shopOrder.status === 'legacy-unmapped' ? '\u65e7\u8ba2\u5355\u5f85\u6838\u5bf9'
+            : isReady ? '\u5df2\u505a\u597d' : '\u5236\u4f5c\u4e2d'
+        return <li key={shop.id} data-shop-order-summary={shop.id}>
+          <span>{shop.label}</span>
+          {shopOrder ? <span>{shopOrder.id} · {productName} · {status}</span> : <span>{status}</span>}
+        </li>
+      })}</ul>
+    </section>}
     {heldConsumable && <p className="shop-order-app__hand" role="status">手上已有一件物品；仍可下单，领取时检查手持状态。</p>}
     {order ? order.status === 'legacy-unmapped' ? <div className="shop-order-app__order" data-order-status="legacy-unmapped">
       <p>没有可靠的制作时间，不能安全估算。你可以保留旧记录，或明确取消后重新下单。</p>
@@ -62,6 +83,7 @@ export function ShopOrderApp({
     </div> : <div className="shop-order-app__order" data-order-status={readiness ? 'ready' : 'queued'}>
       <span>当前订单</span>
       <strong>{products.find(product => product.id === order.productId)?.name ?? order.productId}</strong>
+      <small>{'\u8ba2\u5355\u53f7'} {order.id}</small>
       <p>{readiness ? shopId === 'yonghe-eatery' ? `${products.find(product => product.id === order.productId)?.name ?? order.productId}好了。` : '已做好，可以到柜台领取。' : '正在制作中。'}</p>
     </div> : <>
       <p className="shop-order-app__title">{title}</p>

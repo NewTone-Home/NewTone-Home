@@ -21,15 +21,16 @@ export function commercialStreetCafeAppUnlockPatch(): PlayerSceneState {
   return { [commercialStreetCafeAppUnlockedKey]: true }
 }
 
-/** Existing scene progress stores each QR unlock independently and survives save/reload. */
+/** The first commercial-street QR installs one app that can view all three shops. */
 export function unlockedCommercialDrinkShopIds(
   sceneState: PlayerSceneState | undefined,
   allowSyntheticUnlocks = false,
 ): string[] {
-  if (allowSyntheticUnlocks) return [crossShopIds.milkTea, crossShopIds.fruitTea]
-  return [
-    ...(commercialStreetMilkTeaAppUnlocked(sceneState) ? [crossShopIds.milkTea] : []),
-    ...(commercialStreetFruitTeaAppUnlocked(sceneState) ? [crossShopIds.fruitTea] : []),
-    ...(commercialStreetCafeAppUnlocked(sceneState) ? [crossShopIds.cafeTakeaway] : []),
-  ]
+  const anyQrUnlocked = allowSyntheticUnlocks
+    || commercialStreetMilkTeaAppUnlocked(sceneState)
+    || commercialStreetFruitTeaAppUnlocked(sceneState)
+    || commercialStreetCafeAppUnlocked(sceneState)
+  return anyQrUnlocked
+    ? [crossShopIds.cafeTakeaway, crossShopIds.milkTea, crossShopIds.fruitTea]
+    : []
 }
