@@ -3,6 +3,7 @@ import type { CrossShopOrder, HeldConsumable } from './crossShopOrders'
 import { milkTeaIceOptions, milkTeaSugarOptions } from './commercialStreetMilkTea'
 import { commercialStreetDrinkCatalog } from './commercialStreetDrinkCatalog'
 import { commercialCafeTakeawayCatalog } from './commercialCafeTakeawayCatalog'
+import { shopServiceCopy } from './shopServiceCopy'
 import './shopOrderApp.css'
 
 export type ShopOrderProduct = {
@@ -41,6 +42,7 @@ export function ShopOrderApp({
   const requestIdRef = useRef<string | null>(null)
   const selected = useMemo(() => products.find(product => product.id === productId) ?? null, [productId, products])
   const readiness = order?.status === 'queued' && order.readyAtGameTimeMs !== null && gameTimeMs >= order.readyAtGameTimeMs
+  const handFullCopy = shopServiceCopy('unlocked').heldFull
   useEffect(() => { setNotice(''); setProductId(initialProductId) }, [shopId, order?.id, initialProductId])
   useEffect(() => {
     if (shopId !== 'yonghe-eatery' || !readiness || !order || readyNotifiedOrderId.current === order.id) return
@@ -69,7 +71,7 @@ export function ShopOrderApp({
         </li>
       })}</ul>
     </section>}
-    {heldConsumable && <p className="shop-order-app__hand" role="status">手上已有一件物品；仍可下单，领取时检查手持状态。</p>}
+    {heldConsumable && <p className="shop-order-app__hand" role="status">{handFullCopy}</p>}
     {order ? order.status === 'legacy-unmapped' ? <div className="shop-order-app__order" data-order-status="legacy-unmapped">
       <p>没有可靠的制作时间，不能安全估算。你可以保留旧记录，或明确取消后重新下单。</p>
       {onCancelLegacy && <button type="button" className="shop-order-app__cancel-legacy" onClick={() => {
@@ -96,7 +98,7 @@ export function ShopOrderApp({
       {selected?.customization?.ice && <fieldset><legend>冰量</legend>{milkTeaIceOptions.map(option => <button key={option} type="button" aria-pressed={ice === option} onClick={() => setIce(option)}>{option}</button>)}</fieldset>}
       {!preparationConfigured && <p className="shop-order-app__blocked" role="status">本店制作时长尚未配置，暂时不能创建订单。</p>}
       {notice && <p role="status">{notice}</p>}
-      <button className="shop-order-app__confirm" type="button" disabled={!selected || !preparationConfigured
+      <button className="shop-order-app__confirm" type="button" disabled={Boolean(heldConsumable) || !selected || !preparationConfigured
         || Boolean(selected.customization?.sugar && !sugar) || Boolean(selected.customization?.ice && !ice)} onClick={() => {
         if (!selected) return
         if (!requestIdRef.current) requestIdRef.current = typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -106,7 +108,8 @@ export function ShopOrderApp({
           ...(sugar ? { sugar } : {}), ...(ice ? { ice } : {}),
         } })
         if (result.ok) { setProductId(null); setSugar(null); setIce(null); setNotice('订单已提交。'); onOrderPlaced?.({ shopId, productId: selected.id }) }
-        else setNotice(result.reason === 'insufficient-funds' ? '\u4f59\u989d\u4e0d\u8db3\uff0c\u65e0\u6cd5\u4e0b\u5355\u3002'
+        else setNotice(result.reason === 'hand-full' ? handFullCopy
+          : result.reason === 'insufficient-funds' ? '\u4f59\u989d\u4e0d\u8db3\uff0c\u65e0\u6cd5\u4e0b\u5355\u3002'
           : result.reason === 'preparation-not-configured' ? '\u5236\u4f5c\u65f6\u95f4\u5c1a\u672a\u914d\u7f6e\uff0c\u6682\u65f6\u4e0d\u80fd\u4e0b\u5355\u3002'
             : result.reason === 'shop-already-has-order' ? '\u8fd9\u5bb6\u5e97\u8fd8\u6709\u4e00\u7b14\u672a\u9886\u53d6\u8ba2\u5355\u3002'
               : result.reason ?? '\u8ba2\u5355\u6682\u65f6\u65e0\u6cd5\u63d0\u4ea4\u3002')

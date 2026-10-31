@@ -43,6 +43,7 @@ import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStar
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { NarrowDialogueViewport } from './NarrowDialogueViewport'
 import { DialogueChoiceWheel } from './DialogueChoiceWheel'
+import { DialogueChoiceSelectionTransfer } from './DialogueChoiceSelectionTransfer'
 import type { NarrowDialogueIdentity } from './NarrowDialogueIdentity'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
@@ -65,6 +66,7 @@ import { mainlineDialogueClickAction, mainlineDialogueHandoffDurationMs, mainlin
 import { mainlineReadingGlyphSafetyRects, mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate, type MainlineReadingProtectionRect } from './mainlineReadingOcclusion'
 import type { HeldConsumable } from './crossShopOrders'
 import { heldConsumablePresentation } from './heldConsumablePresentation'
+import { HeldConsumableMark } from './HeldConsumableMark'
 import { cafeRestroomFaucetId, cafeRestroomToiletId } from './cafeRestroom'
 
 type MainlineSceneRendererProps = {
@@ -822,6 +824,13 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   onSceneActionCancel?: () => void
   onSceneActionExitComplete?: (actionId: number, index: number) => void
 }) {
+  const [choiceTransfer, setChoiceTransfer] = useState<null | {
+    id: string
+    text: string
+    sourceRect: { left: number; top: number; width: number; height: number }
+    targetRect?: { left: number; top: number; width: number; height: number }
+    textStyle?: CSSProperties
+  }>(null)
   const [history, setHistory] = useState<readonly ConversationHistoryEntry[]>(() => content.history ?? [])
   const historyEntriesRef = useRef<ConversationHistoryEntry[]>([...(content.history ?? [])])
   const historyElementRef = useRef<HTMLDivElement>(null)
@@ -844,6 +853,45 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     const node = historyElementRef.current
     if (node) node.scrollTop = node.scrollHeight
   }, [history.length])
+  useLayoutEffect(() => {
+    if (!choiceTransfer || choiceTransfer.targetRect) return
+    const escapedId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(choiceTransfer.id) : choiceTransfer.id
+    const target = historyElementRef.current?.querySelector<HTMLElement>(`[data-choice-transfer-target="${escapedId}"]`)
+    if (!target) return
+    const rect = target.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return
+    setChoiceTransfer(current => current?.id === choiceTransfer.id && !current.targetRect
+      ? { ...current, targetRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } }
+      : current)
+  }, [choiceTransfer, history])
+
+  const lockWideChoice = (actionId: number, optionIndex: number) => {
+    if (narrow || !dialogueChoiceWheel || dialogueChoiceWheel.actionId !== actionId) return
+    const label = dialogueChoiceWheel.options[optionIndex]
+    if (!label) return
+    const wheel = document.querySelector<HTMLElement>(`[data-dialogue-choice-action="${actionId}"]`)
+    const source = wheel?.querySelector<HTMLElement>(`[data-dialogue-choice-index="${optionIndex}"]`)
+    const sourceRect = source?.getBoundingClientRect()
+    if (!sourceRect) return
+    const id = `choice-history:${sessionId}:${actionId}:${optionIndex}`
+    const entry: ConversationHistoryEntry = { key: id, speaker: '修杰', speakerIsNpc: false, text: label }
+    let nextHistory = historyEntriesRef.current
+    if (content.kind === 'text' && content.text.trim() && !nextHistory.some(item => item.key === contentKey)) {
+      nextHistory = [...nextHistory, { key: contentKey, speaker, speakerIsNpc, text: content.text }]
+    }
+    if (!nextHistory.some(item => item.key === id)) nextHistory = [...nextHistory, entry]
+    if (nextHistory !== historyEntriesRef.current) {
+      historyEntriesRef.current = nextHistory
+      setHistory(nextHistory)
+    }
+    const computed = window.getComputedStyle(source)
+    setChoiceTransfer({
+      id,
+      text: label,
+      sourceRect: { left: sourceRect.left, top: sourceRect.top, width: sourceRect.width, height: sourceRect.height },
+      textStyle: { fontFamily: computed.fontFamily, fontSize: computed.fontSize, fontWeight: computed.fontWeight, lineHeight: computed.lineHeight, color: computed.color },
+    })
+  }
 
   const currentText = content.kind === 'choice' ? '' : pageText
   const keepChoiceWheelForExit = Boolean(dialogueChoiceWheel && (content.kind === 'choice'
@@ -928,7 +976,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
       <div ref={historyElementRef} className="scene-mainline-conversation__history">
         {history.map(entry => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={entry.key}>
           {entry.speaker && <span className="scene-mainline-conversation-line__speaker">{entry.speaker}</span>}
-          <p>{entry.text}</p>
+          <p data-choice-transfer-target={choiceTransfer?.id === entry.key ? choiceTransfer.id : undefined} style={choiceTransfer?.id === entry.key ? { opacity: 0 } : undefined}>{entry.text}</p>
         </article>)}
       </div>
       {(content.kind === 'text' || content.kind === 'aside' || content.kind === 'waiting') && <article className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc ? 'is-npc' : 'is-player'} ${content.kind === 'aside' ? 'is-aside' : ''}`} data-dialogue-current-line={contentKey}>
@@ -950,9 +998,19 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
         options={dialogueChoiceWheel.options}
         phase={dialogueChoiceWheel.phase}
         placement="wide-right"
+        wideLayout={content.kind === 'text' && content.choicePrompt ? 'inline' : 'overlay'}
+        onSelectionLocked={lockWideChoice}
         onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
         onCancel={() => onSceneActionCancel?.()}
         onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
+      />}
+      {choiceTransfer?.targetRect && <DialogueChoiceSelectionTransfer
+        transferId={choiceTransfer.id}
+        text={choiceTransfer.text}
+        sourceRect={choiceTransfer.sourceRect}
+        targetRect={choiceTransfer.targetRect}
+        textStyle={choiceTransfer.textStyle}
+        onComplete={transferId => setChoiceTransfer(current => current?.id === transferId ? null : current)}
       />}
     </section>
   </div>
@@ -3435,7 +3493,7 @@ export function MainlineSceneRenderer({
               aria-label={`修杰带着${heldPresentation.name}，点击${heldPresentation.actionLabel}`}
               title={`修杰带着${heldPresentation.name}，点击${heldPresentation.actionLabel}`}
               onClick={(event) => { event.stopPropagation(); onHeldConsumableInteract?.() }}
-            >{heldPresentation.actionLabel}</button>}
+            ><HeldConsumableMark item={heldPresentation} />{heldPresentation.actionLabel}</button>}
           </div>}
           {worldQuestionMark?.visible && <span
             className="scene-commercial-question-mark"

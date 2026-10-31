@@ -41,7 +41,7 @@ import { commercialCafeFloorServiceTarget, commercialCafeDutySpeedMultiplier, cr
 import { commercialCafeDialogueReplayReducer, commercialCafeDialogueReplayView, initialCommercialCafeDialogueReplayState, shouldShowCommercialCafeDialogueReplay } from './CommercialCafeDialogueReplay'
 import { CommercialCafeDialogueReplayButton } from './CommercialCafeDialogueReplayButton'
 import { storeOrderEntryRoute } from './storeOrderEntryPolicy'
-import { chooseManualShopOrderOption, manualShopOrderView, startManualShopOrderSession, type ManualShopOrderSession, type ManualShopOrderSubmit } from './manualShopOrderSession'
+import { chooseManualShopOrderOption, manualShopOrderView, startManualShopOrderSession, submitManualShopOrderSession, type ManualShopOrderSession, type ManualShopOrderSubmit } from './manualShopOrderSession'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
 import { useNpcMovement } from './useNpcMovement'
@@ -68,12 +68,15 @@ import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type Mai
 import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 import { commercialStreetQuestionDialoguePosition, commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeCompletedKey, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative, type CommercialStreetQuestionNarrativeState } from './commercialStreetQuestionNarrative'
 import { commercialStreetMilkTeaConsumePatch, commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked, commercialStreetMilkTeaHeld, commercialStreetMilkTeaIsReady, commercialStreetMilkTeaOrderFromSceneState, commercialStreetMilkTeaPickupPatch, commercialStreetMilkTeaStorefrontId, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder } from './commercialStreetMilkTea'
-import { commercialStreetCafeAppUnlockPatch, commercialStreetCafeAppUnlocked, commercialStreetFruitTeaAppUnlockPatch, commercialStreetFruitTeaAppUnlocked } from './commercialStreetShopApps'
+import { commercialStreetCafeAppUnlockPatch, commercialStreetCafeAppUnlocked, commercialStreetFruitTeaAppUnlockPatch, commercialStreetFruitTeaAppUnlocked, unlockedCommercialDrinkShopIds } from './commercialStreetShopApps'
+import { commercialShopWelcomeCopy, shopServiceCopy } from './shopServiceCopy'
+import { commercialCafeRecommendation } from './commercialCafeRecommendation'
+import { commercialCafeTakeawayCatalog } from './commercialCafeTakeawayCatalog'
 import type { SessionGameActivitySource } from './sessionGameClock'
 import { mainlineReadingSessionTextIsFinal, mainlineReadingTextMotionAfterAdvance, mainlineReadingTextMotionAfterAnimation, mainlineReadingTextMotionCompletionMatches, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { yongheMenuForChoice, yongheMenuText, yongheTakeawayCatalog } from './yongheTakeawayCatalog'
 import { commercialStreetDrinkShopDialogue, commercialStreetDrinkShopForInteraction, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
-import type { CafeStoryOrderStatus } from './cafeStoryOrderDelivery'
+import type { CafeStoryOrderStatus, CafeTableDeliveryCompletion, CafeTableOrderDeliveryTarget } from './cafeStoryOrderDelivery'
 
 const emptyExternalStoreSubscribe = () => () => undefined
 const emptyLayoutSnapshot: SceneLayout = {}
@@ -84,18 +87,29 @@ const restroomPresentationSuppressionForSeatedPlayer: ReadonlySet<string> = new 
 // repeatedly recreate the NPC registration and presentation dependencies.
 const inactiveCommercialCafeStory = commercialCafeStoryStateFromSceneState(undefined)
 const commercialCafeLaoZhouDeliveryEventId = 'commercial-cafe-lao-zhou-after-line-2'
+const commercialCafeTableDeliverySeatKey = 'commercialCafeTableDeliverySeatId'
 function isYongheTakeawayScene(sceneId: string) {
   return sceneId === 'yonghe-eatery' || sceneId === 'yonghe-mining-perimeter'
 }
 type NpcDialogueResolution = Extract<CommercialCafeNpcInteractionResolution, { kind: 'dialogue' }>
+function manualShopOrderFailureText(reason: string | undefined, copy: ReturnType<typeof shopServiceCopy>) {
+  if (reason === 'hand-full') return copy.heldFull
+  if (reason === 'insufficient-funds') return '余额不足，暂时无法下单。'
+  if (reason === 'shop-already-has-order') return copy.orderPending
+  if (reason === 'preparation-not-configured') return '这款饮品的制作时间还没准备好，暂时不能下单。'
+  if (reason === 'invalid-payment' || reason === 'invalid-order') return '订单信息有误，请重新选择。'
+  if (reason === 'order-service-unavailable') return '点单服务暂时不可用，稍后再试。'
+  return '现在无法提交订单，请重新选择。'
+}
 type CafeStoryOrderDeliveryBridge = {
   status: (eventId: string) => CafeStoryOrderStatus
   begin: (eventId: string) => { ok: true } | { ok: false }
   completePresentation: (eventId: string) => void
   beginTableDelivery: (seatId: string) => { ok: boolean; record?: { order: { id: string }; seatId?: string } } | null
   retargetTableDelivery: (seatId: string | null) => void
-  tableDelivery: () => { orderId: string; seatId: string } | null
-  completeTableDelivery: (orderId: string, seatId: string) => void
+  tableDelivery: () => CafeTableOrderDeliveryTarget | null
+  completeTableDeliveryResult: (orderId: string, seatId: string) => CafeTableDeliveryCompletion | null
+  completeTableDeliveryReturn: (orderId: string) => void
 }
 const debugClockTrialNpcDialogue: NpcDialogueResolution = {
   kind: 'dialogue',
@@ -562,7 +576,19 @@ export function MainlineScenePage({
     setCommercialCafeReplayPortalHost(document.querySelector<HTMLElement>('.center-experience'))
   }, [])
   const [commercialCafeNarrative, setCommercialCafeNarrative] = useState<CommercialCafeNarrativeRuntime | null>(() => commercialCafeNarrativeRuntimeFromSceneState(sceneId, initialSceneState, isPointInContinuousCafe(scene, initialPosition)))
-  const [playerSeatId, setPlayerSeatId] = useState<string | null>(null)
+  const [playerSeatId, setPlayerSeatId] = useState<string | null>(() => {
+    if (!hasContinuousCafe(scene)) return null
+    const pending = cafeStoryOrderDelivery?.tableDelivery()
+    const savedSeat = typeof initialSceneState[commercialCafeTableDeliverySeatKey] === 'string'
+      ? initialSceneState[commercialCafeTableDeliverySeatKey] as string
+      : null
+    const savedTarget = pending?.phase === 'to-seat'
+      ? pending.seatId
+      : pending?.phase === 'returning-to-counter'
+        ? savedSeat
+        : shopOrders?.[crossShopIds.cafeTakeaway] ? savedSeat : null
+    return savedTarget && scene.objects.some(entity => entity.id === savedTarget && entity.kind === 'seat') ? savedTarget : null
+  })
   // The isolated browser fixture mirrors the real conversation-seat state in
   // memory only. It never writes the user's save and is unavailable in production.
   const activePlayerSeatId = debugCafeFixture ? cafeConversationSeatId : playerSeatId
@@ -620,6 +646,9 @@ export function MainlineScenePage({
     : null
   const resolvedHeldConsumable = heldConsumable === undefined ? legacyHeldDrinkFallback : heldConsumable
   const carryingMilkTea = isTrueMilkTea(resolvedHeldConsumable)
+  const hasHeldConsumable = Boolean(resolvedHeldConsumable)
+  const shopOrderAppUnlocked = unlockedCommercialDrinkShopIds(initialSceneState).length > 0
+  const shopServiceMessage = shopServiceCopy(shopOrderAppUnlocked ? 'unlocked' : 'not-unlocked')
   const commercialStreetQuestionNarrativeIsCompleted = commercialStreetQuestionNarrativeCompletedLocally || commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey])
   commercialStreetQuestionNarrativeActiveRef.current = Boolean(commercialStreetQuestionNarrative)
   const recordSceneState = useCallback((targetSceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => {
@@ -866,7 +895,7 @@ export function MainlineScenePage({
           && currentConversationDisplaySessionId
           && activeManualShopOrderSession
           && activeManualShopOrderDisplaySessionId === currentConversationDisplaySessionId
-          ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: manualShopOrderPromptOverrideRef.current ?? manualShopOrderView(activeManualShopOrderSession).text, displayUnitKey: `manual-order:${JSON.stringify([activeManualShopOrderSession.phase, activeManualShopOrderSession.productId, activeManualShopOrderSession.sugar, activeManualShopOrderSession.ice, manualShopOrderPromptOverrideRef.current])}`, textMotion: 'static', canAdvance: false, choicePrompt: true }
+          ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: manualShopOrderPromptOverrideRef.current ?? manualShopOrderView(activeManualShopOrderSession).text, displayUnitKey: `manual-order:${JSON.stringify([activeManualShopOrderSession.phase, activeManualShopOrderSession.productId, activeManualShopOrderSession.sugar, activeManualShopOrderSession.ice, manualShopOrderPromptOverrideRef.current])}`, textMotion: activeViewportMetrics.width >= 960 ? 'typing' : 'static', canAdvance: false, choicePrompt: true }
         : sceneAction?.optionFlow === 'dialogue-choice' && currentConversationDisplaySessionId
           ? { sessionId: currentConversationDisplaySessionId, kind: 'choice', actionId: sceneAction.id, options: sceneAction.options, canAdvance: false }
           : activeDialogueLine && currentConversationDisplaySessionId
@@ -1513,28 +1542,59 @@ export function MainlineScenePage({
       return
     }
     if (!cafeFloorServerMovement.position) return
-    // Seat occupancy is intentionally session-local. If a refresh drops that
-    // local seat, release an in-flight reservation back to normal counter
-    // pickup; the queued ready order itself remains durable and unduplicated.
-    if (!activePlayerSeatId && cafeStoryOrderDelivery?.tableDelivery()) {
-      cafeStoryOrderDelivery.retargetTableDelivery(null)
+    if (activePlayerSeatId && shopOrders?.[crossShopIds.cafeTakeaway] && !resolvedHeldConsumable
+      && initialSceneState[commercialCafeTableDeliverySeatKey] !== activePlayerSeatId) {
+      recordSceneStatePatch('commercial-street', { [commercialCafeTableDeliverySeatKey]: activePlayerSeatId })
     }
-    const tableReservation = activePlayerSeatId && cafeStoryOrderDelivery
-      ? (() => {
-        const started = cafeStoryOrderDelivery.beginTableDelivery(activePlayerSeatId)
-        const pending = cafeStoryOrderDelivery.tableDelivery()
-        return pending ?? (started?.ok && started.record?.seatId ? { orderId: started.record.order.id, seatId: started.record.seatId } : null)
-      })()
-      : cafeStoryOrderDelivery?.tableDelivery() ?? null
-    if (tableReservation) {
-      const seat = scene.objects.find(entity => entity.id === tableReservation.seatId && entity.kind === 'seat')
+    // Refresh resumes a saved route before applying the local seat fallback.
+    // A restored to-seat reservation initializes playerSeatId from that same
+    // save so the first effect pass cannot turn it into a return-to-counter.
+    let tableReservation = cafeStoryOrderDelivery?.tableDelivery() ?? null
+    if (tableReservation?.phase === 'to-seat' && (!activePlayerSeatId || resolvedHeldConsumable)) {
+      cafeStoryOrderDelivery?.retargetTableDelivery(null)
+      tableReservation = cafeStoryOrderDelivery?.tableDelivery() ?? null
+    } else if (tableReservation?.phase === 'to-seat' && activePlayerSeatId && tableReservation.seatId !== activePlayerSeatId) {
+      cafeStoryOrderDelivery?.retargetTableDelivery(activePlayerSeatId)
+      tableReservation = cafeStoryOrderDelivery?.tableDelivery() ?? null
+    }
+    if (!tableReservation && activePlayerSeatId && !resolvedHeldConsumable && cafeStoryOrderDelivery) {
+      cafeStoryOrderDelivery.beginTableDelivery(activePlayerSeatId)
+      tableReservation = cafeStoryOrderDelivery.tableDelivery()
+    }
+    if (tableReservation?.phase === 'returning-to-counter') {
+      const staging = scene.npcBehaviorTargets?.find(target => target.id === 'commercial-cafe-floor-service-staging')
+      if (!staging) return
+      if (cafeFloorServerMovement.snapshot.phase !== 'moving'
+        || cafeFloorServerMovement.snapshot.dutyId !== 'cafe-floor-server.table-order-return'
+        || cafeFloorServerMovement.snapshot.targetId !== staging.id) {
+        const started = cafeFloorServerMovement.requestMove({
+          dutyId: 'cafe-floor-server.table-order-return', targetId: staging.id, target: { ...staging.position },
+        }, scene, layout, navigationOptions, locomotionOptions, () => {
+          const current = cafeStoryOrderDelivery?.tableDelivery()
+          if (current?.phase === 'returning-to-counter' && current.orderId === tableReservation?.orderId) {
+            cafeStoryOrderDelivery?.completeTableDeliveryReturn(current.orderId)
+            if (!activePlayerSeatId && typeof initialSceneState[commercialCafeTableDeliverySeatKey] === 'string') {
+              recordSceneStatePatch('commercial-street', { [commercialCafeTableDeliverySeatKey]: null })
+            }
+          }
+          setCafeFloorDwellWake(wake => wake + 1)
+        })
+        if (!started) return
+      }
+      return
+    }
+    if (tableReservation?.phase === 'to-seat') {
+      const seat = scene.objects.find(entity => entity.id === tableReservation?.seatId && entity.kind === 'seat')
       if (seat && (cafeFloorServerMovement.snapshot.phase !== 'moving'
         || cafeFloorServerMovement.snapshot.dutyId !== 'cafe-floor-server.table-order-delivery'
         || cafeFloorServerMovement.snapshot.targetId !== seat.id)) {
+        const reservation = tableReservation
         const started = cafeFloorServerMovement.requestMove({ dutyId: 'cafe-floor-server.table-order-delivery', targetId: seat.id, targetEntityId: seat.id }, scene, layout, navigationOptions, locomotionOptions, () => {
           const current = cafeStoryOrderDelivery?.tableDelivery()
-          if (current?.orderId === tableReservation.orderId && current.seatId === activePlayerSeatId) {
-            cafeStoryOrderDelivery?.completeTableDelivery(current.orderId, current.seatId)
+          if (current?.phase === 'to-seat' && current.orderId === reservation.orderId && current.seatId === reservation.seatId) {
+            const result = cafeStoryOrderDelivery?.completeTableDeliveryResult(current.orderId, current.seatId)
+            if (result?.ok) recordSceneStatePatch('commercial-street', { [commercialCafeTableDeliverySeatKey]: null })
+            else if (result && !result.ok && result.reason === 'hand-full') cafeStoryOrderDelivery?.retargetTableDelivery(null)
           }
           setCafeFloorDwellWake(wake => wake + 1)
         })
@@ -1562,7 +1622,7 @@ export function MainlineScenePage({
       }, dwellMs)
     })
     if (!started) commercialCafeFloorBehavior.block()
-  }, [activePlayerSeatId, cafeStoryOrderDelivery, cafeFloorDwellWake, cafeFloorMoveRetryTick, cafeFloorServerMovement, commercialCafeFloorBehavior, initialSceneState, layout, locomotionOptions, navigationOptions, scene])
+  }, [activePlayerSeatId, cafeStoryOrderDelivery, cafeFloorDwellWake, cafeFloorMoveRetryTick, cafeFloorServerMovement, commercialCafeFloorBehavior, gameTimeMs, initialSceneState, layout, locomotionOptions, navigationOptions, recordSceneStatePatch, resolvedHeldConsumable, scene, shopOrders])
   const runDebugFloorServerMovement = useCallback(() => {
     if (!hasContinuousCafe(scene) || !cafeFloorServerMovement.position || cafeFloorServerMovement.snapshot.phase === 'moving') return
     cafeFloorServerMovement.requestMove({
@@ -2127,14 +2187,17 @@ export function MainlineScenePage({
 
   const leavePlayerSeat = useCallback(() => {
     if (!activePlayerSeatId) return false
-    if (hasContinuousCafe(scene)) cafeStoryOrderDelivery?.retargetTableDelivery(null)
+    if (hasContinuousCafe(scene) && cafeStoryOrderDelivery?.tableDelivery()) cafeStoryOrderDelivery.retargetTableDelivery(null)
+    if (hasContinuousCafe(scene) && typeof initialSceneState[commercialCafeTableDeliverySeatKey] === 'string') {
+      recordSceneStatePatch('commercial-street', { [commercialCafeTableDeliverySeatKey]: null })
+    }
     const standingPosition = mainlineInteractionTarget(scene, activePlayerSeatId, getCurrentPosition(), layout, undefined, navigationOptions)
     setPlayerSeatId(null)
     setActiveObjectId((current) => current === activePlayerSeatId ? null : current)
     resetMovement(standingPosition)
     navigationRuntime.updateActor('protagonist', standingPosition)
     return true
-  }, [activePlayerSeatId, cafeStoryOrderDelivery, getCurrentPosition, layout, navigationRuntime, navigationOptions, resetMovement, scene])
+  }, [activePlayerSeatId, cafeStoryOrderDelivery, getCurrentPosition, initialSceneState, layout, navigationRuntime, navigationOptions, recordSceneStatePatch, resetMovement, scene])
 
   const startNpcDialogue = useCallback((resolution: NpcDialogueResolution, existingDisplaySessionId?: string) => {
     stopMovement()
@@ -2352,7 +2415,10 @@ export function MainlineScenePage({
         resetMovement(sitPosition)
         navigationRuntime.updateActor('protagonist', sitPosition)
         setPlayerSeatId(nextSeatId)
-        if (hasContinuousCafe(scene)) cafeStoryOrderDelivery?.beginTableDelivery(nextSeatId)
+        if (hasContinuousCafe(scene) && shopOrders?.[crossShopIds.cafeTakeaway] && !resolvedHeldConsumable) {
+          recordSceneStatePatch('commercial-street', { [commercialCafeTableDeliverySeatKey]: nextSeatId })
+        }
+        if (hasContinuousCafe(scene) && !resolvedHeldConsumable) cafeStoryOrderDelivery?.beginTableDelivery(nextSeatId)
         setPromptedSeatId(null)
         markEntityExplored(entity.id)
         onInteractionAnalytics?.('completed', entity.id, 'seat', 'seated')
@@ -2502,7 +2568,7 @@ export function MainlineScenePage({
       }
       if (commercialStreetDrinkShopForInteraction(entity.id)) {
         recommendedDrinkRef.current = null
-        presentCommercialDrinkEcho(entity.id, commercialStreetDrinkShopDialogue.welcome, ['点单', commercialStreetDrinkShopDialogue.recommendationRequest])
+        presentCommercialDrinkEcho(entity.id, commercialShopWelcomeCopy, ['\u70b9\u5355', commercialStreetDrinkShopDialogue.recommendationRequest])
         setActiveObjectId(null)
         onInteractionAnalytics?.('completed', entity.id, entity.kind, 'drink-shop-dialogue-started')
         return
@@ -2849,7 +2915,7 @@ export function MainlineScenePage({
       if (commercialStreetDrinkShopForInteraction(npc.id)) {
         recommendedDrinkRef.current = null
         onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
-        presentCommercialDrinkEcho(npc.id, commercialStreetDrinkShopDialogue.welcome, ['点单', commercialStreetDrinkShopDialogue.recommendationRequest])
+        presentCommercialDrinkEcho(npc.id, commercialShopWelcomeCopy, ['\u70b9\u5355', commercialStreetDrinkShopDialogue.recommendationRequest])
         return
       }
       if (isYongheTakeawayScene(scene.id) && npc.id === 'yonghe-trial-worker') {
@@ -2917,10 +2983,14 @@ export function MainlineScenePage({
   }, [activeViewportMetrics, cameraOffset, createSceneAction, getCurrentPosition, readingMetrics, scene, sceneAction])
 
   const beginManualShopOrder = useCallback((shopId: string, entityId: string, preselectedProductId?: string | null, existingDisplaySessionId?: string) => {
+    const displaySessionId = existingDisplaySessionId ?? `conversation:${++conversationDisplaySessionIdRef.current}`
+    if (hasHeldConsumable) {
+      presentCommercialDrinkEcho(entityId, shopServiceMessage.heldFull, undefined, displaySessionId)
+      return
+    }
     const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
       : `manual-shop-order-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    const displaySessionId = existingDisplaySessionId ?? `conversation:${++conversationDisplaySessionIdRef.current}`
     const started = startManualShopOrderSession({
       shopId,
       idempotencyKey,
@@ -2934,10 +3004,10 @@ export function MainlineScenePage({
       manualShopOrderSubmittingKeyRef.current = null
       manualShopOrderSubmittedKeyRef.current = null
       const message = started.reason === 'shop-already-has-order'
-        ? '这家店已有一笔未领取订单，做好后可以到柜台领取。'
+        ? shopServiceMessage.orderPending
         : started.reason === 'unknown-shop'
           ? '这家店的商品目录暂时不可用。'
-          : '暂时无法开始下单，请稍后再试。'
+          : '暂时无法开始点单，请稍后再试。'
       presentCommercialDrinkEcho(entityId, message, undefined, displaySessionId)
       return
     }
@@ -2946,8 +3016,27 @@ export function MainlineScenePage({
     manualShopOrderPromptOverrideRef.current = null
     manualShopOrderSubmittingKeyRef.current = null
     manualShopOrderSubmittedKeyRef.current = null
+    if (started.session.phase === 'confirm') {
+      manualShopOrderSubmittingKeyRef.current = idempotencyKey
+      const step = submitManualShopOrderSession(started.session, input => onShopOrderConfirm?.(input) ?? { ok: false, reason: 'order-service-unavailable' })
+      manualShopOrderSessionRef.current = step.session
+      if (step.submitted?.ok) {
+        manualShopOrderSubmittedKeyRef.current = idempotencyKey
+        manualShopOrderSessionRef.current = null
+        manualShopOrderConversationSessionRef.current = null
+        manualShopOrderPromptOverrideRef.current = null
+        manualShopOrderSubmittingKeyRef.current = null
+        presentCommercialDrinkEcho(entityId, shopServiceMessage.orderSuccess, undefined, displaySessionId)
+        return
+      }
+      manualShopOrderSubmittingKeyRef.current = null
+      const prompt = manualShopOrderFailureText(step.submitted?.reason, shopServiceMessage)
+      if (step.session && step.view?.choices.length) queueManualShopOrderChoiceView(entityId, step.session, displaySessionId, prompt)
+      else presentCommercialDrinkEcho(entityId, prompt, undefined, displaySessionId)
+      return
+    }
     queueManualShopOrderChoiceView(entityId, started.session, displaySessionId)
-  }, [queueManualShopOrderChoiceView, presentCommercialDrinkEcho, shopOrders])
+  }, [hasHeldConsumable, onShopOrderConfirm, presentCommercialDrinkEcho, queueManualShopOrderChoiceView, shopOrders, shopServiceMessage])
 
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
@@ -2960,36 +3049,32 @@ export function MainlineScenePage({
       const manualView = manualShopOrderView(manualSession)
       const manualChoice = manualView.choices[index]
       if (manualChoice) {
-        const isOrderConfirmation = manualChoice.id === 'confirm' && manualSession.phase === 'confirm'
-        if (isOrderConfirmation && (manualShopOrderSubmittingKeyRef.current === manualSession.idempotencyKey
-          || manualShopOrderSubmittedKeyRef.current === manualSession.idempotencyKey)) {
+        const idempotencyKey = manualSession.idempotencyKey
+        if (manualShopOrderSubmittingKeyRef.current === idempotencyKey
+          || manualShopOrderSubmittedKeyRef.current === idempotencyKey) {
           commitSceneActionExit(actionId)
           return
         }
-        if (isOrderConfirmation) manualShopOrderSubmittingKeyRef.current = manualSession.idempotencyKey
+        manualShopOrderSubmittingKeyRef.current = idempotencyKey
         const step = chooseManualShopOrderOption(manualSession, manualChoice.id, input => onShopOrderConfirm?.(input) ?? { ok: false, reason: 'order-service-unavailable' })
-        if (step.submitted) {
-          if (step.submitted.ok) manualShopOrderSubmittedKeyRef.current = manualSession.idempotencyKey
-          else manualShopOrderSubmittingKeyRef.current = null
-        }
-        if (step.session) {
+        if (step.submitted?.ok) {
+          manualShopOrderSubmittedKeyRef.current = idempotencyKey
+          manualShopOrderSessionRef.current = null
+          manualShopOrderConversationSessionRef.current = null
+          manualShopOrderPromptOverrideRef.current = null
+          manualShopOrderSubmittingKeyRef.current = null
+          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', shopServiceMessage.orderSuccess, undefined, manualConversationSessionId)
+        } else if (step.session) {
+          manualShopOrderSubmittingKeyRef.current = null
           manualShopOrderSessionRef.current = step.session
-          let prompt = step.view?.text ?? '订单流程暂时不可用。'
-          if (step.submitted?.ok) prompt = '订单已提交，做好后会通知你，到柜台领取。'
-          else if (step.submitted && !step.submitted.ok) {
-            const reason = step.submitted.reason
-            const explanation = reason === 'insufficient-funds' ? '余额不足，暂时不能下单。'
-              : reason === 'shop-already-has-order' ? '这家店已有一笔未领取订单，请先到柜台领取。'
-                : reason === 'invalid-payment' ? '订单信息无效，请返回重新选择。'
-                    : reason === 'preparation-not-configured' ? '这款商品的制作时间暂未配置，暂时不能下单。'
-                      : reason === 'invalid-order' ? '订单信息无效，请返回重新选择。'
-                  : reason === 'order-service-unavailable' ? '下单服务暂时不可用，请稍后重试。'
-                    : '暂时无法提交订单，请检查选择后重试。'
-            prompt = `${prompt} ${explanation}`
-          }
+          const prompt = step.submitted
+            ? manualShopOrderFailureText(step.submitted.reason, shopServiceMessage)
+            : step.view?.text ?? '点单暂时不可用。'
           if (step.view?.choices.length) {
             queueManualShopOrderChoiceView(sceneAction.entityId ?? 'yonghe-trial-worker', step.session, manualConversationSessionId, prompt)
           } else {
+            manualShopOrderSessionRef.current = null
+            manualShopOrderConversationSessionRef.current = null
             manualShopOrderPromptOverrideRef.current = null
             presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', prompt, undefined, manualConversationSessionId)
           }
@@ -2999,14 +3084,33 @@ export function MainlineScenePage({
           manualShopOrderPromptOverrideRef.current = null
           manualShopOrderSubmittingKeyRef.current = null
           manualShopOrderSubmittedKeyRef.current = null
-          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', '好，需要时再来点单。', undefined, manualConversationSessionId)
+          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', shopServiceMessage.cancel, undefined, manualConversationSessionId)
         }
         commitSceneActionExit(actionId)
         return
       }
     }
-    if (sceneAction.entityId === 'commercial-cafe-counter' && (option === '点一杯咖啡' || option === '是' || option === '否')) {
-      if (option !== '否') beginManualShopOrder(crossShopIds.cafeTakeaway, 'commercial-cafe-counter', null, sceneAction.conversationDisplaySessionId)
+    if (sceneAction.entityId === 'commercial-cafe-counter' && sceneAction.conversationDisplaySessionId) {
+      const sessionId = sceneAction.conversationDisplaySessionId
+      if (option === '\u70b9\u5355') {
+        beginManualShopOrder(crossShopIds.cafeTakeaway, 'commercial-cafe-counter', null, sessionId)
+      } else if (option === '\u6709\u4ec0\u4e48\u63a8\u8350\uff1f') {
+        presentCommercialDrinkEcho('commercial-cafe-counter', commercialCafeRecommendation.question, commercialCafeRecommendation.preferences.map(preference => preference.label), sessionId)
+      } else {
+        const preference = commercialCafeRecommendation.preferences.find(candidate => candidate.label === option)
+        if (preference) {
+          recommendedDrinkRef.current = { shopId: crossShopIds.cafeTakeaway, productId: preference.productId }
+          const productName = commercialCafeTakeawayCatalog.find(product => product.id === preference.productId)?.name ?? preference.productId
+          presentCommercialDrinkEcho('commercial-cafe-counter', `\u90a3\u6211\u63a8\u8350${productName}\u3002`, [commercialCafeRecommendation.acceptRecommendation, commercialCafeRecommendation.browseOtherCoffees], sessionId)
+        } else if (option === commercialCafeRecommendation.acceptRecommendation) {
+          const recommended = recommendedDrinkRef.current
+          recommendedDrinkRef.current = null
+          beginManualShopOrder(crossShopIds.cafeTakeaway, 'commercial-cafe-counter', recommended?.shopId === crossShopIds.cafeTakeaway ? recommended.productId : null, sessionId)
+        } else if (option === commercialCafeRecommendation.browseOtherCoffees) {
+          recommendedDrinkRef.current = null
+          beginManualShopOrder(crossShopIds.cafeTakeaway, 'commercial-cafe-counter', null, sessionId)
+        }
+      }
       commitSceneActionExit(actionId)
       return
     }
@@ -3117,7 +3221,7 @@ export function MainlineScenePage({
       setPlantWateredAt(resolution.stateChange.value)
     }
     commitSceneActionExit(actionId)
-  }, [beginManualShopOrder, carryingMilkTea, heldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, onShopOrderConfirm, presentCommercialDrinkEcho, presentYongheEcho, queueManualShopOrderChoiceView, recordSceneState, recordSceneStatePatch, scene, sceneAction, startCafeRestroomFixtureUse, startNpcDialogue])
+  }, [beginManualShopOrder, carryingMilkTea, heldConsumable, resolvedHeldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, onShopOrderConfirm, presentCommercialDrinkEcho, presentYongheEcho, queueManualShopOrderChoiceView, recordSceneState, recordSceneStatePatch, scene, sceneAction, shopOrders, shopServiceMessage, startCafeRestroomFixtureUse, startNpcDialogue])
 
   const requestSceneActionChoice = useCallback((actionId: number, index: number) => {
     if (sceneAction?.id === actionId && sceneAction.optionFlow === 'dialogue-choice' && sceneAction.phase === 'active') {

@@ -43,7 +43,7 @@ export type ManualShopOrderStepResult = Readonly<{
   submitted?: { ok: boolean; reason?: string }
 }>
 
-const cancelChoice = { id: 'cancel', label: '我再看看吧' } as const
+const cancelChoice = { id: 'cancel', label: '\u6211\u518d\u770b\u770b\u5427' } as const
 
 function productFor(session: ManualShopOrderSession): ManualShopOrderProduct | null {
   return shopProductsFor(session.shopId).find(product => product.id === session.productId) as ManualShopOrderProduct | undefined ?? null
@@ -97,7 +97,7 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
   if (session.phase === 'sugar') {
     return {
       text: `${product.name}想要几分甜？`,
-      choices: [...(product.customization?.sugar ?? []).map(value => ({ id: `sugar:${value}`, label: value })), cancelChoice],
+      choices: (product.customization?.sugar ?? []).map(value => ({ id: `sugar:${value}`, label: value })),
     }
   }
 
@@ -106,17 +106,11 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
       text: product.customization?.sugar === null
         ? '糖是固定的噢，请问要多少冰呢？'
         : `${product.name}的糖度选好了，请问要多少冰呢？`,
-      choices: [...(product.customization?.ice ?? []).map(value => ({ id: `ice:${value}`, label: value })), cancelChoice],
+      choices: (product.customization?.ice ?? []).map(value => ({ id: `ice:${value}`, label: value })),
     }
   }
 
-  if (session.phase === 'confirm') {
-    const details = [session.sugar, session.ice].filter(Boolean).join('、')
-    return {
-      text: `${product.name}${details ? `，${details}` : ''}，合计${product.price}元，确认下单吗？`,
-      choices: [{ id: 'confirm', label: '确认下单' }, cancelChoice],
-    }
-  }
+  if (session.phase === 'confirm') return { text: '', choices: [] }
 
   return { text: '订单已提交', choices: [] }
 }
@@ -131,6 +125,32 @@ function afterCustomization(session: ManualShopOrderSession, product: ManualShop
   if (product.customization?.sugar && !session.sugar) return { ...session, phase: 'sugar' }
   if (product.customization?.ice && !session.ice) return { ...session, phase: 'ice' }
   return { ...session, phase: 'confirm' }
+}
+
+export function submitManualShopOrderSession(
+  session: ManualShopOrderSession,
+  submitOrder: ManualShopOrderSubmit,
+  retryPhase: 'catalog' | 'sugar' | 'ice' = 'catalog',
+): ManualShopOrderStepResult {
+  if (session.phase !== 'confirm') return { session, view: manualShopOrderView(session) }
+  const product = productFor(session)
+  if (!product || !hasValidCustomization(product, session)) return { session, view: manualShopOrderView(session) }
+  const options = {
+    ...(session.sugar ? { sugar: session.sugar } : {}),
+    ...(session.ice ? { ice: session.ice } : {}),
+  }
+  const submitted = submitOrder({
+    shopId: session.shopId,
+    productId: product.id,
+    idempotencyKey: session.idempotencyKey,
+    ...(Object.keys(options).length ? { options } : {}),
+  })
+  if (!submitted.ok) {
+    const retrySession = { ...session, phase: retryPhase }
+    return { session: retrySession, view: manualShopOrderView(retrySession), submitted }
+  }
+  const next = { ...session, phase: 'submitted' as const }
+  return { session: next, view: manualShopOrderView(next), submitted }
 }
 
 /**
@@ -150,6 +170,7 @@ export function chooseManualShopOrderOption(
     const product = shopProductsFor(session.shopId).find(candidate => candidate.id === productId) as ManualShopOrderProduct | undefined
     if (!product) return { session, view: manualShopOrderView(session) }
     const next = beginProduct(session, product)
+    if (next.phase === 'confirm') return submitManualShopOrderSession(next, submitOrder, 'catalog')
     return { session: next, view: manualShopOrderView(next) }
   }
 
@@ -160,6 +181,7 @@ export function chooseManualShopOrderOption(
     const sugar = choiceId.slice('sugar:'.length)
     if (!product.customization?.sugar?.includes(sugar)) return { session, view: manualShopOrderView(session) }
     const next = afterCustomization({ ...session, sugar }, product)
+    if (next.phase === 'confirm') return submitManualShopOrderSession(next, submitOrder, 'sugar')
     return { session: next, view: manualShopOrderView(next) }
   }
 
@@ -167,6 +189,7 @@ export function chooseManualShopOrderOption(
     const ice = choiceId.slice('ice:'.length)
     if (!product.customization?.ice.includes(ice)) return { session, view: manualShopOrderView(session) }
     const next = afterCustomization({ ...session, ice }, product)
+    if (next.phase === 'confirm') return submitManualShopOrderSession(next, submitOrder, 'ice')
     return { session: next, view: manualShopOrderView(next) }
   }
 
