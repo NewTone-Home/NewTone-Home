@@ -56,6 +56,9 @@
   -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
 }
+.narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__viewport {
+  top: calc(50% + 13px);
+}
 .narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-entering .dialogue-choice-wheel__viewport {
   animation-name: dialogue-choice-wheel-mobile-fade-in;
 }
@@ -64,6 +67,7 @@
   to { opacity: 1; filter: blur(0); }
 }
 .narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--center {
+  z-index: 2;
   color: inherit;
   background: transparent;
   box-shadow: none;
@@ -170,6 +174,7 @@
 }
 
 .narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor {
+  z-index: 1;
   opacity: .9;
   filter: none;
   box-sizing: border-box;
@@ -179,6 +184,9 @@
   padding: 0 14px;
   line-height: 1.35;
   text-shadow: 0 1px 2px rgba(0, 0, 0, .94), 0 0 6px rgba(0, 0, 0, .8);
+}
+.narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor {
+  height: .75em;
 }
 
 /* A long wrapped neighbor must not overlap the focused choice. Show only the
@@ -190,6 +198,9 @@
 
 .narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor[data-dialogue-choice-neighbor-side="above"] > .dialogue-choice-wheel__neighbor-copy {
   transform: translateY(calc(0.8em - 100%));
+}
+.narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor[data-dialogue-choice-neighbor-side="above"] > .dialogue-choice-wheel__neighbor-copy {
+  transform: translateY(calc(0.75em - 100%));
 }
 
 @media (prefers-reduced-motion: reduce) {

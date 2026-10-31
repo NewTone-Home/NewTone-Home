@@ -39,6 +39,8 @@ export type NarrowDialogueViewportProps = Readonly<{
   textMotion?: NarrowDialogueTextMotion
   /** A prior host may own a single opening mask; text starts after its reveal. */
   typewriterStartDelayMs?: number
+  /** Positions a manual-order prompt above its wheel without changing session. */
+  choicePrompt?: boolean
   choices?: readonly NarrowDialogueChoice[]
   overlay?: React.ReactNode
   onReady?: (identity: NarrowDialogueIdentity, scope: 'text' | 'options', focusedChoiceId?: string) => void
@@ -71,6 +73,7 @@ export function NarrowDialogueViewport({
   availableWidthPx,
   measuredPageHeightPx,
   isFinalLinePage,
+  choicePrompt = false,
   typewriterEnabled = true,
   textMotion = typewriterEnabled ? 'typing' : 'static',
   typewriterStartDelayMs = 300,
@@ -453,7 +456,7 @@ export function NarrowDialogueViewport({
   }
 
   return <div
-    className="narrow-dialogue-content"
+    className={`narrow-dialogue-content${choicePrompt ? ' narrow-dialogue-content--choice-prompt' : ''}`}
     style={style}
     data-narrow-dialogue="true"
     data-narrow-dialogue-session={identity.sessionKey}
@@ -490,7 +493,7 @@ export function NarrowDialogueViewport({
     </div>}
     <div
       ref={currentSlotRef}
-      className={`narrow-dialogue-slot narrow-dialogue-slot--current${presentedSnapshot.outgoing ? ' narrow-dialogue-slot--incoming' : ''}${isOptions ? ' narrow-dialogue-slot--options' : ''}`}
+      className={`narrow-dialogue-slot narrow-dialogue-slot--current${presentedSnapshot.outgoing ? ' narrow-dialogue-slot--incoming' : ''}${isOptions ? ' narrow-dialogue-slot--options' : ''}${choicePrompt ? ' narrow-dialogue-slot--choice-prompt' : ''}`}
       onAnimationEnd={handleReadyAnimationEnd}
     >
       {isOptions ? <div className="narrow-dialogue-choice-window" role="listbox" aria-label="对话选项" aria-activedescendant={focusedChoice?.id}>

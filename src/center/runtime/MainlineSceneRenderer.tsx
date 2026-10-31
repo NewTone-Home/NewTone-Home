@@ -888,6 +888,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
       availableWidthPx={availableWidthPx}
       measuredPageHeightPx={measuredPageHeightPx}
       isFinalLinePage={isFinalLinePage}
+      choicePrompt={content.kind === 'text' && Boolean(content.choicePrompt)}
       typewriterEnabled={content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing'}
       textMotion={content.kind === 'text' ? content.textMotion ?? textMotion : 'static'}
       choices={[]}
@@ -897,6 +898,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
         options={dialogueChoiceWheel.options}
         phase={dialogueChoiceWheel.phase}
         placement="narrow-bottom"
+        promptAbove={content.kind === 'text' && Boolean(content.choicePrompt)}
         onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
         onCancel={() => onSceneActionCancel?.()}
         onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}

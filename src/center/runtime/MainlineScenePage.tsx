@@ -571,6 +571,7 @@ export function MainlineScenePage({
   const [sceneAction, setSceneAction] = useState<MainlineSceneAction | null>(null)
   const manualShopOrderSessionRef = useRef<ManualShopOrderSession | null>(null)
   const manualShopOrderConversationSessionRef = useRef<string | null>(null)
+  const manualShopOrderPromptOverrideRef = useRef<string | null>(null)
   const manualShopOrderSubmittingKeyRef = useRef<string | null>(null)
   const manualShopOrderSubmittedKeyRef = useRef<string | null>(null)
   const conversationDisplaySessionIdRef = useRef(0)
@@ -834,6 +835,8 @@ export function MainlineScenePage({
     ?? sceneAction?.conversationDisplaySessionId
     ?? conversationDisplaySessionId
     ?? resumedConversationDisplaySessionId
+  const activeManualShopOrderSession = manualShopOrderSessionRef.current
+  const activeManualShopOrderDisplaySessionId = manualShopOrderConversationSessionRef.current
   const cafeNarrativeHistoryCount = commercialCafeNarrative
     ? commercialCafeStory.narrativeCursor + (commercialCafeNarrative.phase === 'coffee-delivery'
       || commercialCafeNarrative.phase === 'delivery-line'
@@ -854,6 +857,11 @@ export function MainlineScenePage({
         : { sessionId: currentConversationDisplaySessionId, kind: 'aside', text: commercialCafeDeliveryDialogueLine.text, canAdvance: false, history: cafeNarrativeDisplayHistory }
       : (sceneEcho?.optionFlow === 'dialogue-choice' || sceneEcho?.conversationDisplaySessionId) && currentConversationDisplaySessionId
         ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: sceneEcho.text, textMotion: sceneEcho.textMotion, canAdvance: sceneEcho.phase !== 'leaving' }
+        : sceneAction?.optionFlow === 'dialogue-choice'
+          && currentConversationDisplaySessionId
+          && activeManualShopOrderSession
+          && activeManualShopOrderDisplaySessionId === currentConversationDisplaySessionId
+          ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: manualShopOrderPromptOverrideRef.current ?? manualShopOrderView(activeManualShopOrderSession).text, textMotion: 'static', canAdvance: false, choicePrompt: true }
         : sceneAction?.optionFlow === 'dialogue-choice' && currentConversationDisplaySessionId
           ? { sessionId: currentConversationDisplaySessionId, kind: 'choice', actionId: sceneAction.id, options: sceneAction.options, canAdvance: false }
           : activeDialogueLine && currentConversationDisplaySessionId
@@ -2883,6 +2891,20 @@ export function MainlineScenePage({
     })
   }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, interactXiujieFollowup, laoZhouVisibleInCurrentVisit, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
+  const queueManualShopOrderChoiceView = useCallback((entityId: string, session: ManualShopOrderSession, displaySessionId: string, promptOverride?: string) => {
+    const view = manualShopOrderView(session)
+    manualShopOrderPromptOverrideRef.current = promptOverride ?? null
+    setConversationDisplaySessionId(displaySessionId)
+    pendingSceneActionAfterExitRef.current = {
+      entityId,
+      options: view.choices.map(choice => choice.label),
+      optionFlow: 'dialogue-choice',
+      conversationDisplaySessionId: displaySessionId,
+      position: sceneAction?.position ?? sceneTextPresentationPosition(scene, getCurrentPosition(), view.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
+      cameraOffset: sceneAction?.cameraOffset ?? cameraOffset,
+    }
+  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, readingMetrics, scene, sceneAction])
+
   const beginManualShopOrder = useCallback((shopId: string, entityId: string, preselectedProductId?: string | null, existingDisplaySessionId?: string) => {
     const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
@@ -2897,6 +2919,9 @@ export function MainlineScenePage({
     if (!started.ok) {
       manualShopOrderSessionRef.current = null
       manualShopOrderConversationSessionRef.current = null
+      manualShopOrderPromptOverrideRef.current = null
+      manualShopOrderSubmittingKeyRef.current = null
+      manualShopOrderSubmittedKeyRef.current = null
       const message = started.reason === 'shop-already-has-order'
         ? '这家店已有一笔未领取订单，做好后可以到柜台领取。'
         : started.reason === 'unknown-shop'
@@ -2907,11 +2932,11 @@ export function MainlineScenePage({
     }
     manualShopOrderSessionRef.current = started.session
     manualShopOrderConversationSessionRef.current = displaySessionId
+    manualShopOrderPromptOverrideRef.current = null
     manualShopOrderSubmittingKeyRef.current = null
     manualShopOrderSubmittedKeyRef.current = null
-    const view = manualShopOrderView(started.session)
-    presentCommercialDrinkEcho(entityId, view.text, view.choices.map(choice => choice.label), displaySessionId)
-  }, [presentCommercialDrinkEcho, shopOrders])
+    queueManualShopOrderChoiceView(entityId, started.session, displaySessionId)
+  }, [queueManualShopOrderChoiceView, presentCommercialDrinkEcho, shopOrders])
 
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
@@ -2938,8 +2963,8 @@ export function MainlineScenePage({
         }
         if (step.session) {
           manualShopOrderSessionRef.current = step.session
-          let reply = step.view?.text ?? '订单流程暂时不可用。'
-          if (step.submitted?.ok) reply = '订单已提交，做好后会通知你，到柜台领取。'
+          let prompt = step.view?.text ?? '订单流程暂时不可用。'
+          if (step.submitted?.ok) prompt = '订单已提交，做好后会通知你，到柜台领取。'
           else if (step.submitted && !step.submitted.ok) {
             const reason = step.submitted.reason
             const explanation = reason === 'insufficient-funds' ? '余额不足，暂时不能下单。'
@@ -2949,12 +2974,18 @@ export function MainlineScenePage({
                       : reason === 'invalid-order' ? '订单信息无效，请返回重新选择。'
                   : reason === 'order-service-unavailable' ? '下单服务暂时不可用，请稍后重试。'
                     : '暂时无法提交订单，请检查选择后重试。'
-            reply = `${reply} ${explanation}`
+            prompt = `${prompt} ${explanation}`
           }
-          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', reply, step.view?.choices.map(choice => choice.label) ?? [], manualConversationSessionId)
+          if (step.view?.choices.length) {
+            queueManualShopOrderChoiceView(sceneAction.entityId ?? 'yonghe-trial-worker', step.session, manualConversationSessionId, prompt)
+          } else {
+            manualShopOrderPromptOverrideRef.current = null
+            presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', prompt, undefined, manualConversationSessionId)
+          }
         } else {
           manualShopOrderSessionRef.current = null
           manualShopOrderConversationSessionRef.current = null
+          manualShopOrderPromptOverrideRef.current = null
           manualShopOrderSubmittingKeyRef.current = null
           manualShopOrderSubmittedKeyRef.current = null
           presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', '好，需要时再来点单。', undefined, manualConversationSessionId)
@@ -3075,7 +3106,7 @@ export function MainlineScenePage({
       setPlantWateredAt(resolution.stateChange.value)
     }
     commitSceneActionExit(actionId)
-  }, [beginManualShopOrder, carryingMilkTea, heldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, onShopOrderConfirm, presentCommercialDrinkEcho, presentYongheEcho, recordSceneState, recordSceneStatePatch, scene, sceneAction, startCafeRestroomFixtureUse, startNpcDialogue])
+  }, [beginManualShopOrder, carryingMilkTea, heldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, onShopOrderConfirm, presentCommercialDrinkEcho, presentYongheEcho, queueManualShopOrderChoiceView, recordSceneState, recordSceneStatePatch, scene, sceneAction, startCafeRestroomFixtureUse, startNpcDialogue])
 
   const requestSceneActionChoice = useCallback((actionId: number, index: number) => {
     if (sceneAction?.id === actionId && sceneAction.optionFlow === 'dialogue-choice' && sceneAction.phase === 'active') {
@@ -3760,6 +3791,7 @@ export function MainlineScenePage({
                 if (sceneAction?.conversationDisplaySessionId === manualShopOrderConversationSessionRef.current) {
                   manualShopOrderSessionRef.current = null
                   manualShopOrderConversationSessionRef.current = null
+                  manualShopOrderPromptOverrideRef.current = null
                   manualShopOrderSubmittingKeyRef.current = null
                   manualShopOrderSubmittedKeyRef.current = null
                 }

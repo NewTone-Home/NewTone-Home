@@ -28,6 +28,11 @@
   animation: narrow-dialogue-reveal 260ms ease-out both;
 }
 
+.narrow-dialogue-content--choice-prompt .narrow-dialogue-slot--current {
+  justify-content: flex-start;
+  padding-top: var(--narrow-dialogue-safe-top);
+}
+
 .narrow-dialogue-slot--current.narrow-dialogue-slot--incoming {
   animation: narrow-dialogue-roll-in 220ms ease-out both;
 }

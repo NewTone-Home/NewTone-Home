@@ -18,6 +18,7 @@ export type DialogueChoiceWheelProps = {
   options: readonly string[]
   phase: 'active' | 'committing' | 'exiting'
   placement: 'wide-right' | 'narrow-bottom'
+  promptAbove?: boolean
   onConfirm: (actionId: number, optionIndex: number) => void
   onCancel?: (actionId: number) => void
   onExitComplete?: (actionId: number, optionIndex: number) => void
@@ -29,7 +30,7 @@ type PointerDrag = { pointerId: number; startY: number; startPosition: number; l
  * Focus-only wheel: movement never invokes business callbacks. A settled
  * center click is the sole confirmation path.
  */
-export function DialogueChoiceWheel({ sessionId, actionId, options, phase, placement, onConfirm, onCancel, onExitComplete }: DialogueChoiceWheelProps) {
+export function DialogueChoiceWheel({ sessionId, actionId, options, phase, placement, promptAbove = false, onConfirm, onCancel, onExitComplete }: DialogueChoiceWheelProps) {
   const [position, setPosition] = useState(0)
   const positionRef = useRef(0)
   const [scrolling, setScrolling] = useState(false)
@@ -62,7 +63,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       const safeViewportHeight = element.getBoundingClientRect().height
       const centerRowHeight = center?.getBoundingClientRect().height ?? 48
       const centerFontSize = Number.parseFloat(center ? window.getComputedStyle(center).fontSize : '') || 16
-      const previewHeight = centerFontSize * 0.8
+      const previewHeight = centerFontSize * (promptAbove ? 0.75 : 0.8)
       const measureNeighborGap = (index: number) => {
         const neighbor = element.querySelector<HTMLElement>(`.dialogue-choice-wheel__option[data-dialogue-choice-index="${index}"]`)
         if (!neighbor) return 34
@@ -71,8 +72,12 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
         const lineHeight = Number.parseFloat(computed.lineHeight) || fontSize * 1.35
         // Keep the preview beside (not over) the focused row. A multi-line
         // focused choice needs a little more clearance, independent of viewport.
-        const previewHeight = fontSize * 1.1
-        return Math.round(Math.max(34, centerRowHeight / 2 + previewHeight / 2 + 1, lineHeight * 1.58))
+        const previewHeight = fontSize * (promptAbove ? 0.75 : 1.1)
+        return Math.round(Math.max(
+          promptAbove ? 28 : 34,
+          centerRowHeight / 2 + previewHeight / 2 + (promptAbove ? -1 : 1),
+          lineHeight * (promptAbove ? 1.3 : 1.58),
+        ))
       }
       const above = measureNeighborGap(centerIndex - 1)
       const below = measureNeighborGap(centerIndex + 1)
@@ -85,7 +90,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     const observer = new ResizeObserver(updateGap)
     observer.observe(element)
     return () => observer.disconnect()
-  }, [options, placement, position])
+  }, [options, placement, position, promptAbove])
 
   useEffect(() => {
     if (phase !== 'exiting' || exitedActionRef.current === actionId) return
