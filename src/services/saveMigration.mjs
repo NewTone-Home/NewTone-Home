@@ -113,12 +113,31 @@ export function rewindUnfinished(save) {
   }
   return out;
 }
+// Website a5860fc v1 wrote a fixed story-day-001 April 12 without a year.
+// The registered new calendar anchors that same day to 2025. Only this exact
+// historical date can use the bridge; never infer other dates or repair a year.
+const WEBSITE_V1_DATE_ANCHOR=Object.freeze({year:2025,month:4,day:12,weekday:6});
+function normalizeWebsiteV1Date(old) {
+  const clock=old.storyClock;
+  if(!obj(clock)||Object.hasOwn(clock,'year'))return old;
+  const hasMonth=Object.hasOwn(clock,'month'),hasDay=Object.hasOwn(clock,'day');
+  if(!hasMonth&&!hasDay)return old; // Registered pre-calendar v1, unchanged.
+  ensure(hasMonth&&hasDay,'invalid story date');
+  ensure(clock.dayId==='story-day-001'&&['opening','commercial-street','cafe','yonghe'].includes(clock.stage),'invalid story clock');
+  const anchor=WEBSITE_V1_DATE_ANCHOR;
+  ensure(clock.month===anchor.month&&clock.day===anchor.day,'unsupported legacy date without year');
+  if(Object.hasOwn(clock,'weekday'))ensure(clock.weekday===anchor.weekday,'invalid historical date weekday');
+  return {...old,storyClock:{...clock,year:anchor.year}};
+}
 export function convert(raw) {
-  const old=parse(raw,'legacy player'); validateCore(old,1);
+  const old=parse(raw,'legacy player');
+  ensure(old._version===1,'unsupported player save version');
   const allowed=new Set([...Object.keys(createInitialPlayerSave()),'commercialDepthBackup','miningPositionRooms','miningPositionBackup','freshSeatOnly']);
   ensure(Object.keys(old).every(k=>allowed.has(k)), 'unknown legacy player fields');
+  const historical=normalizeWebsiteV1Date(old);
+  validateCore(historical,1);
   // Phone cleaners must not silently drop existing records.
-  const next=sanitizePlayerSave(old,old.currentSceneId);
+  const next=sanitizePlayerSave(historical,historical.currentSceneId);
   for(const k of ['phoneNotifications','phoneNotes','phoneContactNotes','phoneCallHistory']) ensure(stable(old[k])===stable(next[k]),'unsupported legacy phone data: '+k);
   for(const k of ['shopOrders','shopOrderHistory','heldConsumable','shopOrderPaymentReceipts','monthlySalaryReceipts','cafeStoryDeliveries','gameTimeMs','laoZhouCafeSeatId'])
     if(Object.hasOwn(old,k)) ensure(stable(old[k])===stable(next[k]),'unsupported legacy extension: '+k);
