@@ -1,3 +1,5 @@
+import { mainlineWorldScale } from '../src/center/runtime/mainlineViewport'
+import { currentCafeStart, currentCafeOptions } from './helpers/currentCafe'
 import { describe, expect, it } from 'vitest'
 import { defaultSceneScreenMetrics } from '../src/center/runtime/sceneBoundaryGrid'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
@@ -29,12 +31,12 @@ describe('mainline visual footprint contract', () => {
     expect(plant.visualBounds).not.toEqual(plant.collision)
   })
 
-  it('measures NPC presentation labels without changing their legacy movement collision in Phase 0', () => {
-    const laoZhou = mainlineScenes['commercial-cafe'].npcs.find((npc) => npc.id === 'lao-zhou')!
-    const footprint = mainlineLabelFootprint(laoZhou.label, resolveMainlineNpcPosition(mainlineScenes['commercial-cafe'], laoZhou.id), defaultSceneScreenMetrics, { lineHeight: 1 })
-    expect(footprint.width).toBeCloseTo((14.72 * 2 / 1280) * 100, 4)
-    expect(footprint.height).toBeCloseTo((14.72 / 720) * 100, 4)
-  })
+  it('measures Lao Zhou using the restored two-character role label and its rendered footprint',()=>{
+ const cafe=mainlineScenes['commercial-street'],npc=cafe.npcs.find(n=>n.id==='lao-zhou')!
+ expect(npc.label).toBe('老周')
+ const footprint=mainlineLabelFootprint(npc.label,resolveMainlineNpcPosition(cafe,npc.id),currentCafeOptions.screenMetrics,{lineHeight:1})
+ expect(footprint.width*19.2).toBeCloseTo(32,2);expect(footprint.height*10.8).toBeCloseTo(16,2)
+})
 
   it('uses one selected contact for entity and NPC proximity as well as their route destination', () => {
     const cafe = mainlineScenes['commercial-cafe']
@@ -70,22 +72,18 @@ describe('mainline visual footprint contract', () => {
     })
   })
 
-  it('keeps the cafe counter one continuous structure while its visual cells reflow', () => {
-    const cafe = mainlineScenes['commercial-cafe']
-    const body = cafe.continuousStructures.find((structure) => structure.id === 'commercial-cafe-counter-body')!
-    const compactMetrics = { width: 390, height: 844 }
-    const desktop = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition, {}, defaultSceneScreenMetrics)
-    const compact = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition, {}, compactMetrics)
-    const bodyOnDesktop = desktop.units.find((unit) => unit.id === body.id)!
-    const bodyOnCompact = compact.units.find((unit) => unit.id === body.id)!
-    const leftCell = cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter-1')!
-    const rightCell = cafe.objects.find((entity) => entity.id === 'commercial-cafe-counter-17')!
-
-    expect(bodyOnDesktop).toMatchObject(body)
-    expect(bodyOnCompact).toMatchObject(body)
-    expect(desktop.objects.get(leftCell.id)?.collision).toBeNull()
-    expect(compact.objects.get(rightCell.id)?.collision).toBeNull()
-    expect(mainlineInteractionTarget(cafe, leftCell.id, { x: body.x, y: body.y + body.height + 12 }, {}, undefined, { screenMetrics: compactMetrics }).x)
-      .toBeLessThan(mainlineInteractionTarget(cafe, rightCell.id, { x: body.x + body.width, y: body.y + body.height + 12 }, {}, undefined, { screenMetrics: compactMetrics }).x)
-  })
+  it('keeps all three visible Cafe counter runs as immutable world bodies and retains the public coffee-order contact',()=>{
+ const cafe=mainlineScenes['commercial-street'],bodies=cafe.continuousStructures.filter(b=>b.id.startsWith('cafe-trial-counter-'))
+ expect(bodies).toHaveLength(3)
+ const viewports=[{width:390,height:844},{width:1280,height:800}]
+ const snapshots=viewports.map(()=>createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics))
+ for(const body of bodies){
+  const cells=cafe.objects.filter(o=>o.interactionStructureId===body.id)
+  expect(cells.length).toBeGreaterThanOrEqual(1)
+  for(const [index,snapshot] of snapshots.entries()){expect(snapshot.units.find(u=>u.id===body.id)).toMatchObject(body);for(const cell of cells)expect(snapshot.objects.get(cell.id)!.collision).toBeNull();const scale=mainlineWorldScale(viewports[index]);expect(body.width*19.2*scale).toBeGreaterThan(0);expect(body.height*10.8*scale).toBeGreaterThan(0)}
+ }
+ const body=bodies.find(b=>b.id==='cafe-trial-counter-long-body')!,target=mainlineInteractionTarget(cafe,'commercial-cafe-counter',currentCafeStart,{},undefined,currentCafeOptions)
+ expect(target.x).toBeGreaterThan(body.x+body.width)
+ expect(findMainlinePathToEntity(cafe,'commercial-cafe-counter',currentCafeStart,{},currentCafeOptions).path).not.toBeNull()
+})
 })

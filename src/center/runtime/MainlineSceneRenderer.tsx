@@ -1,32 +1,73 @@
 'use client'
 
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { officeRoomBlindsOpen, officeRoomShadeEdges, officeWindowRoom } from './officeRoomLighting'
+import type { PlayerSceneState } from './playerSave'
+
+import { isWallMenuReading } from './menuReading'
+import { commercialStreetDrinkCatalog } from './commercialStreetDrinkCatalog'
+
+import { Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { CSSProperties, ReactNode } from 'react'
+import { MainlineCounterSurface } from './MainlineCounterSurface'
 import EntryButtonSurface from '../../components/EntryButtonSurface'
+import EntryButtonFrame from '../../components/EntryButtonFrame'
 import type { CollisionBox, Point } from './sceneGeometry'
-import { mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
-import type { MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
-import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
+import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineStorefrontAnchor, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneEntity, type MainlineSceneGeometryUnit } from './mainlineScenes'
+import type { MainlineConversationDisplayContent, MainlineDialogueChoiceWheelPresentation, MainlineSceneChoiceFlow, MainlineSceneDialogueLine, MainlineSceneDialoguePresentation } from './mainlineSceneModel'
+import { mainlineActiveSpatialSpaceId, mainlineEntityIsPublicStreetContent, mainlineEntityMatchesCurrentPresentation, mainlinePassageDoorPresentationActive, mainlinePublicStreetPresentationIsActive } from './mainlineSceneModel'
+import { mainlineDoorPortalShouldRender, mainlineGeometryCellWithinViewport, mainlineGeometryUnitShouldRender } from './mainlineSceneVisibility'
+import { clampMainlineLayoutAnchor, mainlineEntityFontSizePx, mainlineEntityVisualBounds, mainlineLabelFootprint, mainlineLayoutAnchor, mainlineLayoutItemForEntity, snapDelta, snapPoint, type LayoutItemId, type SceneLayout } from './sceneLayout'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { SceneCharacters, SceneCharacterSwitch } from './SceneCharacters'
 import { SceneDoor, type SceneDoorTransitionCompletion } from './SceneDoor'
 import { sceneDoorIsVisuallyOpen, type SceneDoorRuntimePhase } from './sceneDoorConfig'
-import { readSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
-import { useSceneFocusFrameController } from './SceneFocusFrames'
-import type { SceneFrameTarget } from './sceneFrameLifecycle'
+import { mainlineWorldFontSizePx, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { readMainlineViewportMetrics, type MainlineViewportMetrics } from './mainlineViewportProjection'
+import { commercialStreetHorizontalScale, projectCommercialStreetX } from './commercialStreetGridProjection'
+import { mainlineViewportPointFromWorld, mainlineWorldPointFromClient, mainlineWorldScale, mainlineVisibleWorldSpan } from './mainlineViewport'
+import { advanceCommercialStreetQuestionCameraHandoff, commercialStreetQuestionCameraHandoffSettled } from './commercialStreetQuestionCameraHandoff'
+import { sceneFocusFrameGeometry, useSceneFocusFrameController } from './SceneFocusFrames'
+import { sceneFrameDefaultMotionMs } from './sceneMotion'
+import { sceneFrameExitRequestsTarget, type SceneFrameTarget } from './sceneFrameLifecycle'
 import type { SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
-import { mainlineEchoLayout, mainlineSpeakerAnchor } from './mainlineEchoLayout'
+import { mainlineEchoLayout, mainlineSpeakerAnchor, mainlineSpeakerPageAnchor, type MainlineEchoLayout } from './mainlineEchoLayout'
+import { interpolateMainlineReadingPageLayout, mainlineReadingPageFlipDurationMs, mainlineReadingPageRollEnvelope, mainlineReadingRollOffsets, previousMainlineReadingPageForFlip, settleMainlineReadingPageFlip, snapshotMainlineReadingPage, type MainlineReadingPageSnapshot } from './mainlineReadingPageFlip'
+import { interpolateMainlineReadingLayout, mainlineReadingPageTransitionDurationMs, mainlineReadingLayoutTransitionProgress, mainlineReadingLayoutsHaveSameSize } from './mainlineReadingLayoutTransition'
+import { mainlineDialogueHandoffPresentationForId, mainlineDialogueReadingSessionKey, mainlineReadingAnchorContextKey as createReadingAnchorContextKey, mainlineReadingAnchorForSession, mainlineReadingPresentationForPhase, type MainlineReadingPresentationSnapshot } from './mainlineReadingPresentation'
+import { mainlineReadingPageKey } from './mainlineReadingPageKey'
+import { mainlineMeasuredTextWidth, mainlineReadingPageDisplayText } from './mainlineTextSegments'
+import { mainlineObservationPageIsSettled } from './mainlineObservationTyping'
+import { mainlineReadingBackdropTypingDelayMs, mainlineReadingMaskReleaseDelayMs, mainlineReadingTypingDelayMs, mainlineReadingTextMotionCanAnimate, startMainlineReadingTextMotion, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
+import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStartupWatchdogMs, mainlineReadingPageAdvanceTokenIsCurrent, mainlineReadingPageAdvanceWatchdogMayRelease } from './mainlineReadingPageAdvance'
 import { DialogueSpeaker } from './DialogueSpeaker'
+import { NarrowDialogueViewport } from './NarrowDialogueViewport'
+import { DialogueChoiceWheel } from './DialogueChoiceWheel'
+import { DialogueChoiceSelectionTransfer, firstTextLineRect } from './DialogueChoiceSelectionTransfer'
+import type { NarrowDialogueIdentity } from './NarrowDialogueIdentity'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
-import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition } from './mainlineSeating'
-import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
+import { storefrontRoomConnection } from './storefrontRoomConnection'
+import { isMainlineSeatLabelSuppressed, isMainlineSeatPrompted, mainlineProtagonistPresentation, mainlineSceneOccupiedSeatIds, mainlineSeatedActorVisualPosition, mainlineNpcVisualSeatId } from './mainlineSeating'
 import type { NpcRuntimeSnapshot } from './npcCore'
 import { resolveMainlineInteractionVisualState } from './mainlineInteractionVisualState'
-import { storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, type StorefrontPresentationPhase } from './storefrontPresentation'
+import { activeStorefrontInteriorOwner, storefrontCellVisualState, storefrontCharacterCells, storefrontCharacterProgress, storefrontRollDirection, storefrontLabelRollDurationMs, storefrontPresentationRetractsFrame, storefrontDoorFrameShouldRetract, storefrontGeometryCellShouldRender, storefrontInteriorFeatureOpacity, type StorefrontPresentationPhase } from './storefrontPresentation'
 import { commercialStreetStorefrontInteractionFor } from './commercialStreetStorefrontInteractions'
 import type { StorefrontContactGeometry } from './storefrontContactGeometry'
+import { storefrontContactGeometry } from './storefrontContactGeometry'
+import { mainlineAvailableReadingWidthPx, mainlineMaximumReadingWidthPx, mainlineInteractionRoom, mainlineReadingActorOpacity, mainlineReadingCameraOffset, mainlineReadingEnvelopeNeedsCameraPan, mainlineReadingOpacityForActor, mainlineObservationTypingIntervalMs, mainlineReadingFadeTransitionMs, resolveMainlineDialogueParticipants } from './mainlineTextReading'
 import { centerReadingDimmerTargets, centerReadingDimmerTransitionDurationMs } from './readingDimmer'
+import { mainlineSceneRenderBounds } from './mainlineSceneRenderBounds'
+import { currentMainlineReadingTargetIds, mainlinePlaceReadingAction, mainlinePlaceReadingBox, mainlineReadingActionCameraAnchor, mainlineReadingActionLayerPosition, mainlineReadingActionViewportCameraOffset, mainlineReadingMaskRects, mainlineReadingOverflowPageForSession, mainlineReadingOverflowPageIndex, mainlineReadingPageIndexForSourceOffset, type MainlineReadingActionCameraAnchor } from './mainlineReadingProtection'
+import { createMainlineReadingSessionLayoutCache, mainlineReadingMeasurementKey, type MainlineReadingSessionLayoutCache, type MainlineReadingSessionTextEntry } from './mainlineReadingLayoutSession'
+import { useMainlineReadingFontRevision } from './useMainlineReadingFontRevision'
+import { MainlineReadingIdentityPlane } from './MainlineReadingIdentityPlane'
+import { mainlineDialogueClickAction, mainlineDialogueHandoffDurationMs, mainlineDialogueHandoffLockShouldRelease, mainlineDialogueStageActorOpacity, mainlineDialogueTurnAllowsOptions } from './mainlineDialogueStage'
+import { mainlineReadingGlyphSafetyRects, mainlineReadingLocalPercent, mainlineReadingOcclusionCellIdentity, mainlineReadingOcclusionFadeWorldPx, mainlineReadingOcclusionIntersects, mainlineReadingOcclusionRect, mainlineReadingOccludedIdentityKeys, mainlineReadingWorldBox, retainMainlineReadingOcclusionSnapshot, type MainlineReadingOcclusionCandidate, type MainlineReadingProtectionRect } from './mainlineReadingOcclusion'
+import type { HeldConsumable } from './crossShopOrders'
+import { heldConsumablePresentation } from './heldConsumablePresentation'
+import { HeldConsumableMark } from './HeldConsumableMark'
+import { cafeRestroomFaucetId, cafeRestroomToiletId } from './cafeRestroom'
 
 type MainlineSceneRendererProps = {
   scene: MainlineSceneDefinition
@@ -40,47 +81,70 @@ type MainlineSceneRendererProps = {
   sceneFrameExit?: { phase: 'idle' | 'retracting'; passageEntityId?: string; scope?: 'passage' | 'scene'; requestedGroups?: readonly string[] }
   storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>
   activeStorefrontId?: string | null
+  visibleInteriorStorefrontIds?: readonly string[]
+  paintedInteriorStorefrontId?: string | null
   onStorefrontFrameRetractionComplete?: (storefrontId: string) => void
   onStorefrontRevealMotionComplete?: (storefrontId: string) => void
   onStorefrontRestoreMotionComplete?: (storefrontId: string) => void
   gateTriggered?: boolean
   geometrySnapshot: MainlineSceneGeometrySnapshot
   freezeFrameMeasurements?: boolean
-  onScreenMetricsChange?: (metrics: SceneScreenMetrics) => void
+  onScreenMetricsChange?: (metrics: MainlineViewportMetrics) => void
+  viewportMetrics: SceneScreenMetrics
   cameraOffset: Point
+  embedded?: boolean
   showProtagonist?: boolean
   suppressWorldEnterAnimation?: boolean
   onLayoutChange: (itemId: LayoutItemId, point: Point) => void
   onInteract: (id: string) => void
+  onCounterInteract?: (serviceId: string, partId: string, point: Point) => void
   onStorefrontInteract?: (storefrontId: string) => void
   onNpcInteract?: (npcId: string) => void
+  onProtagonistInteract?: () => void
   npcPositions?: ReadonlyMap<string, Point>
   npcRuntimeSnapshots?: ReadonlyMap<string, NpcRuntimeSnapshot>
   hiddenNpcIds?: ReadonlySet<string>
   ambientNpcActorLayer?: ReactNode
+  readingSessionLayoutCache?: MainlineReadingSessionLayoutCache | null
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   onWalk: (point: Point) => void
   worldQuestionMark?: { anchor: Point; visible: boolean }
   dialogue?: MainlineSceneDialoguePresentation
+  conversationDisplaySessionId?: string | null
+  conversationDisplayContent?: MainlineConversationDisplayContent | null
+  dialogueChoiceWheel?: MainlineDialogueChoiceWheelPresentation | null
   dialogueLine?: MainlineSceneDialogueLine | null
   dialogueText?: string
   dialogueLineIndex?: number | null
   dialogueSegmentIndex?: number
   dialogueSegmentCount?: number
   dialoguePosition?: Point | null
+  dialogueOutside?: { side: 'above' | 'below'; speakerY: number }
   dialoguePhase?: 'active' | 'leaving'
+  dialogueTextSessionId?: number
+  dialogueTextMotion?: MainlineReadingTextMotion
+  dialogueAdvanceDiagnostic?: string
+  dialogueStage?: { roomId: string; speakerActorId: string | null; participantActorIds: ReadonlySet<string>; hiddenEntityIds: ReadonlySet<string>; protectedEntityIds?: ReadonlySet<string>; protectedActorIds?: ReadonlySet<string> } | null
+  dialogueHandoffActive?: boolean
+  dialogueHandoffFadeDurationMs?: number
+  dialogueHandoffOutgoing?: { id: number } | null
+  onDialogueHandoffOutgoingDeleted?: (id: number) => void
   readingMode?: 'observation' | 'dialogue' | null
   onDialogueExitComplete?: () => void
-  onDialogueAdvance?: () => void
-  sceneEcho?: { id: number; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; typing: boolean; phase?: 'leaving' } | null
+  onDialogueAdvance?: (intent?: 'line' | 'segment') => void
+  onDialogueTypingSkip?: (sessionId: number) => void
+  onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => string | void
+  sceneEcho?: { id: number; conversationDisplaySessionId?: string; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; textMotion: MainlineReadingTextMotion; phase?: 'leaving'; presentationKind?: 'short-prompt' | 'commercial-street-question'; exitReason?: 'natural' | 'cancel' } | null
   onSceneEchoAdvance?: () => void
-  onSceneEchoTypingComplete?: (echoId: number) => void
-  onSceneEchoExitComplete?: (echoId: number) => void
-  sceneAction?: { entityId?: string; options: readonly string[]; position: Point; phase?: 'active' | 'committing' } | null
-  onSceneActionStart?: (index: number) => void
-  onSceneActionChoice?: (index: number) => void
-  carriedMilkTea?: boolean
-  onMilkTeaInteract?: () => void
+  onSceneEchoTextMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => string | void
+  onSceneEchoExitComplete?: (echoId: number, displayPosition: Point, displayCameraOffset: Point) => void
+  sceneAction?: { id: number; entityId?: string; options: readonly string[]; optionFlow?: MainlineSceneChoiceFlow; conversationDisplaySessionId?: string; position: Point; cameraOffset?: Point; phase?: 'active' | 'committing' | 'exiting' } | null
+  onSceneActionStart?: (actionId: number, index: number) => void
+  onSceneActionChoice?: (actionId: number, index: number) => void
+  onSceneActionCancel?: () => void
+  onSceneActionExitComplete?: (actionId: number, index: number) => void
+  heldConsumable?: HeldConsumable | null
+  onHeldConsumableInteract?: () => void
   onFrameMotionProfileChange?: (profile: readonly SceneFocusFrameMotionProfile[]) => void
   exploredObjectIds?: ReadonlySet<string>
   interactionTutorialCompleted?: boolean
@@ -89,7 +153,10 @@ type MainlineSceneRendererProps = {
   onDebugNpcMovement?: () => void
   inputDiagnostic?: MainlineInputDiagnostic | null
   onInputDiagnostic?: (diagnostic: MainlineInputDiagnostic) => void
+  officeBlindsOpen?: boolean
+  officeRoomBlindsState?: PlayerSceneState
   incenseLit?: boolean
+  cafeRestroomFixtureUsePhases?: Partial<Record<string, 'approaching' | 'using'>>
   incenseBurnRemainingMs?: number
   onIncenseBurnComplete?: () => void
   occupiedSeatIds?: ReadonlySet<string>
@@ -106,6 +173,14 @@ type MainlineSceneRendererProps = {
     reachedRequestedTarget: boolean
     deniedAccessRegionId?: string
   } | null
+}
+
+type RetainedReadingOcclusion = {
+  sessionKey: string
+  contextKey: string
+  rect: CollisionBox
+  protectedEntityIds: ReadonlySet<string>
+  hiddenIdentityKeys: ReadonlySet<string>
 }
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -129,30 +204,33 @@ function objectVisibility(entity: MainlineSceneEntity, layoutMode: boolean) {
   return 'is-baseline'
 }
 
-function isAltarEntity(scene: MainlineSceneDefinition, entityId: string) {
-  return scene.altars.some((altar) => altar.incenseBurnerId === entityId)
-    || scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entityId))
-}
-
-export function mainlineEntityUsesBreathing(scene: MainlineSceneDefinition, entity: MainlineSceneEntity) {
-  const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
+export function mainlineEntityUsesBreathing(_scene: MainlineSceneDefinition, entity: MainlineSceneEntity, incenseLit = false) {
   const isIncense = entity.visualProfile === 'incense'
-  return (entity.visualProfile === 'tree-ring' && entity.interactive !== false)
-    || isIncense
-    || isOfferingTable
+  return isIncense && incenseLit
     || entity.animationGroup === 'office-breathing'
+    || entity.animationGroup === 'yonghe-stove-breathing'
 }
 
-function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, tutorialCompleted: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean) {
+/** A fixed, per-stone choice (never random per render): about two thirds of the
+ * yard stones slowly dim and brighten with staggered phases, like canopy shade. */
+function mainlineStoneShadeClass(entityId: string) {
+  let sum = 0
+  for (let i = 0; i < entityId.length; i += 1) sum = (sum * 31 + entityId.charCodeAt(i)) % 997
+  return sum % 3 === 2 ? '' : `scene-mainline-stone-shade scene-mainline-stone-shade--${sum % 5}`
+}
+
+function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, tutorialCompleted: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean, cafeRestroomFixtureUsePhases: Partial<Record<string, 'approaching' | 'using'>> = {}, readingProtected = false) {
   const isOfferingTable = entity.kind === 'table' && scene.furnitureGroups.some((group) => group.layout === 'altar-ring' && group.entityIds.includes(entity.id))
   const isIncense = entity.visualProfile === 'incense'
-  const tutorialEligible = mainlineEntityUsesBreathing(scene, entity)
-  const interactionVisualState = entity.interactive === false
+  const isCafeRestroomFixture = entity.id === cafeRestroomToiletId || entity.id === cafeRestroomFaucetId
+  const isCafeRestroomFixtureBright = cafeRestroomFixtureUsePhases[entity.id] === 'using'
+  const tutorialEligible = mainlineEntityUsesBreathing(scene, entity, incenseLit)
+  const interactionVisualState = entity.interactive === false || isCafeRestroomFixture
     ? null
     : resolveMainlineInteractionVisualState({
-      active,
+      active: active && !readingProtected,
       dynamic: isIncense && incenseLit,
-      explored,
+      explored: explored && !readingProtected,
       tutorialCompleted,
       tutorialEligible,
     })
@@ -163,7 +241,11 @@ function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity
     entity.facing ? `scene-mainline-object--facing-${entity.facing}` : '',
     `scene-object--${entity.weight}`,
     entity.visualProfile === 'tree-ring' ? 'scene-mainline-yard-tree-ring' : '',
-    interactionVisualState === 'tutorial-unexplored' ? 'scene-mainline-exploration--breathing' : '',
+    entity.visualProfile === 'tree-ring' && entity.interactive !== false ? 'scene-mainline-tree-shimmer' : '',
+    entity.visualProfile === 'tree-ring' && entity.interactive === false ? mainlineStoneShadeClass(entity.id) : '',
+    isCafeRestroomFixture ? 'scene-mainline-restroom-fixture' : '',
+    isCafeRestroomFixture ? `scene-mainline-restroom-fixture--${isCafeRestroomFixtureBright ? 'bright' : 'dimmed'}` : '',
+    interactionVisualState === 'tutorial-unexplored' || entity.animationGroup === 'yonghe-stove-breathing' ? 'scene-mainline-exploration--breathing' : '',
     interactionVisualState ? `scene-mainline-interaction--${interactionVisualState}` : '',
     entity.kind === 'table' ? 'scene-mainline-exploration--steady' : '',
     isOfferingTable ? 'scene-mainline-altar-table' : '',
@@ -171,7 +253,7 @@ function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity
     isIncense && incenseLit ? 'scene-mainline-incense--burning' : '',
     isIncense && !incenseLit ? 'scene-mainline-incense--unlit' : '',
     visibility,
-    active ? 'is-active' : '',
+    active && !readingProtected && !isCafeRestroomFixture ? 'is-active' : '',
     underPlayer ? 'is-under-player' : '',
     selected ? 'is-layout-selected' : '',
     dragging ? 'is-layout-dragging' : '',
@@ -189,6 +271,25 @@ type MainlineGeometryCellEntry = {
   storefrontInteractionId?: string
 }
 
+function unionWorldBounds(boxes: readonly CollisionBox[], padding = 0): CollisionBox {
+  const left = Math.min(...boxes.map(box => box.x))
+  const top = Math.min(...boxes.map(box => box.y))
+  const right = Math.max(...boxes.map(box => box.x + box.width))
+  const bottom = Math.max(...boxes.map(box => box.y + box.height))
+  return { x: left - padding, y: top - padding, width: right - left + padding * 2, height: bottom - top + padding * 2 }
+}
+
+function cellGlyphWorldBounds(cell: MainlineSceneGeometryUnit['visual']['cells'][number], horizontalScale = 1): CollisionBox {
+  const x = cell.x / 100 * sceneDesignReferenceMetrics.width
+  const y = cell.y / 100 * sceneDesignReferenceMetrics.height
+  const width = cell.kind === 'door' ? 42 : mainlineWorldFontSizePx / Math.max(.01, horizontalScale)
+  return { x: x - width / 2, y: y - mainlineWorldFontSizePx / 2, width, height: mainlineWorldFontSizePx }
+}
+
+function localPointInWorldBounds(point: Point, bounds: CollisionBox) {
+  return mainlineReadingLocalPercent(point, bounds)
+}
+
 type MainlineDoorButtonProps = {
   cell: MainlineGeometryCellEntry['cell']
   entityId: string
@@ -198,13 +299,16 @@ type MainlineDoorButtonProps = {
   glyph: string
   doorPhase: SceneDoorRuntimePhase
   focusGroup: string
+  frameGroup?: string
   focusPolicy: Exclude<MainlineFocusPolicy, 'interactive'>
   gateTriggered: boolean
   frameRetracting: boolean
   active: boolean
   closeHint: string
   ariaLabel: string
-  renderFocusFrame: (group: string) => ReactNode
+  renderFocusFrame: (group: string, presentationActive?: boolean) => ReactNode
+  presentationActive?: boolean
+  presentationDurationMs?: number
   onInteract: (id: string) => void
   onDoorTransitionComplete?: (entityId: string, completion: SceneDoorTransitionCompletion) => void
   dataAttributes?: Record<string, string | undefined>
@@ -212,21 +316,29 @@ type MainlineDoorButtonProps = {
 }
 
 type MainlineAmbientNpcActorProps = {
+  sceneId: MainlineSceneDefinition['id']
   npc: MainlineSceneDefinition['npcs'][number]
   position: Point
   snapshot: NpcRuntimeSnapshot
   screenMetrics: SceneScreenMetrics
   debugRuntimeEvidence: boolean
+  readingOpacity?: number
+  readingStageBrightness?: boolean
+  readingProtected?: boolean
 }
 
 /** Ambient locomotion owns its live point; this component only projects it into the scene. */
-function MainlineAmbientNpcActorView({ npc, position, snapshot, screenMetrics, debugRuntimeEvidence }: MainlineAmbientNpcActorProps) {
+function MainlineAmbientNpcActorView({ sceneId, npc, position, snapshot, screenMetrics, debugRuntimeEvidence, readingOpacity = 1, readingProtected = false }: MainlineAmbientNpcActorProps) {
   const visualFootprint = mainlineLabelFootprint(npc.label, position, screenMetrics, { lineHeight: 1 })
+  const effectiveReadingOpacity = readingProtected ? 1 : readingOpacity
   return <span
-    className="scene-mainline-npc scene-mainline-npc--ambient"
+    className={`scene-mainline-npc scene-mainline-npc--ambient ${effectiveReadingOpacity < 1 ? 'is-reading-through' : ''} ${readingProtected ? 'is-reading-protected' : ''}`}
     style={{
       left: `${position.x}%`,
       top: `${position.y}%`,
+      filter: effectiveReadingOpacity < 1 ? `opacity(${effectiveReadingOpacity})` : undefined,
+      zIndex: readingProtected ? 11 : effectiveReadingOpacity < 1 ? 15 : undefined,
+      transition: `filter ${mainlineReadingFadeTransitionMs}ms linear`,
       '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
     } as CSSProperties}
     data-actor-id={npc.id}
@@ -239,92 +351,1156 @@ function MainlineAmbientNpcActorView({ npc, position, snapshot, screenMetrics, d
     data-npc-target-y={debugRuntimeEvidence ? snapshot.target?.y : undefined}
     data-runtime-x={debugRuntimeEvidence ? position.x : undefined}
     data-runtime-y={debugRuntimeEvidence ? position.y : undefined}
-    data-rendered-x={debugRuntimeEvidence ? position.x : undefined}
+    data-rendered-x={debugRuntimeEvidence ? sceneId === 'commercial-street' ? projectCommercialStreetX(position.x, screenMetrics) : position.x : undefined}
     data-rendered-y={debugRuntimeEvidence ? position.y : undefined}
     data-visual-x={debugRuntimeEvidence ? visualFootprint.x : undefined}
     data-visual-y={debugRuntimeEvidence ? visualFootprint.y : undefined}
     data-visual-width={debugRuntimeEvidence ? visualFootprint.width : undefined}
     data-visual-height={debugRuntimeEvidence ? visualFootprint.height : undefined}
     aria-hidden="true"
-  >{npc.label}</span>
+  ><span className="scene-mainline-npc__grid-content">{npc.label}</span></span>
 }
 
 export const MainlineAmbientNpcActor = memo(MainlineAmbientNpcActorView)
 
-function ObservationText({ echoId, text, typing, onTypingComplete }: { echoId: number; text: string; typing: boolean; onTypingComplete?: (echoId: number) => void }) {
-  const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
-  const [visibleCount, setVisibleCount] = useState(0)
-
+function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldScale, children, mode, lockToken, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { pageKey: string; continuityKey: string; visibleText: string; layout: MainlineEchoLayout; worldScale: number; children: React.ReactNode; mode: 'observation' | 'dialogue'; lockToken: number; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
+  const [page, setPage] = useState<{ key: string; continuityKey: string; previous: MainlineReadingPageSnapshot | null; flipping: boolean }>({ key: pageKey, continuityKey, previous: null, flipping: false })
+  const latestPageSnapshotRef = useRef<MainlineReadingPageSnapshot | null>(null)
+  // Derive the incoming state during render. Waiting for the layout effect to
+  // copy new props into state paints the next sentence once at y=0 first.
+  const presentedPage = page.key === pageKey
+    ? page
+    : {
+      key: pageKey,
+      continuityKey,
+      previous: page.continuityKey === continuityKey
+        ? previousMainlineReadingPageForFlip(latestPageSnapshotRef.current, { continuityKey, pageKey })
+        : null,
+      flipping: page.continuityKey === continuityKey,
+    }
+  const stackRef = useRef<HTMLSpanElement>(null)
+  const activeFlipTokenRef = useRef<number | null>(null)
+  const onFlipStartRef = useRef(onFlipStart)
+  onFlipStartRef.current = onFlipStart
+  const onFlipCompleteRef = useRef(onFlipComplete)
+  onFlipCompleteRef.current = onFlipComplete
+  const onFlipCancelRef = useRef(onFlipCancel)
+  onFlipCancelRef.current = onFlipCancel
+  const onSettledRef = useRef(onSettled)
+  onSettledRef.current = onSettled
+  useEffect(() => () => {
+    const token = activeFlipTokenRef.current
+    activeFlipTokenRef.current = null
+    if (token !== null) onFlipCancelRef.current?.(token)
+  }, [])
+  useIsomorphicLayoutEffect(() => {
+    if (page.key !== pageKey) {
+      setPage({
+        key: pageKey,
+        continuityKey,
+        previous: presentedPage.previous,
+        flipping: presentedPage.flipping,
+      })
+    }
+    latestPageSnapshotRef.current = snapshotMainlineReadingPage({ continuityKey, pageKey, visibleText, layout, worldScale })
+  }, [continuityKey, layout.fontSizePx, layout.heightPx, layout.widthPx, page.key, pageKey, presentedPage.flipping, presentedPage.previous, visibleText, worldScale])
+  const contentWidth = Math.max(layout.widthPx, presentedPage.previous?.layout.widthPx ?? 0) / Math.max(.001, worldScale)
+  const contentInset = mode === 'dialogue' ? 7 + Math.max(19.44, 1.1988 * layout.fontSizePx / Math.max(.001, worldScale)) : 4
+  const contentHeight = Math.max(1, Math.max(layout.heightPx, presentedPage.previous?.layout.heightPx ?? 0) / Math.max(.001, worldScale) - contentInset)
   useEffect(() => {
-    setVisibleCount(0)
-    if (!typing || characters.length === 0) {
-      setVisibleCount(characters.length)
+    const node = stackRef.current
+    if (!presentedPage.flipping || !node || presentedPage.key !== pageKey) return
+    const setProgress = (progress: number) => {
+      // Match the Cafe storefront (bottom edge): the old glyph leaves down
+      // and the new glyph enters from above.
+      const offsets = mainlineReadingRollOffsets(contentHeight, progress)
+      node.style.setProperty('--reading-page-out-y', `${offsets.outgoing}px`)
+      node.style.setProperty('--reading-page-in-y', `${offsets.incoming}px`)
+      node.dataset.flipProgress = progress.toFixed(4)
+    }
+    setProgress(0)
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setProgress(1)
+      onFlipCompleteRef.current?.(lockToken)
+      setPage(current => settleMainlineReadingPageFlip(current, pageKey))
       return
     }
+    const startedAt = performance.now()
+    activeFlipTokenRef.current = lockToken
+    onFlipStartRef.current?.(lockToken)
     let frame = 0
-    let startedAt: number | null = null
     const advance = (now: number) => {
-      startedAt ??= now
-      const next = Math.min(characters.length, Math.floor((now - startedAt) / 28) + 1)
-      setVisibleCount((current) => current === next ? current : next)
-      if (next < characters.length) frame = window.requestAnimationFrame(advance)
-      else onTypingComplete?.(echoId)
+      const elapsed = Math.max(0, now - startedAt)
+      const progress = storefrontCharacterProgress(0, 1, elapsed, mainlineReadingPageFlipDurationMs)
+      setProgress(progress)
+      if (elapsed >= mainlineReadingPageFlipDurationMs) {
+        if (activeFlipTokenRef.current === lockToken) activeFlipTokenRef.current = null
+        onFlipCompleteRef.current?.(lockToken)
+        setPage(current => settleMainlineReadingPageFlip(current, pageKey))
+        return
+      }
+      frame = window.requestAnimationFrame(advance)
     }
     frame = window.requestAnimationFrame(advance)
     return () => window.cancelAnimationFrame(frame)
-  }, [characters, echoId, onTypingComplete, typing])
+  }, [contentHeight, lockToken, presentedPage.flipping, presentedPage.key, pageKey])
+  useEffect(() => {
+    if (!presentedPage.flipping && presentedPage.key === pageKey) onSettledRef.current?.(pageKey)
+  }, [presentedPage.flipping, presentedPage.key, pageKey, visibleText, layout.widthPx, layout.heightPx, layout.fontSizePx, worldScale])
 
-  return <span className="scene-mainline-text__observation" data-scene-text-mode="observation">{characters.slice(0, visibleCount).join('')}</span>
-}
-
-function DialogueText({ group, text, onReadyChange }: { group: string; text: string; onReadyChange?: (group: string, ready: boolean) => void }) {
-  useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
-  return <span
-    className="scene-mainline-text__dialogue"
-    data-scene-text-mode="dialogue"
-  >
-    <span key={group} onAnimationEnd={(event) => {
-      if (event.target === event.currentTarget) onReadyChange?.(group, true)
-    }}>{mainlineVisiblePresentationText(text)}</span>
+  return <span ref={stackRef} className={`scene-mainline-page-stack scene-mainline-page-stack--${mode}`} data-page-flip={presentedPage.flipping ? 'running' : 'settled'} style={{ width: `${contentWidth}px`, height: `${contentHeight}px`, '--reading-page-out-y': '0px', '--reading-page-in-y': presentedPage.flipping ? `${-contentHeight}px` : '0px' } as CSSProperties}>
+    {presentedPage.flipping && presentedPage.previous !== null && <span className="scene-mainline-page scene-mainline-page--outgoing" data-reading-page-role="outgoing" data-reading-page-outgoing-key={presentedPage.previous.pageKey} data-reading-page-outgoing-width={presentedPage.previous.layout.widthPx} data-reading-page-outgoing-height={presentedPage.previous.layout.heightPx} style={{ width: `${presentedPage.previous.layout.widthPx / Math.max(.001, worldScale)}px`, height: '100%', fontSize: `${presentedPage.previous.layout.fontSizePx / Math.max(.001, worldScale)}px` }} aria-hidden="true">{presentedPage.previous.visibleText}</span>}
+    <span
+      className={`scene-mainline-page ${presentedPage.flipping ? 'scene-mainline-page--incoming' : 'scene-mainline-page--current'}`}
+      data-reading-page-role={presentedPage.flipping ? 'incoming' : 'current'}
+      style={{ width: `${layout.widthPx / Math.max(.001, worldScale)}px` }}
+    >{children}</span>
   </span>
 }
 
-function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
+/** 1 normally; a click while text types or erases raises it so the motion finishes quickly. */
+let readingTextMotionSpeed = 1
+const readingTextMotionClickSpeed = 12
+
+function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = false, settledImmediately = false, typingDelayMs, onComplete }: { sessionKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused?: boolean; settledImmediately?: boolean; typingDelayMs?: number; onComplete?: (sessionKey: string, motion: MainlineReadingTextMotion) => void }) {
+  const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
+  const [settledPageKey, setSettledPageKey] = useState<string | null>(null)
+  const [progress, setProgress] = useState<{ key: string; count: number } | null>(null)
+  const onCompleteRef = useRef(onComplete)
+  useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
+  const pageSettled = mainlineObservationPageIsSettled(pageKey, settledPageKey)
+  const animationKey = `${sessionKey}\u0000${motion}`
+  const progressRef = useRef<{ key: string; count: number } | null>(null)
+  const pausedRef = useRef(paused)
+  pausedRef.current = paused
+  useIsomorphicLayoutEffect(() => {
+    if (settledImmediately) setSettledPageKey(pageKey)
+  }, [pageKey, settledImmediately])
+  const visibleCount = progress?.key === animationKey
+    ? progress.count
+    : motion === 'deleting' ? characters.length : 0
+  const visibleText = motion === 'static'
+    ? characters.join('')
+    : motion === 'deleted'
+      ? ''
+      : motion === 'deleting' && !pageSettled
+        ? characters.join('')
+        : characters.slice(0, visibleCount).join('')
+
+  useEffect(() => {
+    if (paused || (motion !== 'typing' && motion !== 'deleting') || !mainlineReadingTextMotionCanAnimate(motion, pageSettled)) return
+    const previous = progressRef.current?.key === animationKey ? progressRef.current.count : motion === 'deleting' ? characters.length : 0
+    if (previous === 0 || motion === 'deleting') readingTextMotionSpeed = 1
+    let cancelMotion: (() => void) | undefined
+    const start = () => { cancelMotion = startMainlineReadingTextMotion({
+      motion,
+      textLength: characters.length,
+      visibleCount: previous,
+      intervalMs: mainlineObservationTypingIntervalMs,
+      request: callback => window.requestAnimationFrame(callback),
+      cancel: id => window.cancelAnimationFrame(id),
+      isPaused: () => pausedRef.current,
+      speed: () => readingTextMotionSpeed,
+      onProgress: next => {
+        progressRef.current = { key: animationKey, count: next }
+        setProgress(current => current?.key === animationKey && current.count === next ? current : { key: animationKey, count: next })
+      },
+      onComplete: () => onCompleteRef.current?.(sessionKey, motion),
+    }) }
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const delay = motion === 'typing' && previous === 0
+      ? reducedMotion ? mainlineReadingTypingDelayMs : typingDelayMs ?? mainlineReadingTypingDelayMs
+      : 0
+    const timer = window.setTimeout(start, delay)
+    return () => { window.clearTimeout(timer); cancelMotion?.() }
+  // Parent renders can recreate the callback while the outgoing page is being
+  // deleted. Keep the latest callback without restarting the elapsed-time loop.
+  }, [animationKey, characters, motion, pageSettled, paused, sessionKey, typingDelayMs])
+
+  return { visibleText, onSettled: (settledKey: string) => {
+    if (settledKey === pageKey) setSettledPageKey(settledKey)
+  } }
+}
+
+type ReadingProtectionCallback = (rects: readonly MainlineReadingProtectionRect[]) => void
+
+function textLineProtectionRects(root: HTMLElement) {
+  const glyphRects: MainlineReadingProtectionRect[] = []
+  for (const page of root.querySelectorAll<HTMLElement>('.scene-mainline-page')) {
+    if (getComputedStyle(page).display === 'none') continue
+    const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT)
+    const range = document.createRange()
+    while (walker.nextNode()) {
+      const node = walker.currentNode as Text
+      let offset = 0
+      for (const character of node.data) {
+        const start = offset
+        offset += character.length
+        if (/^\s+$/u.test(character)) continue
+        range.setStart(node, start)
+        range.setEnd(node, offset)
+        const rect = range.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) glyphRects.push({ x: rect.left, y: rect.top, width: rect.width, height: rect.height })
+      }
+    }
+    range.detach()
+  }
+  const fontSize = Number.parseFloat(getComputedStyle(root).fontSize) || 16
+  // This is spatial breathing room around current ink, not future text.
+  return mainlineReadingGlyphSafetyRects(glyphRects, fontSize)
+}
+
+function firstTextProtectionRects(root: HTMLElement, text: string, measureRef: HTMLElement | null) {
+  const characters = Array.from(mainlineVisiblePresentationText(text))
+  if (!characters.length) return []
+  const stack = root.querySelector<HTMLElement>('.scene-mainline-page-stack')
+  const page = stack?.querySelector<HTMLElement>('.scene-mainline-page')
+  if (!stack || !page) return []
+  const probe = document.createElement('span')
+  probe.className = 'scene-mainline-page scene-mainline-page--protection-probe'
+  probe.setAttribute('aria-hidden', 'true')
+  Object.assign(probe.style, {
+    position: 'absolute', left: '50%', top: '0',
+    width: page.style.width || `${page.getBoundingClientRect().width}px`,
+    height: 'auto', visibility: 'hidden', pointerEvents: 'none', transform: 'translateX(-50%)',
+  })
+  if (measureRef) probe.innerHTML = measureRef.innerHTML
+  else probe.textContent = characters.join('')
+  stack.appendChild(probe)
+  const walker = document.createTreeWalker(probe, NodeFilter.SHOW_TEXT)
+  const range = document.createRange()
+  let first: MainlineReadingProtectionRect | null = null
+  while (!first && walker.nextNode()) {
+    const node = walker.currentNode as Text
+    let offset = 0
+    for (const character of node.data) {
+      const start = offset
+      offset += character.length
+      if (/^\s+$/u.test(character)) continue
+      range.setStart(node, start)
+      range.setEnd(node, offset)
+      const rect = range.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        first = { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
+        break
+      }
+    }
+  }
+  range.detach()
+  probe.remove()
+  if (!first) return []
+  const fontSize = Number.parseFloat(getComputedStyle(root).fontSize) || 16
+  return mainlineReadingGlyphSafetyRects([first], fontSize)
+}
+
+function textRangeProtectionRects(root: HTMLElement, startAt: number, limit: number) {
+  const output: MainlineReadingProtectionRect[] = []
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  const range = document.createRange()
+  let characterIndex = 0
+  while (walker.nextNode() && characterIndex < limit) {
+    const node = walker.currentNode as Text
+    let offset = 0
+    for (const character of node.data) {
+      const current = characterIndex
+      characterIndex += 1
+      const start = offset
+      offset += character.length
+      if (current < startAt || /^\s+$/u.test(character)) continue
+      range.setStart(node, start)
+      range.setEnd(node, offset)
+      const rect = range.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) output.push({ x: rect.left, y: rect.top, width: rect.width, height: rect.height })
+    }
+  }
+  range.detach()
+  return output
+}
+
+function frameStrokeProtectionRects(root: HTMLElement, progressOverride?: number) {
+  const path = root.querySelector<SVGPathElement>('.scene-menu-reading-frame path')
+  if (!path) return []
+  const totalLength = path.getTotalLength()
+  if (totalLength <= 0) return []
+  const dashOffset = Number.parseFloat(getComputedStyle(path).strokeDashoffset)
+  const progress = progressOverride ?? Math.max(0, Math.min(1, 1 - (Number.isFinite(dashOffset) ? dashOffset : 1)))
+  const visibleLength = totalLength * progress
+  if (visibleLength <= 0) return []
+  const matrix = path.getScreenCTM()
+  if (!matrix) return []
+  const step = 4
+  const points: Point[] = []
+  for (let length = 0; length < visibleLength; length += step) {
+    const local = path.getPointAtLength(length)
+    const screen = new DOMPoint(local.x, local.y).matrixTransform(matrix)
+    points.push({ x: screen.x, y: screen.y })
+  }
+  const end = path.getPointAtLength(visibleLength)
+  const screenEnd = new DOMPoint(end.x, end.y).matrixTransform(matrix)
+  points.push({ x: screenEnd.x, y: screenEnd.y })
+
+  const stroke = Number.parseFloat(getComputedStyle(path).strokeWidth) || 1
+  const padding = stroke / 2 + 2
+  const segments: MainlineReadingProtectionRect[] = []
+  let current: Point[] = []
+  let axis: 'x' | 'y' | null = null
+  const flush = () => {
+    if (!current.length) return
+    const xs = current.map(point => point.x)
+    const ys = current.map(point => point.y)
+    const left = Math.min(...xs), top = Math.min(...ys)
+    const right = Math.max(...xs), bottom = Math.max(...ys)
+    segments.push({ x: left - padding, y: top - padding, width: Math.max(1, right - left) + padding * 2, height: Math.max(1, bottom - top) + padding * 2 })
+    current = []
+  }
+  for (let index = 0; index < points.length; index += 1) {
+    const point = points[index]!
+    const next = points[index + 1]
+    const dx = next ? Math.abs(next.x - point.x) : 0
+    const dy = next ? Math.abs(next.y - point.y) : 0
+    const nextAxis = dx >= dy ? 'x' : 'y'
+    if (axis && nextAxis !== axis) flush()
+    axis = nextAxis
+    current.push(point)
+  }
+  flush()
+  return segments
+}
+
+function measureReadingProtectionRects(root: HTMLElement, text: string, motion: MainlineReadingTextMotion, measureRef: HTMLElement | null, frameProgress: number) {
+  const protectionRects = textLineProtectionRects(root)
+  // Seed the first visible glyph before typing starts. This breaks the old
+  // empty-measurement / paused-typing cycle without measuring future glyphs.
+  if (!protectionRects.length && motion === 'typing') protectionRects.push(...firstTextProtectionRects(root, text, measureRef))
+  protectionRects.push(...frameStrokeProtectionRects(root, frameProgress))
+  return protectionRects
+}
+
+function ObservationText({ onProtectionRects, menu, sourceText, echoId, continuityKey, pageKey, text, motion, paused, typingDelayMs, layout, worldScale, lockToken, onMotionComplete, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { onProtectionRects?: ReadingProtectionCallback; menu: boolean; sourceText: string; echoId: number; continuityKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused: boolean; typingDelayMs?: number; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
+  const sessionKey = `echo:${echoId}`
+  const completeMotion = useCallback((key: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(echoId, key, completedMotion), [echoId, onMotionComplete])
+  const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, paused, typingDelayMs, onComplete: completeMotion })
+  const protectionRef = useRef<HTMLSpanElement>(null)
+  const pageSource = text.endsWith('...') ? text.slice(0, -3) : text
+  const pageOffset = Math.max(0, sourceText.indexOf(pageSource))
+  const descriptions = commercialStreetDrinkCatalog.flatMap(item => item.description ? [item.description] : [])
+  const descriptionRanges = descriptions.flatMap(description => {
+    const start = sourceText.indexOf(description)
+    return start < 0 ? [] : [{ start, end: start + description.length }]
+  })
+  const renderMenuText = (value: string) => {
+    const chunks = Array.from(value).map((character, index) => ({ character, small: menu && descriptionRanges.some(range => pageOffset + index >= range.start && pageOffset + index < range.end) }))
+    const grouped = chunks.reduce<{ text: string; small: boolean }[]>((groups, part) => {
+      const last = groups[groups.length - 1]
+      if (last && last.small === part.small) last.text += part.character
+      else groups.push({ text: part.character, small: part.small })
+      return groups
+    }, [])
+    return grouped.map((part, index) => part.small ? <span className="scene-menu-description" key={index}>{part.text}</span> : part.text)
+  }
+  const menuMeasureRef = useRef<HTMLSpanElement>(null)
+  const [menuSize, setMenuSize] = useState({ width: 0, height: 0 })
+  useIsomorphicLayoutEffect(() => {
+    const element = menuMeasureRef.current
+    if (!menu || !element) return
+    const width = element.offsetWidth
+    const height = element.offsetHeight
+    setMenuSize(previous => previous.width === width && previous.height === height ? previous : { width, height })
+  }, [menu, text, layout.widthPx, layout.fontSizePx, worldScale])
+  const frameGeometry = sceneFocusFrameGeometry(menuSize.width + 16, menuSize.height + 12)
+  const frameProgress = text.length ? Math.min(1, textMotion.visibleText.length / text.length) : 0
+  useLayoutEffect(() => {
+    const root = protectionRef.current
+    if (!root || !onProtectionRects) return
+    let animationFrame: number | null = null
+    let cancelled = false
+    const measure = () => {
+      if (cancelled) return
+      const rects = measureReadingProtectionRects(root, text, motion, menuMeasureRef.current, frameProgress)
+      onProtectionRects(rects)
+      const flipping = root.querySelector('.scene-mainline-page-stack[data-page-flip="running"]')
+      if (flipping) animationFrame = window.requestAnimationFrame(measure)
+    }
+    measure()
+    return () => {
+      cancelled = true
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
+    }
+  }, [frameProgress, layout, menu, menuSize.height, menuSize.width, motion, onProtectionRects, text, textMotion.visibleText, worldScale])
+  return <span ref={protectionRef} className="scene-mainline-text__observation" data-scene-text-mode="observation" style={{ isolation: 'isolate' }}>
+    {menu && <><span className="scene-menu-measure" ref={menuMeasureRef} aria-hidden="true">{renderMenuText(text)}</span><span className="scene-focus-frame scene-menu-reading-frame" style={{ width: menuSize.width + 16, height: menuSize.height + 12, '--scene-focus-stroke-offset': 1 - frameProgress } as CSSProperties} aria-hidden="true"><svg viewBox={frameGeometry.viewBox} preserveAspectRatio="none"><path pathLength="1" d={frameGeometry.paths['top-left']} /></svg></span></>}
+    <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={textMotion.visibleText} layout={layout} worldScale={worldScale} mode="observation" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { textMotion.onSettled(settledKey); onSettled?.(settledKey) }}>
+      {renderMenuText(textMotion.visibleText)}
+    </ReadingPageFlip>
+  </span>
+}
+
+function DialogueText({ onProtectionRects, paused = false, group, continuityKey, pageKey, text, sessionId, motion, typingDelayMs, layout, worldScale, lockToken, onMotionComplete, onReadyChange, onFlipStart, onFlipComplete, onFlipCancel, onSettled }: { onProtectionRects?: ReadingProtectionCallback; paused?: boolean; group: string; continuityKey: string; pageKey: string; text: string; sessionId: number; motion: MainlineReadingTextMotion; typingDelayMs?: number; layout: MainlineEchoLayout; worldScale: number; lockToken: number; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; onFlipStart?: (token: number) => void; onFlipComplete?: (token: number) => void; onFlipCancel?: (token: number) => void; onSettled?: (pageKey: string) => void }) {
+  const sessionKey = `dialogue:${sessionId}`
+  const completeMotion = useCallback((_sessionKey: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(sessionId, completedMotion), [onMotionComplete, sessionId])
+  const textMotion = useReadingTextMotion({ sessionKey, pageKey, text, motion, paused, typingDelayMs, onComplete: completeMotion })
+  const protectionRef = useRef<HTMLSpanElement>(null)
+  useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, pageKey, onReadyChange])
+  useLayoutEffect(() => {
+    const root = protectionRef.current
+    if (!root || !onProtectionRects) return
+    let animationFrame: number | null = null
+    let cancelled = false
+    const measure = () => {
+      if (cancelled) return
+      onProtectionRects(measureReadingProtectionRects(root, text, motion, null, 0))
+      const flipping = root.querySelector('.scene-mainline-page-stack[data-page-flip="running"]')
+      if (flipping) animationFrame = window.requestAnimationFrame(measure)
+    }
+    measure()
+    return () => {
+      cancelled = true
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame)
+    }
+  }, [layout, motion, onProtectionRects, text, textMotion.visibleText, worldScale])
+  return <span ref={protectionRef} className="scene-mainline-text__dialogue" data-scene-text-mode="dialogue">
+    <ReadingPageFlip pageKey={pageKey} continuityKey={continuityKey} visibleText={textMotion.visibleText} layout={layout} worldScale={worldScale} mode="dialogue" lockToken={lockToken} onFlipStart={onFlipStart} onFlipComplete={onFlipComplete} onFlipCancel={onFlipCancel} onSettled={(settledKey) => { textMotion.onSettled(settledKey); onSettled?.(settledKey); onReadyChange?.(group, true) }}>
+      {textMotion.visibleText}
+    </ReadingPageFlip>
+  </span>
+}
+
+// Wide-screen conversation text types left-to-right inside a box that already has
+// its final size: the not-yet-typed remainder stays in the layout but is invisible.
+// That keeps right-aligned (player) lines from growing leftwards letter by letter.
+function ConversationDialogueText({ keepOnDeleted, pageKey, text, sessionId, motion, typingDelayMs, onMotionComplete, onReadyChange, group }: { keepOnDeleted?: boolean; pageKey: string; text: string; sessionId: number; motion: MainlineReadingTextMotion; typingDelayMs?: number; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; group: string }) {
+  const completeMotion = useCallback((_sessionKey: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(sessionId, completedMotion), [onMotionComplete, sessionId])
+  const textMotion = useReadingTextMotion({ sessionKey: group, pageKey, text, motion, settledImmediately: true, typingDelayMs, onComplete: completeMotion })
+  useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, pageKey, onReadyChange])
+  useEffect(() => {
+    if (motion === 'static' || motion === 'deleted') onReadyChange?.(group, true)
+  }, [group, motion, onReadyChange, textMotion.visibleText])
+  const fullText = useMemo(() => Array.from(mainlineVisiblePresentationText(text)).join(''), [text])
+  // On the phone column the last line is not erased: it stays whole and fades out together with the history.
+  const shownText = keepOnDeleted && motion === 'deleted' ? fullText : textMotion.visibleText
+  const remainder = fullText.startsWith(shownText) ? fullText.slice(shownText.length) : ''
+  return <span className="scene-mainline-conversation-line__typing">{shownText}{remainder && <span className="scene-mainline-conversation-line__pending" aria-hidden="true">{remainder}</span>}</span>
+}
+
+function mainlineConversationTurnGroup(dialogue: MainlineSceneDialoguePresentation, dialogueLine: MainlineSceneDialogueLine, dialogueLineIndex: number | null, dialogueTextSessionId: number) {
+  return `conversation:${dialogue.triggerEntityId}:${dialogueLineIndex ?? 0}:${dialogueLine.id}:${dialogueTextSessionId}`
+}
+
+function mainlineDialoguePageGroup(dialogue: MainlineSceneDialoguePresentation, dialogueLine: MainlineSceneDialogueLine, dialogueLineIndex: number | null, dialogueTextSessionId: number, segmentIndex: number, overflowIndex: number) {
+  return `dialogue:${dialogue.triggerEntityId}:${dialogueLineIndex ?? 0}:${dialogueLine.id}:${dialogueTextSessionId}:${segmentIndex}:fit:${overflowIndex}`
+}
+
+function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId, dialogueTextMotion, isLeaving, isReady, isConsumed, readyGroup, consumedGroup, handoffActive, handoffId, handoffAcknowledged, onDialogueTextMotionComplete, onDialogueReadyChange }: { scene: MainlineSceneDefinition; dialogue: MainlineSceneDialoguePresentation; dialogueLine: MainlineSceneDialogueLine; dialogueLineIndex: number | null; dialogueTextSessionId: number; dialogueTextMotion: MainlineReadingTextMotion; isLeaving: boolean; isReady: boolean; isConsumed: boolean; readyGroup: string | null; consumedGroup: string | null; handoffActive: boolean; handoffId: number | null; handoffAcknowledged: boolean; onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onDialogueReadyChange: (group: string, ready: boolean) => void }) {
+  const currentIndex = Math.max(0, dialogueLineIndex ?? 0)
+  const previousLines = dialogue.lines.slice(0, currentIndex)
+  const historyRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const history = historyRef.current
+    if (history) history.scrollTop = history.scrollHeight
+  }, [previousLines.length])
+  const speakerIsNpc = (line: MainlineSceneDialogueLine) => Boolean(line.speakerNpcId || scene.npcs.some(npc => npc.label === line.speaker))
+  const lineIndexKey = dialogueLineIndex ?? currentIndex
+  const group = mainlineConversationTurnGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId)
+  return <section className={`scene-mainline-conversation ${isLeaving ? 'is-leaving' : ''}`} aria-live="polite" aria-label="对话记录" data-dialogue-presentation="conversation" data-dialogue-current-group={group} data-dialogue-line-id={dialogueLine.id} data-dialogue-line-index={lineIndexKey} data-dialogue-session-id={dialogueTextSessionId} data-dialogue-ready={String(isReady)} data-dialogue-ready-group={readyGroup ?? ''} data-dialogue-advance-consumed={String(isConsumed)} data-dialogue-consumed-group={consumedGroup ?? ''} data-dialogue-handoff-active={String(handoffActive)} data-dialogue-handoff-id={handoffId ?? ''} data-dialogue-handoff-stage={handoffId === null ? 'idle' : handoffActive ? 'active' : 'outgoing'} data-dialogue-handoff-acknowledged={String(handoffAcknowledged)} data-dialogue-text-motion={dialogueTextMotion}>
+    <div ref={historyRef} className="scene-mainline-conversation__history">
+      {previousLines.map(line => <article key={line.id} className={`scene-mainline-conversation-line ${speakerIsNpc(line) ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={line.id}>
+        <span className="scene-mainline-conversation-line__speaker">{line.speaker}</span>
+        <p>{line.text}</p>
+      </article>)}
+    </div>
+    <article key={`${dialogueLine.id}:${dialogueTextSessionId}`} className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc(dialogueLine) ? 'is-npc' : 'is-player'}`} data-dialogue-current-line={dialogueLine.id}>
+      <span className="scene-mainline-conversation-line__speaker">{dialogueLine.speaker}</span>
+      <p><ConversationDialogueText pageKey={group} text={dialogueLine.text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} typingDelayMs={currentIndex === 0 ? mainlineReadingBackdropTypingDelayMs : undefined} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={onDialogueReadyChange} group={group} /></p>
+    </article>
+  </section>
+}
+
+type ConversationHistoryEntry = Readonly<{ key: string; speaker?: string; speakerIsNpc: boolean; text: string; menu?: Readonly<{ items: readonly { name: string; price: number | string; description: string | null }[]; pickedIndex: number }> }>
+
+function HistoryMenu({ items, pickedIndex }: { items: readonly { name: string; price: number | string; description: string | null }[]; pickedIndex: number }) {
+  return <div className="dialogue-choice-menu dialogue-choice-menu--history" aria-hidden="true"><div className="dialogue-choice-menu__panel">
+    {items.map((row, index) => <div key={index} className={`dialogue-choice-menu__row${index === pickedIndex ? ' is-picked' : ''}`}>
+      <span className="dialogue-choice-menu__line"><span className="dialogue-choice-menu__name">{row.name}</span><span className="dialogue-choice-menu__price">{row.price}</span></span>
+      {row.description && <span className="dialogue-choice-menu__desc">{row.description}</span>}
+    </div>)}
+  </div></div>
+}
+
+function ConversationMenuPanel({ items, sessionId, motion, delayMs, onMotionComplete, onReadyChange, group }: { items: readonly { name: string; price: string; description: string | null }[]; sessionId: number; motion: MainlineReadingTextMotion; delayMs: number; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; group: string }) {
+  const onCompleteRef = useRef(onMotionComplete)
+  useEffect(() => { onCompleteRef.current = onMotionComplete }, [onMotionComplete])
+  useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
+  useEffect(() => {
+    if (motion === 'static' || motion === 'deleted') onReadyChange?.(group, true)
+  }, [group, motion, onReadyChange])
+  useEffect(() => {
+    if (motion !== 'typing' && motion !== 'deleting') return
+    const wait = motion === 'typing' ? delayMs + 420 : 260
+    const timer = window.setTimeout(() => onCompleteRef.current?.(sessionId, motion), wait)
+    return () => window.clearTimeout(timer)
+  }, [delayMs, motion, sessionId])
+  // On 'deleted' the whole panel keeps showing and fades out together with the leaving section.
+  return <div
+    className={`conversation-menu-panel${motion === 'typing' ? ' is-fading-in' : motion === 'deleting' || motion === 'deleted' ? ' is-fading-out' : ''}`}
+    style={motion === 'typing' ? { animationDelay: `${delayMs}ms` } : undefined}
+  >
+    {items.map((item, index) => <div className="conversation-menu-panel__item" key={`${index}:${item.name}`}>
+      <span className="conversation-menu-panel__line"><span>{item.name}</span><span className="conversation-menu-panel__price">{item.price}</span></span>
+      {item.description && <span className="conversation-menu-panel__desc">{item.description}</span>}
+    </div>)}
+  </div>
+}
+
+function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, pageAdvanceDiagnostic, onTextMotionComplete, onReadyChange, onAdvance, advanceReady, advanceReadyKey, requiredAdvanceReadyKey, advanceRoute, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete, isLeaving, onExitComplete }: {
+  sessionId: string
+  content: MainlineConversationDisplayContent
+  contentKey: string
+  pageKey: string
+  pageText: string
+  speaker?: string
+  speakerIsNpc: boolean
+  narrow: boolean
+  windowHeightPx: number
+  availableWidthPx: number
+  measuredPageHeightPx: number
+  pageIndex: number
+  isFinalLinePage: boolean
+  textSessionId: number
+  textMotion: MainlineReadingTextMotion
+  pageAdvanceDiagnostic: string
+  onTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => string | void
+  onReadyChange: (group: string, ready: boolean) => void
+  onAdvance: (identity: NarrowDialogueIdentity) => void
+  advanceReady: boolean
+  advanceReadyKey: string | null
+  requiredAdvanceReadyKey: string
+  advanceRoute: string
+  dialogueChoiceWheel?: MainlineDialogueChoiceWheelPresentation | null
+  onSceneActionChoice?: (actionId: number, index: number) => void
+  onSceneActionCancel?: () => void
+  onSceneActionExitComplete?: (actionId: number, index: number) => void
+  isLeaving: boolean
+  onExitComplete?: () => void
+}) {
+  const [choiceTransfer, setChoiceTransfer] = useState<null | {
+    id: string
+    actionId: number
+    optionIndex: number
+    text: string
+    sourceRect: { left: number; top: number; width: number; height: number }
+    targetRect?: { left: number; top: number; width: number; height: number }
+    textStyle?: CSSProperties
+  }>(null)
+  const [history, setHistory] = useState<readonly ConversationHistoryEntry[]>(() => content.history ?? [])
+  const [hiddenQuestionKey, setHiddenQuestionKey] = useState<string | null>(null)
+  // Phone: a real conversation (back-and-forth lines, options, history) uses exactly the wide column, only styled for a narrow screen.
+  // A lone narration or short prompt keeps the compact phone window.
+  const phoneMenuContent = content.kind === 'text' && Boolean(content.menuItems)
+  const columnSessionRef = useRef(false)
+  const columnAllowed = narrow && !phoneMenuContent && !(content.kind === 'choice' && Boolean(dialogueChoiceWheel?.dismissible))
+  const wantsColumn = columnAllowed
+    && (content.kind === 'choice'
+      || content.kind === 'waiting'
+      || ((content.kind === 'text' || content.kind === 'aside') && content.layout === 'conversation')
+      || (content.kind === 'text' && Boolean(content.choicePrompt || content.expectedChoices?.length)))
+  // Once a session has shown real conversation it stays in the column (its asides and "……" beats too).
+  const phoneColumn = columnAllowed && (wantsColumn || columnSessionRef.current)
+  useLayoutEffect(() => { if (wantsColumn) columnSessionRef.current = true })
+  const legacyNarrow = narrow && !phoneColumn && !phoneMenuContent
+  const historyEntriesRef = useRef<ConversationHistoryEntry[]>([...(content.history ?? [])])
+  const historyElementRef = useRef<HTMLDivElement>(null)
+  const exitCompletionSessionRef = useRef<string | null>(null)
+  const transferSessionRef = useRef(sessionId)
+  const previousRef = useRef<{ key: string; content: MainlineConversationDisplayContent; speaker?: string; speakerIsNpc: boolean } | null>(null)
+  useLayoutEffect(() => {
+    if (content.kind === 'aside') onReadyChange(contentKey, true)
+  }, [content.kind, contentKey, onReadyChange])
+  useLayoutEffect(() => {
+    const previous = previousRef.current
+    if (previous && previous.key !== contentKey && !(legacyNarrow && content.kind === 'choice') && previous.content.kind === 'text' && !previous.content.noHistory && !previous.content.shortPrompt && previous.content.text.trim()) {
+      const entry = { key: previous.key, speaker: previous.speaker, speakerIsNpc: previous.speakerIsNpc, text: previous.content.text }
+      if (!historyEntriesRef.current.some(item => item.key === entry.key)) {
+        historyEntriesRef.current = [...historyEntriesRef.current, entry]
+        setHistory(historyEntriesRef.current)
+      }
+    }
+    previousRef.current = { key: contentKey, content, speaker, speakerIsNpc }
+  }, [content, contentKey, speaker, speakerIsNpc])
+  useLayoutEffect(() => {
+    if (transferSessionRef.current !== sessionId) setChoiceTransfer(null)
+    transferSessionRef.current = sessionId
+  }, [sessionId])
+  useLayoutEffect(() => {
+    if (!choiceTransfer?.targetRect) return
+    const wheel = document.querySelector<HTMLElement>(`[data-dialogue-choice-action="${choiceTransfer.actionId}"]`)
+    const source = wheel?.querySelector<HTMLElement>(`[data-dialogue-choice-index="${choiceTransfer.optionIndex}"]`)
+    if (!source) return
+    const previousColor = source.style.color
+    const previousTextShadow = source.style.textShadow
+    source.style.color = 'transparent'
+    source.style.textShadow = 'none'
+    return () => {
+      // On the phone the picked label stays gone after it has flown to the history (it would otherwise blink back for a moment).
+      if (legacyNarrow) return
+      source.style.color = previousColor
+      source.style.textShadow = previousTextShadow
+    }
+  }, [choiceTransfer, legacyNarrow])
+  useLayoutEffect(() => {
+    if (!choiceTransfer || choiceTransfer.targetRect) return
+    const escapedId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(choiceTransfer.id) : choiceTransfer.id
+    const target = historyElementRef.current?.querySelector<HTMLElement>(`[data-choice-transfer-target="${escapedId}"]`)
+    if (!target) return
+    const rect = firstTextLineRect(target) ?? target.getBoundingClientRect()
+    if (rect.width <= 0 || rect.height <= 0) return
+    setChoiceTransfer(current => current?.id === choiceTransfer.id && !current.targetRect
+      ? { ...current, targetRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } }
+      : current)
+  }, [choiceTransfer, history])
+
+  const flipRootRef = useRef<HTMLElement>(null)
+  const flipStackRef = useRef<HTMLDivElement>(null)
+  const flipTopRef = useRef<number | null>(null)
+  const flipStack = useCallback(() => {
+    const stack = flipStackRef.current
+    const viewport = stack?.parentElement
+    if (!stack || !viewport) return
+    // offsetTop ignores transforms, so a glide that is still running never looks like a layout change.
+    // Nothing happens unless the stack's real position moved; the per-frame re-renders leave it alone.
+    const layoutTop = stack.offsetTop
+    const previousLayoutTop = flipTopRef.current
+    if (previousLayoutTop !== null && Math.abs(layoutTop - previousLayoutTop) < 1) return
+    flipTopRef.current = layoutTop
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (previousLayoutTop === null || reduced || !stack.animate) return
+    // Where the stack is drawn right now relative to its layout position (leftover of a running glide).
+    const transform = window.getComputedStyle(stack).transform
+    const leftover = transform && transform !== 'none' ? new DOMMatrixReadOnly(transform).m42 : 0
+    stack.getAnimations?.().forEach(animation => { if (animation.id === 'conversation-flip') animation.cancel() })
+    const delta = previousLayoutTop - layoutTop + leftover
+    if (Math.abs(delta) < 1) return
+    stack.animate([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], { duration: 320, easing: 'cubic-bezier(.22, .61, .36, 1)', id: 'conversation-flip' })
+  }, [])
+  // One glide for the whole stack: every change (a new line, a wrapped line, a history entry,
+  // the choice slot opening or closing) moves the stack once instead of each line jumping.
+  useLayoutEffect(() => { if (!legacyNarrow) flipStack() })
+  useLayoutEffect(() => {
+    const stack = flipStackRef.current
+    if (legacyNarrow || !stack || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => flipStack())
+    observer.observe(stack)
+    return () => observer.disconnect()
+  }, [legacyNarrow, flipStack])
+
+  const lockWideChoice = (actionId: number, optionIndex: number) => {
+    if (!dialogueChoiceWheel || dialogueChoiceWheel.actionId !== actionId) return
+    // A declinable world choice has no conversation history to fly into; it just fades away.
+    if (dialogueChoiceWheel.dismissible) return
+    const label = dialogueChoiceWheel.menu?.[optionIndex]?.name ?? dialogueChoiceWheel.options[optionIndex]
+    if (!label) return
+    const wheel = document.querySelector<HTMLElement>(`[data-dialogue-choice-action="${actionId}"]`)
+    const source = wheel?.querySelector<HTMLElement>(`[data-dialogue-choice-index="${optionIndex}"]`)
+    if (!source) return
+    const sourceRect = firstTextLineRect(source) ?? source.getBoundingClientRect()
+    const id = `choice-history:${sessionId}:${actionId}:${optionIndex}`
+    const entry: ConversationHistoryEntry = { key: id, speaker: '修杰', speakerIsNpc: false, text: label }
+    let nextHistory = historyEntriesRef.current
+    const question = content.kind === 'text' && content.text.trim() && !content.noHistory && !content.shortPrompt
+      ? { key: contentKey, speaker, speakerIsNpc, text: content.text }
+      : legacyNarrow && content.kind === 'choice' && stickyRef.current && stickyRef.current.sessionKey === sessionId
+        ? { key: stickyRef.current.key, speaker: stickyRef.current.speaker, speakerIsNpc: stickyRef.current.speakerIsNpc, text: stickyRef.current.text }
+        : null
+    if (question && !nextHistory.some(item => item.key === question.key)) nextHistory = [...nextHistory, question]
+    // An ordering menu stays in the conversation (dimmed, not tappable) above the picked item.
+    if (dialogueChoiceWheel.menu?.length && !nextHistory.some(item => item.key === `${id}:menu`)) nextHistory = [...nextHistory, { key: `${id}:menu`, speakerIsNpc: true, text: '', menu: { items: dialogueChoiceWheel.menu, pickedIndex: optionIndex } }]
+    if (!nextHistory.some(item => item.key === id)) nextHistory = [...nextHistory, entry]
+    // On the phone the question now lives in the history: hide the copy still in the window (its space stays) until the next line replaces it.
+    if ((legacyNarrow || phoneColumn) && question) setHiddenQuestionKey(contentKey)
+    if (nextHistory !== historyEntriesRef.current) {
+      historyEntriesRef.current = nextHistory
+      setHistory(nextHistory)
+    }
+    const computed = window.getComputedStyle(source)
+    setChoiceTransfer({
+      id,
+      actionId,
+      optionIndex,
+      text: label,
+      sourceRect: { left: sourceRect.left, top: sourceRect.top, width: sourceRect.width, height: sourceRect.height },
+      textStyle: { fontFamily: computed.fontFamily, fontSize: computed.fontSize, fontWeight: computed.fontWeight, lineHeight: computed.lineHeight, color: computed.color },
+    })
+  }
+
+  // Phone: like the wide column, history, the text window and the options form ONE bottom-anchored stack that grows upward.
+  // Every change (new history row, taller or shorter options, a new line) moves the whole stack once with one glide, so parts never bump each other.
+  const phoneStackRef = useRef<HTMLDivElement>(null)
+  const phoneFlipTopRef = useRef<number | null>(null)
+  const phoneOffsetRef = useRef(0)
+  const phoneFrameRef = useRef<number | null>(null)
+  // Several layout changes can land within a few hundred ms (history row, next line, options). Each one only adds to a leftover offset
+  // that decays smoothly every frame, so they merge into one continuous glide instead of restarting an ease over and over (that restarting felt like a judder).
+  const flipPhoneStack = useCallback(() => {
+    const stack = phoneStackRef.current
+    if (!stack) return
+    const layoutTop = stack.offsetTop
+    const previousLayoutTop = phoneFlipTopRef.current
+    if (previousLayoutTop !== null && Math.abs(layoutTop - previousLayoutTop) < 1) return
+    phoneFlipTopRef.current = layoutTop
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (previousLayoutTop === null || reduced) return
+    phoneOffsetRef.current += previousLayoutTop - layoutTop
+    stack.style.transform = `translateY(${phoneOffsetRef.current}px)`
+    if (phoneFrameRef.current !== null) return
+    let last = performance.now()
+    const step = (now: number) => {
+      const element = phoneStackRef.current
+      if (!element) { phoneFrameRef.current = null; phoneOffsetRef.current = 0; return }
+      const elapsed = Math.min(48, now - last)
+      last = now
+      phoneOffsetRef.current *= Math.exp(-elapsed / 120)
+      if (Math.abs(phoneOffsetRef.current) < .4) {
+        phoneOffsetRef.current = 0
+        element.style.transform = ''
+        phoneFrameRef.current = null
+        return
+      }
+      element.style.transform = `translateY(${phoneOffsetRef.current}px)`
+      phoneFrameRef.current = window.requestAnimationFrame(step)
+    }
+    phoneFrameRef.current = window.requestAnimationFrame(step)
+  }, [])
+  useEffect(() => () => { if (phoneFrameRef.current !== null) window.cancelAnimationFrame(phoneFrameRef.current) }, [])
+  useLayoutEffect(() => { if (legacyNarrow) flipPhoneStack() })
+  useLayoutEffect(() => {
+    const stack = phoneStackRef.current
+    if (!legacyNarrow || !stack || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => flipPhoneStack())
+    observer.observe(stack)
+    return () => observer.disconnect()
+  }, [legacyNarrow, flipPhoneStack])
+
+  const currentText = content.kind === 'choice' ? '' : pageText
+  const keepChoiceWheelForExit = Boolean(dialogueChoiceWheel && (content.kind === 'choice'
+    ? dialogueChoiceWheel.actionId === content.actionId
+    : content.kind === 'text' && content.choicePrompt
+      ? dialogueChoiceWheel.sessionId === sessionId
+      : dialogueChoiceWheel.phase !== 'active'))
+  // The wide choices appear only after the clerk's question has finished typing (or when they are shown alone).
+  const wideChoiceReady = Boolean(dialogueChoiceWheel && (dialogueChoiceWheel.phase !== 'active' || content.kind === 'choice' || (content.kind === 'text' && (content.textMotion ?? textMotion) === 'static')))
+  const displayPhase = content.kind === 'choice'
+    ? dialogueChoiceWheel?.phase ?? 'active'
+    : content.kind === 'text' ? content.textMotion ?? textMotion : content.kind
+  const displayStateAttributes = {
+    'data-conversation-display-session': sessionId,
+    'data-conversation-display-kind': content.kind,
+    'data-conversation-display-state': content.kind,
+    'data-conversation-display-phase': displayPhase,
+    'data-conversation-display-action': content.kind === 'choice' ? content.actionId : undefined,
+    'data-conversation-display-advance-enabled': String(content.canAdvance),
+    'data-conversation-display-ready': String(advanceReady),
+    'data-conversation-display-ready-key': advanceReadyKey ?? '',
+    'data-conversation-display-required-ready-key': requiredAdvanceReadyKey,
+    'data-conversation-display-advance-route': advanceRoute,
+    'data-conversation-display-page-advance': pageAdvanceDiagnostic,
+  } as const
+  const identity: NarrowDialogueIdentity = {
+    sessionKey: sessionId,
+    kind: content.kind === 'aside' ? 'aside' : 'conversation',
+    lineKey: contentKey,
+    pageKey,
+    pageIndex,
+    content: content.kind === 'choice' ? 'options' : 'text',
+    optionSetKey: content.kind === 'choice' ? `action:${content.actionId}` : undefined,
+    speakerKey: speaker,
+  }
+  // Phone: when options follow a line, that line stays in the window (options sit under it) and only moves into the history once an option is picked.
+  const stickyRef = useRef<{ sessionKey: string; key: string; identity: NarrowDialogueIdentity; pageText: string; text: string; speaker?: string; shownSpeaker?: string; speakerIsNpc: boolean; align: 'start' | 'end' | 'center' } | null>(null)
+  const sticky = legacyNarrow && content.kind === 'choice' && stickyRef.current && stickyRef.current.sessionKey === sessionId ? stickyRef.current : null
+  useLayoutEffect(() => {
+    if (content.kind === 'text' && !content.noHistory && !content.shortPrompt && content.text.trim()) {
+      stickyRef.current = { sessionKey: sessionId, key: contentKey, identity, pageText, text: content.text, speaker, shownSpeaker: speaker && !(content.choicePrompt || content.expectedChoices?.length) ? speaker : undefined, speakerIsNpc, align: content.layout === 'conversation' && speaker ? (speakerIsNpc ? 'start' : 'end') : 'center' }
+    }
+  })
+
+  // A menu viewed on its own is not a subtitle: on the phone it uses the compact centred panel (same markup as the wide short prompt).
+  const phoneMenu = narrow && phoneMenuContent
+  if (legacyNarrow) return <div
+    className={`scene-mainline-subtitle-host${isLeaving ? ' is-leaving' : ''}`}
+    {...displayStateAttributes}
+    onAnimationEnd={(event) => {
+      // The phone backdrop used to have no leaving state at all: the text was erased but the dark band stayed.
+      // Now the band fades out after the text is gone and reports the exit once, like the wide column does.
+      if (!isLeaving || event.animationName !== 'mainline-backdrop-out') return
+      if (exitCompletionSessionRef.current === sessionId) return
+      exitCompletionSessionRef.current = sessionId
+      onExitComplete?.()
+    }}
+  >
+    <div className={`scene-mainline-subtitle-stack${history.length ? ' has-history' : ''}`}>
+    <div ref={phoneStackRef} className="scene-mainline-subtitle-stack__content">
+    <div className="scene-mainline-subtitle-stack__backdrop" aria-hidden="true" />
+    {history.length > 0 && <div ref={historyElementRef} className="scene-mainline-subtitle-host__history" aria-label="对话记录">
+      {history.map((entry, entryIndex) => <article key={entry.key} data-flip-key={entry.key} className={`scene-mainline-subtitle-host__line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} style={{ '--line-target': Math.max(.5, .91 - .15 * (history.length - 1 - entryIndex)) } as CSSProperties}>
+        {entry.speaker && <span className="scene-mainline-subtitle-host__speaker">{entry.speaker}</span>}
+        {entry.menu ? <HistoryMenu items={entry.menu.items} pickedIndex={entry.menu.pickedIndex} /> : <p data-choice-transfer-target={choiceTransfer?.id === entry.key ? choiceTransfer.id : undefined} style={choiceTransfer?.id === entry.key ? { opacity: 0 } : undefined}>{entry.text}</p>}
+      </article>)}
+    </div>}
+    <NarrowDialogueViewport
+      identity={sticky ? sticky.identity : identity}
+      // Narrow page-flips animate the name and body as one snapshot. Do not
+      // mount DialogueSpeaker here: its independent exit timer can leave the
+      // outgoing name beside the incoming page for part of the flip.
+      // A question that has options below it carries no name of its own; the name appears once the line has moved up into the history.
+      speaker={sticky ? sticky.shownSpeaker : speaker && !(content.kind === 'text' && (content.choicePrompt || content.expectedChoices?.length)) ? speaker : undefined}
+      fitHeight
+      textHidden={hiddenQuestionKey === (sticky ? sticky.key : contentKey)}
+      pageText={sticky ? sticky.pageText : currentText}
+      windowHeightPx={windowHeightPx}
+      availableWidthPx={availableWidthPx}
+      measuredPageHeightPx={measuredPageHeightPx}
+      isFinalLinePage={isFinalLinePage}
+      typewriterStartDelayMs={450}
+      historyKeepsLines={Boolean(previousRef.current && previousRef.current.key !== contentKey && previousRef.current.content.kind === 'text' && !previousRef.current.content.noHistory && !previousRef.current.content.shortPrompt && previousRef.current.content.text.trim())}
+      align={sticky ? sticky.align : content.kind === 'text' && content.layout === 'conversation' && speaker ? (speakerIsNpc ? 'start' : 'end') : 'center'}
+      choicePrompt={content.kind === 'text' && Boolean(content.choicePrompt)}
+      typewriterEnabled={content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing'}
+      textMotion={content.kind === 'text' ? content.textMotion ?? textMotion : 'static'}
+      choices={[]}
+      onTextSettled={(readyIdentity, motion) => {
+        if (readyIdentity.sessionKey !== sessionId) return 'rejected:session-key'
+        if (readyIdentity.lineKey !== contentKey) return 'rejected:line-key'
+        if (readyIdentity.pageKey !== pageKey) return 'rejected:page-key'
+        if (content.kind !== 'text') return 'rejected:content-kind'
+        if ((content.textMotion ?? textMotion) !== motion) return `rejected:motion:${content.textMotion ?? textMotion}`
+        const result = onTextMotionComplete?.(textSessionId, motion)
+        return typeof result === 'string' ? result : result === undefined ? 'sent:no-result' : 'accepted'
+      }}
+      onReady={(readyIdentity, scope) => {
+        if (scope === 'text') {
+          if (content.kind !== 'choice') onReadyChange(readyIdentity.lineKey, true)
+        }
+      }}
+      onAdvance={onAdvance}
+    />
+    {!(keepChoiceWheelForExit && dialogueChoiceWheel) && content.kind === 'text' && content.expectedChoices?.length ? <div className="scene-mainline-subtitle-host__choices is-placeholder" aria-hidden="true">
+      {content.expectedMenu?.length
+        ? <div className="dialogue-choice-menu"><div className="dialogue-choice-menu__panel">
+          {content.expectedMenu.map((row, index) => <button key={index} type="button" tabIndex={-1} disabled className="dialogue-choice-menu__row">
+            <span className="dialogue-choice-menu__line"><span className="dialogue-choice-menu__name">{row.name}</span><span className="dialogue-choice-menu__price">{row.price}</span></span>
+            {row.description && <span className="dialogue-choice-menu__desc">{row.description}</span>}
+          </button>)}
+          {content.expectedChoices.slice(content.expectedMenu.length).map((label, index) => <button key={`x${index}`} type="button" tabIndex={-1} disabled className="dialogue-choice-menu__extra">{label}</button>)}
+        </div></div>
+        : <div className="dialogue-choice-bubbles">
+          {content.expectedChoices.map((label, index) => <button key={index} type="button" tabIndex={-1} disabled className="dialogue-choice-bubbles__item">{label}</button>)}
+        </div>}
+    </div> : null}
+    {keepChoiceWheelForExit && dialogueChoiceWheel && <div className={`scene-mainline-subtitle-host__choices${wideChoiceReady ? '' : ' is-pending'}`}>
+      <DialogueChoiceWheel
+        sessionId={dialogueChoiceWheel.sessionId}
+        actionId={dialogueChoiceWheel.actionId}
+        options={dialogueChoiceWheel.options}
+        menu={dialogueChoiceWheel.menu}
+        softExit={dialogueChoiceWheel.dismissible}
+        phase={dialogueChoiceWheel.phase}
+        placement="wide-right"
+        wideLayout="inline"
+        onSelectionLocked={lockWideChoice}
+        onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
+        onCancel={() => { setChoiceTransfer(null); onSceneActionCancel?.() }}
+        onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
+      />
+    </div>}
+    </div>
+    </div>
+    {choiceTransfer?.targetRect && <DialogueChoiceSelectionTransfer
+      transferId={choiceTransfer.id}
+      text={choiceTransfer.text}
+      sourceRect={choiceTransfer.sourceRect}
+      targetRect={choiceTransfer.targetRect}
+      textStyle={choiceTransfer.textStyle}
+      onComplete={transferId => setChoiceTransfer(current => current?.id === transferId ? null : current)}
+    />}
+  </div>
+
+  const menuItems = content.kind === 'text' ? content.menuItems : undefined
+  const compactShortPrompt = (!narrow || phoneMenu) && ((content.kind === 'text' && (Boolean(content.shortPrompt) || Boolean(menuItems))) || (content.kind === 'choice' && Boolean(dialogueChoiceWheel?.dismissible)))
+  const questionPanel = !narrow && content.kind === 'text' && Boolean(content.noHistory)
+  return <div className="scene-mainline-conversation-host" {...displayStateAttributes}>
+    <section
+      ref={flipRootRef}
+      className={`scene-mainline-conversation${compactShortPrompt ? ' scene-mainline-conversation--short-prompt' : ''}${phoneMenu ? ' scene-mainline-conversation--phone-menu' : ''}${phoneColumn ? ' scene-mainline-conversation--phone' : ''}${questionPanel ? ' scene-mainline-conversation--question-panel' : ''}${isLeaving ? ' is-leaving' : ''}`}
+      aria-live="polite"
+      onClick={phoneColumn ? () => onAdvance(identity) : undefined}
+      aria-label={compactShortPrompt ? '场景提示' : '对话记录'}
+      data-dialogue-presentation={compactShortPrompt ? 'short-prompt' : 'conversation'}
+      onAnimationEnd={(event) => {
+        if (!isLeaving || (event.target !== event.currentTarget && !(phoneColumn && event.target === flipStackRef.current)) || event.animationName !== 'mainline-backdrop-out') return
+        if (exitCompletionSessionRef.current === sessionId) return
+        exitCompletionSessionRef.current = sessionId
+        onExitComplete?.()
+      }}
+    >
+      <div className="scene-mainline-conversation__viewport">
+      <div ref={flipStackRef} className="scene-mainline-conversation__stack">
+      <div ref={historyElementRef} className="scene-mainline-conversation__history">
+        {history.map((entry, entryIndex) => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}${entry.speaker || entry.menu ? '' : ' is-narration'}`} data-dialogue-history-line={entry.key} style={{ '--line-target': Math.max(.5, .91 - .15 * (history.length - 1 - entryIndex)) } as CSSProperties}>
+          {entry.speaker && <span className="scene-mainline-conversation-line__speaker">{entry.speaker}</span>}
+          {entry.menu ? <HistoryMenu items={entry.menu.items} pickedIndex={entry.menu.pickedIndex} /> : <p data-choice-transfer-target={choiceTransfer?.id === entry.key ? choiceTransfer.id : undefined} style={choiceTransfer?.id === entry.key ? { opacity: 0 } : undefined}>{entry.text}</p>}
+        </article>)}
+      </div>
+      {(content.kind === 'text' || content.kind === 'aside' || content.kind === 'waiting') && <article key={contentKey} className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc ? 'is-npc' : 'is-player'}${speaker ? '' : ' is-narration'} ${content.kind === 'aside' ? 'is-aside' : ''}${menuItems ? ' has-menu' : ''}`} data-dialogue-current-line={contentKey} style={phoneColumn && hiddenQuestionKey === contentKey ? { visibility: 'hidden' } : undefined}>
+        {speaker && <span className="scene-mainline-conversation-line__speaker">{speaker}</span>}
+        {content.kind === 'text' && menuItems && <ConversationMenuPanel
+          items={menuItems}
+          sessionId={textSessionId}
+          motion={content.textMotion ?? textMotion}
+          delayMs={450}
+          onMotionComplete={onTextMotionComplete}
+          onReadyChange={onReadyChange}
+          group={contentKey}
+        />}
+        {(content.kind === 'text' || content.kind === 'aside') && !menuItems && <p><ConversationDialogueText
+          keepOnDeleted={phoneColumn}
+          pageKey={pageKey}
+          text={currentText}
+          sessionId={textSessionId}
+          motion={content.textMotion ?? textMotion}
+          onMotionComplete={onTextMotionComplete}
+          onReadyChange={onReadyChange}
+          group={contentKey}
+          typingDelayMs={questionPanel && contentKey.endsWith(':question:0') ? 450 : compactShortPrompt ? 450 : undefined}
+        /></p>}
+        {content.kind === 'waiting' && <p>{content.text}</p>}
+      </article>}
+      {keepChoiceWheelForExit && dialogueChoiceWheel && wideChoiceReady && <DialogueChoiceWheel
+        sessionId={dialogueChoiceWheel.sessionId}
+        actionId={dialogueChoiceWheel.actionId}
+        options={dialogueChoiceWheel.options}
+        menu={dialogueChoiceWheel.menu}
+        softExit={dialogueChoiceWheel.dismissible}
+        phase={dialogueChoiceWheel.phase}
+        placement="wide-right"
+        wideLayout="inline"
+        onSelectionLocked={lockWideChoice}
+        onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
+        onCancel={() => { setChoiceTransfer(null); onSceneActionCancel?.() }}
+        onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
+      />}
+      </div>
+      </div>
+      {choiceTransfer?.targetRect && <DialogueChoiceSelectionTransfer
+        transferId={choiceTransfer.id}
+        text={choiceTransfer.text}
+        sourceRect={choiceTransfer.sourceRect}
+        targetRect={choiceTransfer.targetRect}
+        textStyle={choiceTransfer.textStyle}
+        onComplete={transferId => setChoiceTransfer(current => current?.id === transferId ? null : current)}
+      />}
+    </section>
+  </div>
+}
+
+function DialogueHandoffOutgoingText({ id, text, position, overflowIndex, durationMs, layout, worldScale, lockToken, projectX, onDeleted }: { id: number; text: string; position: Point; overflowIndex?: number; durationMs: number; layout: MainlineEchoLayout; worldScale: number; lockToken: number; projectX: (value: number) => number; onDeleted: (id: number) => void }) {
+  const sessionId = -id
+  const pageKey = `dialogue-handoff:${id}`
+  const completeMotion = useCallback((completedSessionId: number, motion: MainlineReadingTextMotion) => {
+    if (completedSessionId === sessionId && motion === 'deleting') onDeleted(id)
+  }, [id, onDeleted, sessionId])
+  return <div
+    className="scene-mainline-text scene-mainline-text--stage-dialogue scene-mainline-text--handoff-outgoing"
+    data-dialogue-handoff-outgoing={id}
+    data-dialogue-handoff-page-index={overflowIndex}
+    style={{
+      left: `${projectX(position.x)}%`,
+      top: `${position.y}%`,
+      '--scene-mainline-text-width': `${layout.widthPx / worldScale}px`,
+      '--scene-mainline-text-height': `${layout.heightPx / worldScale}px`,
+      fontSize: `${layout.fontSizePx / worldScale}px`,
+      maxWidth: `${Math.max(1, layout.widthPx / worldScale)}px`,
+      overflow: 'visible',
+      animationDuration: `${durationMs}ms`,
+    } as CSSProperties}
+    aria-hidden="true"
+  >
+    <DialogueText
+      group={`dialogue-handoff:${id}`}
+      continuityKey={`dialogue-handoff:${id}`}
+      pageKey={pageKey}
+      text={text}
+      sessionId={sessionId}
+      motion="deleting"
+      layout={layout}
+      worldScale={worldScale}
+      lockToken={lockToken}
+      onMotionComplete={completeMotion}
+    />
+  </div>
+}
+
+type ReadingLayoutTransitionMode = 'active' | 'leaving' | 'inactive'
+
+function useMainlineReadingLayoutTransition(
+  mode: ReadingLayoutTransitionMode,
+  continuityKey: string | null,
+  pageKey: string | null,
+  settledPageKey: string | null,
+  target: MainlineEchoLayout | null,
+) {
+  const [displayedLayout, setDisplayedLayout] = useState<MainlineEchoLayout | null>(null)
+  const [transitioning, setTransitioning] = useState(false)
+  const frameRef = useRef<number | null>(null)
+  const currentRef = useRef<{ mode: ReadingLayoutTransitionMode; continuityKey: string; pageKey: string; layout: MainlineEchoLayout; phase: 'steady' | 'rolling' | 'awaiting-settle' | 'settling' } | null>(null)
+
+  useIsomorphicLayoutEffect(() => {
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
+    frameRef.current = null
+
+    if (mode === 'inactive' || !target || !continuityKey || !pageKey) {
+      currentRef.current = null
+      setDisplayedLayout(null)
+      setTransitioning(false)
+      return
+    }
+
+    if (mode === 'leaving') {
+      if (currentRef.current) {
+        currentRef.current = { ...currentRef.current, mode: 'leaving' }
+        setDisplayedLayout(currentRef.current.layout)
+      }
+      setTransitioning(false)
+      return
+    }
+
+    const previous = currentRef.current
+    if (!previous || previous.continuityKey !== continuityKey) {
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target, phase: 'steady' }
+      setDisplayedLayout(target)
+      setTransitioning(false)
+      return
+    }
+
+    const animate = (from: MainlineEchoLayout, to: MainlineEchoLayout, durationMs: number, phase: 'rolling' | 'settling', onComplete: () => void) => {
+      if (mainlineReadingLayoutsHaveSameSize(from, to)) {
+        setDisplayedLayout(to)
+        onComplete()
+        return
+      }
+      setDisplayedLayout(from)
+      setTransitioning(true)
+      const startedAt = performance.now()
+      const advance = (now: number) => {
+        const elapsed = Math.max(0, now - startedAt)
+        const progress = storefrontCharacterProgress(0, 1, elapsed, durationMs)
+        const next = interpolateMainlineReadingPageLayout(from, to, progress)
+        currentRef.current = { mode: 'active', continuityKey, pageKey, layout: next, phase }
+        setDisplayedLayout(next)
+        if (elapsed >= durationMs) {
+          frameRef.current = null
+          onComplete()
+          return
+        }
+        frameRef.current = window.requestAnimationFrame(advance)
+      }
+      frameRef.current = window.requestAnimationFrame(advance)
+    }
+
+    if (previous.phase === 'awaiting-settle' && previous.pageKey === pageKey && settledPageKey === pageKey) {
+      const from = previous.layout
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: from, phase: 'settling' }
+      animate(from, target, mainlineReadingPageTransitionDurationMs, 'settling', () => {
+        currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target, phase: 'steady' }
+        setDisplayedLayout(target)
+        setTransitioning(false)
+      })
+      return
+    }
+
+    if (previous.pageKey !== pageKey) {
+      const envelope = mainlineReadingPageRollEnvelope(previous.layout, target)
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: previous.layout, phase: 'rolling' }
+      animate(previous.layout, envelope, mainlineReadingPageFlipDurationMs, 'rolling', () => {
+        currentRef.current = { mode: 'active', continuityKey, pageKey, layout: envelope, phase: 'awaiting-settle' }
+        setDisplayedLayout(envelope)
+        setTransitioning(true)
+      })
+      return
+    }
+
+    const from = previous.layout
+    if (previous.phase === 'rolling' || previous.phase === 'settling') return
+    if (previous.phase === 'awaiting-settle') {
+      setDisplayedLayout(previous.layout)
+      setTransitioning(true)
+      return
+    }
+    currentRef.current = { mode: 'active', continuityKey, pageKey, layout: from, phase: 'steady' }
+    if (mainlineReadingLayoutsHaveSameSize(from, target)) {
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target, phase: 'steady' }
+      setDisplayedLayout(target)
+      setTransitioning(false)
+      return
+    }
+    animate(from, target, mainlineReadingPageTransitionDurationMs, 'settling', () => {
+      currentRef.current = { mode: 'active', continuityKey, pageKey, layout: target, phase: 'steady' }
+      setDisplayedLayout(target)
+      setTransitioning(false)
+    })
+  }, [continuityKey, mode, pageKey, settledPageKey, target?.fontSizePx, target?.heightPx, target?.widthPx])
+
+  useEffect(() => () => {
+    if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current)
+  }, [])
+
+  return { layout: displayedLayout ?? target, transitioning }
+}
+
+function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph, doorPhase, focusGroup, frameGroup, focusPolicy, gateTriggered, frameRetracting, active, closeHint, ariaLabel, renderFocusFrame, presentationActive, presentationDurationMs = sceneFrameDefaultMotionMs, onInteract, onDoorTransitionComplete, dataAttributes, characterPresentation }: MainlineDoorButtonProps) {
+  const resolvedFrameGroup = frameGroup ?? focusGroup
   const visualOpen = sceneDoorIsVisuallyOpen(cell.doorBehavior, doorPhase)
+  const animatedInterior = presentationActive !== undefined
+  const restoredWallStyle = { position: 'absolute' as const, inset: 0, opacity: presentationActive === false ? 1 : 0, transition: `opacity ${presentationDurationMs}ms ease-in-out`, pointerEvents: 'none' as const }
   return (
     <button
       className={`${className} scene-mainline-door-button ${visualOpen ? 'is-open' : ''} ${active ? 'is-active' : ''}`}
       type="button"
-      style={style}
+      style={{ ...style, pointerEvents: presentationActive === false ? 'none' : style.pointerEvents }}
+      disabled={presentationActive === false}
+      tabIndex={presentationActive === false ? -1 : undefined}
+      aria-hidden={presentationActive === false ? true : undefined}
       onClick={(event) => { event.stopPropagation(); onInteract(entityId) }}
       aria-label={`${ariaLabel}；${closeHint}`}
       data-focus-target-id={cell.id}
-      data-focus-target-group={focusGroup}
+      data-focus-target-group={resolvedFrameGroup}
       data-focus-target-policy={focusPolicy}
       data-focus-passage-phase={focusPolicy === 'passage' ? doorPhase : undefined}
       data-focus-passage-retracting={frameRetracting ? 'true' : undefined}
       data-focus-gate-triggered={focusPolicy === 'gate' ? gateTriggered : undefined}
       {...dataAttributes}
     >
-      <SceneDoor phase={doorPhase} behavior={cell.doorBehavior} label={doorLabel} glyph={glyph} visualGroup={focusGroup} characters={characterPresentation} onTransitionComplete={(completion) => onDoorTransitionComplete?.(entityId, completion)} />
-      {renderFocusFrame(focusGroup)}
+      {animatedInterior && <span className="scene-mainline-door-button__restored-wall" style={restoredWallStyle} aria-hidden="true"><span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>{cell.baselineGlyph ?? '墙'}</span></span>}
+      <SceneDoor phase={doorPhase} behavior={cell.doorBehavior} label={doorLabel} glyph={glyph} visualGroup={focusGroup} characters={characterPresentation} presentation={animatedInterior ? { hidden: presentationActive === false, durationMs: presentationDurationMs } : undefined} onTransitionComplete={(completion) => onDoorTransitionComplete?.(entityId, completion)} />
+      {renderFocusFrame(resolvedFrameGroup, presentationActive)}
     </button>
   )
 }
 
 /** The facade is a presentation of its authored cells, not a second doorway.
  * One clock updates all windows; the original button/SceneDoor owns input. */
-function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase, renderFrame, onInteract, onDoorTransitionComplete, onMotionComplete, frameRetracting }: {
+function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase, screenMetrics, renderFrame, onInteract, onStorefrontInteract, onDoorTransitionComplete, onMotionComplete, frameRetracting, coordinateBounds }: {
   scene: MainlineSceneDefinition
   storefront: MainlineSceneDefinition['storefronts'][number]
   cells: ReturnType<typeof storefrontCharacterCells>
   phase: StorefrontPresentationPhase
   doorPhase: SceneDoorRuntimePhase
+  screenMetrics: SceneScreenMetrics
   renderFrame: (group: string) => ReactNode
   onInteract: (id: string) => void
+  onStorefrontInteract?: (storefrontId: string) => void
   onDoorTransitionComplete?: MainlineDoorButtonProps['onDoorTransitionComplete']
   onMotionComplete: (phase: 'revealing' | 'restoring') => void
   frameRetracting: boolean
+  coordinateBounds: CollisionBox
 }) {
   const host = useRef<HTMLDivElement>(null)
   const progress = useRef(0)
@@ -333,6 +1509,7 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
   const entity = scene.objects.find(object => object.id === storefront.portalId)!
   const largeGroup = `storefront:${storefront.id}:baseline`
   const doorGroup = `door:${entity.id}`
+  const hasMultipleDoorCells = cells.filter(cell => cell.role === 'door').length > 1
   const direction = storefrontRollDirection(storefront.edge)
   useIsomorphicLayoutEffect(() => {
     const node = host.current
@@ -343,17 +1520,18 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
       node.style.setProperty('--character-progress', String(value))
       node.dataset.characterProgress = value.toFixed(4)
     }
-    if (phase !== 'revealing' && phase !== 'restoring') { paint(target); return }
     const from = progress.current
+    if (Math.abs(target - from) < .001) { paint(target); return }
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const duration = reduced ? 1 : storefrontLabelRollDurationMs * Math.abs(target - from)
+    if (reduced) { paint(target); completed.current(target > from ? 'revealing' : 'restoring'); return }
+    const duration = storefrontLabelRollDurationMs * Math.abs(target - from)
     node.dataset.characterMotionDuration = String(duration)
     const started = performance.now()
     let frame = 0
     const tick = (now: number) => {
       paint(storefrontCharacterProgress(from, target, now - started, duration))
       if (now - started < duration) frame = requestAnimationFrame(tick)
-      else completed.current(phase)
+      else completed.current(target > from ? 'revealing' : 'restoring')
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
@@ -362,15 +1540,22 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
     data-storefront-label-phase={phase} data-focus-target-group={largeGroup} data-focus-target-policy="passage"
     style={{ '--roll-x': direction.x, '--roll-y': direction.y } as CSSProperties}>
     {cells.map(cell => {
-      const characters = <SceneCharacterSwitch before={cell.baselineGlyph} after={cell.glyph} beforeGroup={largeGroup} afterGroup={cell.role === 'door' ? doorGroup : undefined} />
+      const cellDoorGroup = cell.role === 'door' && hasMultipleDoorCells
+        ? storefrontDoorFocusGroup({ ...cell, storefrontId: storefront.id }, undefined, true)
+        : doorGroup
+      const characters = <SceneCharacterSwitch before={cell.baselineGlyph} after={cell.glyph} beforeGroup={largeGroup} afterGroup={cell.role === 'door' ? cellDoorGroup : undefined} beforeOffsetPx={{ x: ((cell.baselineX ?? cell.x) - cell.x) * screenMetrics.width / 100, y: ((cell.baselineY ?? cell.y) - cell.y) * screenMetrics.height / 100 }} />
       const attributes = { 'data-storefront-cell-id': cell.id, 'data-storefront-presentation-phase': phase }
-      const style = { left: `${cell.x}%`, top: `${cell.y}%` }
+      const local = localPointInWorldBounds({ x: cell.x, y: cell.y }, coordinateBounds)
+      const style = { left: `${local.x}%`, top: `${local.y}%` }
+      const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
       if (cell.role === 'door') return <MainlineDoorButton key={cell.id}
         cell={{ ...cell, kind: 'door', doorBehavior: entity.doorBehavior }} entityId={entity.id}
         className="scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door is-baseline"
         style={style} doorLabel={entity.displayLabel ?? entity.label} glyph={cell.glyph} doorPhase={doorPhase}
-        focusGroup={doorGroup} focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
-        active={false} closeHint="接近时自动开门，进入门洞后继续路线" ariaLabel="门，点击门后目标会在接近时自动开门并穿过"
+        focusGroup={doorGroup}
+        frameGroup={cellDoorGroup}
+        focusPolicy="passage" gateTriggered={false} frameRetracting={frameRetracting}
+        active={false} closeHint={closeHint} ariaLabel={cell.access === 'locked' ? `门，${closeHint}` : '门，点击门后目标会在接近时自动开门并穿过'}
         renderFocusFrame={renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
         dataAttributes={attributes} characterPresentation={characters} />
       return <span key={cell.id} className="scene-spatial-glyph scene-mainline-wall is-baseline" style={style} {...attributes} aria-hidden="true">{characters}</span>
@@ -379,26 +1564,36 @@ function PortalStorefrontCharacters({ scene, storefront, cells, phase, doorPhase
   </div>
 }
 
+/** A facade wall cap is ordinary masonry, not a worn shop sign. */
+function storefrontMaterialClass(sceneId: string, style: string | undefined, role: string) {
+  const mining = sceneId === 'yonghe-mining-perimeter' || sceneId === 'yonghe-eatery'
+  return mining && role === 'wall' ? 'scene-mainline-wall--ordinary' : `scene-mainline-storefront--${style ?? 'modern'}`
+}
+
 function storefrontFocusGroup(cell: MainlineGeometryCellEntry['cell'], variant?: MainlineSceneGeometryUnit['variant']) {
   const variantSuffix = variant ? `:${variant}` : ''
   return `storefront:${cell.storefrontId ?? cell.id}${variantSuffix}`
 }
 
-function storefrontDoorFocusGroup(cell: MainlineGeometryCellEntry['cell'], variant?: MainlineSceneGeometryUnit['variant']) {
+function storefrontDoorFocusGroup(cell: { id: string; x: number; y: number; storefrontId?: string }, variant?: MainlineSceneGeometryUnit['variant'], independentCell = false) {
   const variantSuffix = variant ? `:${variant}` : ''
+  if (independentCell) return `storefront-door:${cell.storefrontId ?? cell.id}:cell:${cell.x.toFixed(4)}:${cell.y.toFixed(4)}`
   return `storefront-door:${cell.storefrontId ?? cell.id}${variantSuffix}`
 }
 
 function mainlineCellFocusTarget(scene: MainlineSceneDefinition, cell: MainlineGeometryCellEntry['cell'], entityId?: string, variant?: MainlineSceneGeometryUnit['variant']) {
+  if (cell.kind === 'feature' && cell.featureCellRole === 'flank') return undefined
   if (cell.kind === 'storefront' && cell.storefrontRole === 'sign') {
     return {
       group: storefrontFocusGroup(cell, variant),
-      policy: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') ? 'interactive' as const : 'passage' as const,
-      storefrontInteractionId: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') ? cell.storefrontId : undefined,
+      policy: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') && !scene.storefronts.some(storefront => storefront.id === cell.storefrontId && storefront.portalId) ? 'interactive' as const : 'passage' as const,
+      storefrontInteractionId: commercialStreetStorefrontInteractionFor(cell.storefrontId ?? '') && !scene.storefronts.some(storefront => storefront.id === cell.storefrontId && storefront.portalId) ? cell.storefrontId : undefined,
     }
   }
   if (cell.kind === 'storefront' && cell.storefrontRole === 'door' && entityId) {
-    return { group: storefrontDoorFocusGroup(cell, variant), policy: 'passage' as const }
+    const storefront = scene.storefronts.find(candidate => candidate.id === cell.storefrontId)
+    const independentCell = ((storefront?.composition?.near ?? []).filter(role => role === 'door').length) > 1
+    return { group: storefrontDoorFocusGroup(cell, variant, independentCell), policy: 'passage' as const }
   }
   if (cell.kind === 'door' && entityId) {
     const gatePart = cell.doorLabelPart
@@ -413,17 +1608,21 @@ function mainlineCellFocusTarget(scene: MainlineSceneDefinition, cell: MainlineG
   return { group: `interactive:${cell.featureId ?? entityId}`, policy: 'interactive' as const }
 }
 
-function mainlineWallCellVisibility(cell: MainlineGeometryCellEntry['cell'], unit: MainlineSceneGeometryUnit) {
+function mainlineWallCellVisibility(scene: MainlineSceneDefinition, cell: MainlineGeometryCellEntry['cell'], unit: MainlineSceneGeometryUnit) {
   if (cell.kind === 'wall') return 'is-baseline'
-  if (cell.kind === 'storefront') return unit.variant === 'near' ? 'is-near' : 'is-baseline'
+  if (cell.kind === 'storefront') {
+    const storefrontId = cell.storefrontId ?? unit.storefrontId
+    const storefront = storefrontId ? scene.storefronts.find(candidate => candidate.id === storefrontId) : undefined
+    return storefrontCellVisualState(storefront, unit.variant, cell.storefrontRole) === 'near' ? 'is-near' : 'is-baseline'
+  }
   return (cell.baselineVisible ?? cell.baseline ?? true) ? 'is-baseline' : 'is-hidden'
 }
 
-export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, active = false, explored = false }: {
+export function MainlineFocusGroup({ entries, className, visibilityClass, renderFrame, onInteract, onStorefrontInteract, interactionEntityId, storefrontInteractionId, ariaLabel, passagePhase, gateTriggered, frameRetracting = false, hideGlyphs = false, storefrontId, storefrontSpan, storefrontCenter, storefrontLabel, storefrontGeometry, storefrontPresentationPhase = 'baseline', active = false, explored = false, interiorPresentationActive, presentationDurationMs = sceneFrameDefaultMotionMs, suppressInteractionEmphasis = false }: {
   entries: readonly MainlineGeometryCellEntry[]
   className: string
   visibilityClass: string
-  renderFrame: (group: string) => ReactNode
+  renderFrame: (group: string, presentationActive?: boolean) => ReactNode
   onInteract?: (id: string) => void
   onStorefrontInteract?: (storefrontId: string) => void
   interactionEntityId?: string
@@ -438,15 +1637,21 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   storefrontCenter?: Point
   storefrontLabel?: string
   storefrontGeometry?: StorefrontContactGeometry
+  storefrontPresentationPhase?: StorefrontPresentationPhase
   active?: boolean
   explored?: boolean
+  interiorPresentationActive?: boolean
+  presentationDurationMs?: number
+  suppressInteractionEmphasis?: boolean
 }) {
   const first = entries[0]
   if (!first) return null
   const xs = entries.map(({ cell }) => cell.x)
   const ys = entries.map(({ cell }) => cell.y)
-  const vertical = first.cell.orientation === 'vertical'
-    || (entries.length > 1 && Math.max(...ys) - Math.min(...ys) > Math.max(...xs) - Math.min(...xs))
+  const vertical = first.cell.layoutOrientation
+    ? first.cell.layoutOrientation === 'vertical'
+    : first.cell.orientation === 'vertical'
+      || (entries.length > 1 && Math.max(...ys) - Math.min(...ys) > Math.max(...xs) - Math.min(...xs))
   const minX = Math.min(...xs)
   const maxX = Math.max(...xs)
   const minY = Math.min(...ys)
@@ -460,7 +1665,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   const centerY = vertical ? cellRangeCenter : (minY + maxY) / 2
   const span = Math.max(.001, cellRangeEnd - cellRangeStart)
   const contentExtent = `${span}%`
-  const style = vertical
+  const style: CSSProperties = vertical
     ? { left: `${centerX}%`, top: `${centerY}%`, width: '1em', height: `${span}%` }
     : { left: `${centerX}%`, top: `${centerY}%`, width: contentExtent, height: '1.2em' }
   if (storefrontLabel && storefrontSpan && storefrontCenter && storefrontGeometry) {
@@ -475,7 +1680,7 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
   }
   const glyphs = entries.map(({ cell }) => cell.glyph ?? '')
   const content = hideGlyphs ? null : storefrontLabel ? (
-    <span className="scene-mainline-storefront__label-slot" data-storefront-label-slot="true" data-storefront-id={storefrontId} style={{ '--storefront-label-length': Array.from(storefrontLabel).length * 1.08 } as CSSProperties}>
+    <span className="scene-mainline-storefront__label-slot" data-storefront-label-slot="true" data-storefront-id={storefrontId} data-storefront-label-phase={storefrontPresentationPhase} style={{ '--storefront-label-length': Array.from(storefrontLabel).length * 1.08 } as CSSProperties}>
       <span className="scene-mainline-storefront__label-track">
         <span className="scene-mainline-storefront__label-text"><SceneCharacters data-focus-visual-group={first.focusGroup}>{storefrontLabel}</SceneCharacters></span>
       </span>
@@ -484,11 +1689,12 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
     const cell = entries[index]?.cell
     if (!cell) return null
     const offset = vertical ? ((cell.y - centerY) / Math.max(.001, span)) * 100 + 50 : ((cell.x - centerX) / Math.max(.001, span)) * 100 + 50
-    return <SceneCharacters key={cell.id} data-focus-visual-group={first.focusGroup} className="scene-mainline-focus-group__glyph" style={{ left: vertical ? '50%' : offset + '%', top: vertical ? offset + '%' : '50%' }} aria-hidden="true">{glyph}</SceneCharacters>
+    return <span key={cell.id} data-focus-visual-group={first.focusGroup} className="scene-mainline-focus-group__glyph" style={{ left: vertical ? '50%' : offset + '%', top: vertical ? offset + '%' : '50%' }} aria-hidden="true"><SceneCharacters className="scene-mainline-focus-group__glyph-visual">{glyph}</SceneCharacters></span>
   })
   const commonProps = {
-    className: `scene-mainline-focus-group ${className} ${visibilityClass} scene-mainline-interaction--${resolveMainlineInteractionVisualState({ active, explored, tutorialCompleted: true, tutorialEligible: false })}`,
-    style,
+    className: `scene-mainline-focus-group ${className} ${visibilityClass} scene-mainline-interaction--${resolveMainlineInteractionVisualState({ active: active && !suppressInteractionEmphasis, explored: explored && !suppressInteractionEmphasis, tutorialCompleted: true, tutorialEligible: false })}`,
+    style: { ...style, pointerEvents: interiorPresentationActive === false ? 'none' : style.pointerEvents },
+    'data-interior-active': interiorPresentationActive === undefined ? undefined : interiorPresentationActive ? 'true' : 'false',
     'data-focus-target-id': first.cell.id,
     'data-focus-target-group': first.focusGroup,
     'data-focus-target-policy': first.focusPolicy,
@@ -496,23 +1702,27 @@ export function MainlineFocusGroup({ entries, className, visibilityClass, render
     'data-focus-passage-retracting': frameRetracting ? 'true' : undefined,
     'data-focus-gate-triggered': first.focusPolicy === 'gate' ? gateTriggered : undefined,
   }
+  const presentedContent = interiorPresentationActive === undefined
+    ? content
+    : <span className="scene-mainline-focus-group__content" style={{ position: 'absolute', inset: 0, opacity: interiorPresentationActive ? 1 : 0, transition: `opacity ${presentationDurationMs}ms ease-in-out`, pointerEvents: 'none' }}>{content}</span>
   if (first.focusPolicy === 'interactive' && interactionEntityId && onInteract) {
-    return <button {...commonProps} type="button" onClick={(event) => { event.stopPropagation(); onInteract(interactionEntityId) }} aria-label={ariaLabel}>{content}{renderFrame(first.focusGroup)}</button>
+    return <button {...commonProps} type="button" disabled={interiorPresentationActive === false} tabIndex={interiorPresentationActive === false ? -1 : undefined} onClick={(event) => { event.stopPropagation(); onInteract(interactionEntityId) }} aria-label={ariaLabel}>{presentedContent}{renderFrame(first.focusGroup, interiorPresentationActive)}</button>
   }
   if (first.focusPolicy === 'interactive' && storefrontInteractionId && onStorefrontInteract) {
-    return <button {...commonProps} type="button" onClick={(event) => { event.stopPropagation(); onStorefrontInteract(storefrontInteractionId) }} aria-label={ariaLabel}>{content}{renderFrame(first.focusGroup)}</button>
+    return <button {...commonProps} type="button" disabled={interiorPresentationActive === false} tabIndex={interiorPresentationActive === false ? -1 : undefined} onClick={(event) => { event.stopPropagation(); onStorefrontInteract(storefrontInteractionId) }} aria-label={ariaLabel}>{presentedContent}{renderFrame(first.focusGroup, interiorPresentationActive)}</button>
   }
-  return <span {...commonProps} aria-hidden="true">{content}{renderFrame(first.focusGroup)}</span>
+  return <span {...commonProps} aria-hidden="true">{presentedContent}{renderFrame(first.focusGroup, interiorPresentationActive)}</span>
 }
 
-function MainlineObject({ entity, scene, position, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false }: {
+function MainlineObject({ entity, scene, position, visualPosition, collision, focusGroup, renderFrame, visibility, active, explored, tutorialCompleted, underPlayer, layoutMode, selected, dragging, screenMetrics, incenseLit, cafeRestroomFixtureUsePhases, incenseBurnRemainingMs, onIncenseBurnComplete, onStartLayoutDrag, onSelectLayoutItem, onInteract, breathingAnimationDelay, sharedBreathingClock, registerBreathingNode, suppressLabel = false, prompted = false, debugRuntimeEvidence = false, interiorPresentationActive, presentationDurationMs = sceneFrameDefaultMotionMs, readingProtected = false }: {
   entity: MainlineSceneEntity
   scene: MainlineSceneDefinition
   position: Point
+  visualPosition?: Point
   collision?: CollisionBox
   visualBounds?: CollisionBox | null
   focusGroup?: string
-  renderFrame?: (group: string) => ReactNode
+  renderFrame?: (group: string, presentationActive?: boolean) => ReactNode
   visibility: string
   active: boolean
   explored: boolean
@@ -523,6 +1733,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
   dragging: boolean
   screenMetrics: SceneScreenMetrics
   incenseLit: boolean
+  cafeRestroomFixtureUsePhases: Partial<Record<string, 'approaching' | 'using'>>
   incenseBurnRemainingMs: number
   onIncenseBurnComplete?: () => void
   onStartLayoutDrag: (itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => void
@@ -534,16 +1745,25 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
   suppressLabel?: boolean
   prompted?: boolean
   debugRuntimeEvidence?: boolean
+  interiorPresentationActive?: boolean
+  presentationDurationMs?: number
+  readingProtected?: boolean
 }) {
+  const isRestroomFixture = entity.id === cafeRestroomToiletId || entity.id === cafeRestroomFaucetId
+  const restroomFixtureBright = cafeRestroomFixtureUsePhases[entity.id] === 'using'
+  const restroomFixtureOpacity = isRestroomFixture && !restroomFixtureBright ? .5 : 1
+  // An unlit burner stays dim; the inline presentation opacity would otherwise beat the CSS class.
+  const incenseUnlitOpacity = entity.visualProfile === 'incense' && !incenseLit ? .5 : 1
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
-  const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit)
+  const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit, cafeRestroomFixtureUsePhases, readingProtected)
   const visualScale = entity.visualScale ?? 1
   // Focus emphasis follows the visible label/glyph's typography, never the
   // object's collision or authored spatial envelope.
   const focusContent = Boolean(focusGroup)
-  const renderedPosition = position
+  const renderedPosition = visualPosition ?? position
+  const presentedInterior = interiorPresentationActive !== false
   const commonProps = {
-    className: `${className} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'is-story-prompted' : ''}`,
+    className: `${className} ${readingProtected ? 'is-reading-protected-target' : ''} ${layoutItemId ? 'scene-object--layout-draggable' : ''} ${suppressLabel ? 'is-occupied' : ''} ${prompted ? 'is-story-prompted' : ''}`,
     style: {
       left: `${renderedPosition.x}%`,
       top: `${renderedPosition.y}%`,
@@ -555,14 +1775,19 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
       alignItems: 'center',
       justifyContent: 'center',
       transform: 'translate(-50%, -50%)',
+      opacity: presentedInterior ? restroomFixtureOpacity * incenseUnlitOpacity : 0,
+      pointerEvents: presentedInterior ? undefined : 'none',
+      transition: interiorPresentationActive === undefined ? undefined : `opacity ${presentationDurationMs}ms ease-in-out`,
     } as CSSProperties,
     'data-object-id': entity.id,
+    'data-restroom-use-phase': isRestroomFixture ? cafeRestroomFixtureUsePhases[entity.id] ?? 'idle' : undefined,
+    'data-restroom-brightness': isRestroomFixture ? restroomFixtureBright ? 'normal' : 'half' : undefined,
     'data-focus-target-id': focusGroup ? entity.id : undefined,
     'data-focus-target-group': focusGroup,
     'data-focus-target-policy': focusGroup ? 'interactive' : undefined,
     'data-layout-item-id': layoutItemId ?? undefined,
     'data-story-seat-prompt': prompted ? 'true' : undefined,
-    'data-rendered-x': debugRuntimeEvidence ? position.x : undefined,
+    'data-rendered-x': debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(position.x, screenMetrics) : position.x : undefined,
     'data-rendered-y': debugRuntimeEvidence ? position.y : undefined,
     'data-collision-x': debugRuntimeEvidence && collision ? collision.x : undefined,
     'data-collision-y': debugRuntimeEvidence && collision ? collision.y : undefined,
@@ -573,9 +1798,14 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
   }
   const labelStyle = {
     '--scene-exploration-animation-delay': breathingAnimationDelay,
+    writingMode: entity.textLayout === 'vertical' ? 'vertical-rl' : undefined,
+    textOrientation: entity.textLayout === 'vertical' ? 'upright' : undefined,
+    lineHeight: entity.textLayout === 'vertical' ? 1 : undefined,
     transform: visualScale === 1 ? undefined : `scale(${visualScale})`,
   } as CSSProperties
-  const labelRef = useCallback((node: HTMLSpanElement | null) => {
+  // Paint-only breathing belongs above the measured text subtree. Updating
+  // the label's style would notify every focus-frame character observer.
+  const paintRef = useCallback((node: HTMLSpanElement | null) => {
     if (!sharedBreathingClock || !registerBreathingNode) return
     registerBreathingNode(entity.id, node)
   }, [entity.id, registerBreathingNode, sharedBreathingClock])
@@ -587,14 +1817,15 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
             left: `${renderedPosition.x}%`,
             top: `${renderedPosition.y}%`,
             fontSize: `${mainlineEntityFontSizePx(entity, screenMetrics) * visualScale}px`,
+            opacity: 1,
           }}
           aria-hidden="true"
-        >{renderFrame(focusGroup)}</span>
-      : renderFrame(focusGroup)
+        >{renderFrame(focusGroup, interiorPresentationActive)}</span>
+      : renderFrame(focusGroup, interiorPresentationActive)
     : null
 
   if (entity.interactive === false) {
-    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>}{!focusContent && frame}</span></>
+    return <>{focusContent && frame}<span {...commonProps} aria-hidden="true">{!suppressLabel && <span className="scene-mainline-object__grid-content" ref={paintRef}><SceneCharacters className="scene-mainline-object__label" style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters></span>}{!focusContent && frame}</span></>
   }
 
   return (
@@ -603,6 +1834,8 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
       <button
       {...commonProps}
       type="button"
+      disabled={!presentedInterior}
+      tabIndex={presentedInterior ? undefined : -1}
       aria-label={layoutMode && layoutItemId ? `${entity.label}，拖动摆设套件` : `${entity.label}，点击让主角前往互动`}
       onPointerDown={(event) => {
         if (layoutMode && layoutItemId) onStartLayoutDrag(layoutItemId, event)
@@ -619,7 +1852,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
         if (event.target === event.currentTarget && event.animationName === 'scene-incense-burn-lifecycle') onIncenseBurnComplete?.()
       }}
     >
-      {!suppressLabel && <SceneCharacters className="scene-mainline-object__label" ref={labelRef} style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters>}
+      {!suppressLabel && <span className="scene-mainline-object__grid-content" ref={paintRef}><SceneCharacters className="scene-mainline-object__label" style={labelStyle} data-focus-visual-group={focusGroup}>{entity.label}</SceneCharacters></span>}
       {!focusContent && frame}
       </button>
     </>
@@ -629,6 +1862,7 @@ function MainlineObject({ entity, scene, position, collision, focusGroup, render
 const MemoMainlineObject = memo(MainlineObject)
 
 type MainlineNpcActorProps = {
+  sceneId: MainlineSceneDefinition['id']
   npc: MainlineSceneDefinition['npcs'][number]
   position: Point
   snapshot?: NpcRuntimeSnapshot
@@ -636,17 +1870,27 @@ type MainlineNpcActorProps = {
   seatPosition?: Point
   screenMetrics: SceneScreenMetrics
   interactive: boolean
+  presentationActive?: boolean
+  readingOpacity?: number
+  readingStageBrightness?: boolean
+  readingProtected?: boolean
   debugRuntimeEvidence: boolean
   onInteract?: (npcId: string) => void
 }
 
-function MainlineNpcActor({ npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
+function MainlineNpcActor({ sceneId, npc, position, snapshot, seatId, seatPosition, screenMetrics, interactive, presentationActive = true, readingOpacity = 1, readingProtected = false, readingStageBrightness = false, debugRuntimeEvidence, onInteract }: MainlineNpcActorProps) {
   const visualPosition = mainlineSeatedActorVisualPosition(position, seatId, seatPosition)
   const visualFootprint = mainlineLabelFootprint(npc.label, visualPosition, screenMetrics, { lineHeight: 1 })
-  const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'}`
+  const effectiveReadingOpacity = readingProtected ? 1 : readingOpacity
+  const className = `scene-mainline-npc ${interactive ? '' : 'scene-mainline-npc--ambient'} ${effectiveReadingOpacity < 1 ? 'is-reading-through' : ''} ${readingProtected ? 'is-reading-protected' : ''}`
   const style = {
     left: `${visualPosition.x}%`,
     top: `${visualPosition.y}%`,
+    opacity: presentationActive ? 1 : 0,
+    pointerEvents: presentationActive ? undefined : 'none',
+    filter: effectiveReadingOpacity < 1 ? `${readingStageBrightness ? 'brightness' : 'opacity'}(${effectiveReadingOpacity})` : undefined,
+    zIndex: readingProtected ? 11 : effectiveReadingOpacity < 1 ? 15 : undefined,
+    transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out, filter ${mainlineReadingFadeTransitionMs}ms linear`,
     '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, screenMetrics)}px`,
   } as CSSProperties
   const attributes = {
@@ -664,7 +1908,7 @@ function MainlineNpcActor({ npc, position, snapshot, seatId, seatPosition, scree
     'data-npc-target-y': debugRuntimeEvidence ? snapshot?.target?.y : undefined,
     'data-runtime-x': debugRuntimeEvidence ? position.x : undefined,
     'data-runtime-y': debugRuntimeEvidence ? position.y : undefined,
-    'data-rendered-x': debugRuntimeEvidence ? visualPosition.x : undefined,
+    'data-rendered-x': debugRuntimeEvidence ? sceneId === 'commercial-street' ? projectCommercialStreetX(visualPosition.x, screenMetrics) : visualPosition.x : undefined,
     'data-rendered-y': debugRuntimeEvidence ? visualPosition.y : undefined,
     'data-visual-x': debugRuntimeEvidence ? visualFootprint.x : undefined,
     'data-visual-y': debugRuntimeEvidence ? visualFootprint.y : undefined,
@@ -672,8 +1916,8 @@ function MainlineNpcActor({ npc, position, snapshot, seatId, seatPosition, scree
     'data-visual-height': debugRuntimeEvidence ? visualFootprint.height : undefined,
   }
   return interactive
-    ? <button {...attributes} type="button" onClick={(event) => { event.stopPropagation(); onInteract?.(npc.id) }} aria-label={`${npc.label}，点击让主角前往互动`}><span>{npc.label}</span></button>
-    : <span {...attributes} aria-hidden="true">{npc.label}</span>
+    ? <button {...attributes} type="button" disabled={!presentationActive} tabIndex={presentationActive ? undefined : -1} onClick={(event) => { event.stopPropagation(); onInteract?.(npc.id) }} aria-label={`${npc.label}，点击让主角前往互动`}><span className="scene-mainline-npc__grid-content"><SceneCharacters>{npc.label}</SceneCharacters></span></button>
+    : <span {...attributes} aria-hidden="true"><span className="scene-mainline-npc__grid-content"><SceneCharacters>{npc.label}</SceneCharacters></span></span>
 }
 
 const MemoMainlineNpcActor = memo(MainlineNpcActor)
@@ -690,47 +1934,72 @@ export function MainlineSceneRenderer({
   sceneFrameExit = { phase: 'idle' },
   storefrontPresentation = new Map(),
   activeStorefrontId = null,
+  visibleInteriorStorefrontIds = [],
+  paintedInteriorStorefrontId = null,
   onStorefrontFrameRetractionComplete,
   onStorefrontRevealMotionComplete,
   onStorefrontRestoreMotionComplete,
   onScreenMetricsChange,
+  viewportMetrics,
   cameraOffset,
+  embedded = false,
   gateTriggered = false,
   showProtagonist = true,
   suppressWorldEnterAnimation = false,
+  officeBlindsOpen = true,
+  officeRoomBlindsState = {},
   geometrySnapshot,
   freezeFrameMeasurements = false,
   onLayoutChange,
   onInteract,
+  onCounterInteract,
   onStorefrontInteract,
   onNpcInteract,
+  onProtagonistInteract,
   npcPositions,
   npcRuntimeSnapshots,
   hiddenNpcIds,
   ambientNpcActorLayer,
+  readingSessionLayoutCache: sharedReadingSessionLayoutCache = null,
   onDoorTransitionComplete,
   onWalk,
   worldQuestionMark,
   dialogue,
+  conversationDisplaySessionId = null,
+  conversationDisplayContent = null,
+  dialogueChoiceWheel = null,
   dialogueLine = null,
   dialogueText = '',
   dialogueLineIndex = null,
   dialogueSegmentIndex = 0,
   dialogueSegmentCount = 1,
   dialoguePosition = null,
+  dialogueOutside,
   dialoguePhase = 'active',
+  dialogueTextSessionId = 0,
+  dialogueTextMotion = 'static',
+  dialogueAdvanceDiagnostic = 'idle',
+  dialogueStage = null,
+  dialogueHandoffActive = false,
+  dialogueHandoffFadeDurationMs = 300,
+  dialogueHandoffOutgoing = null,
+  onDialogueHandoffOutgoingDeleted,
   readingMode = null,
   onDialogueExitComplete,
   onDialogueAdvance,
+  onDialogueTypingSkip,
+  onDialogueTextMotionComplete,
   sceneEcho = null,
   onSceneEchoAdvance,
-  onSceneEchoTypingComplete,
+  onSceneEchoTextMotionComplete,
   onSceneEchoExitComplete,
   sceneAction = null,
   onSceneActionStart,
   onSceneActionChoice,
-  carriedMilkTea = false,
-  onMilkTeaInteract,
+  onSceneActionCancel,
+  onSceneActionExitComplete,
+  heldConsumable = null,
+  onHeldConsumableInteract,
   onFrameMotionProfileChange,
   exploredObjectIds = new Set(),
   interactionTutorialCompleted = false,
@@ -740,6 +2009,7 @@ export function MainlineSceneRenderer({
   inputDiagnostic = null,
   onInputDiagnostic,
   incenseLit = false,
+  cafeRestroomFixtureUsePhases = {},
   incenseBurnRemainingMs = 0,
   onIncenseBurnComplete,
   occupiedSeatIds: runtimeOccupiedSeatIds,
@@ -749,14 +2019,168 @@ export function MainlineSceneRenderer({
   debugCafeSpatialQa = null,
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
+  const heldPresentation = heldConsumablePresentation(heldConsumable)
+  const [poppingHeld, setPoppingHeld] = useState<NonNullable<typeof heldPresentation> | null>(null)
+  const previousHeldRef = useRef(heldPresentation)
+  const poppingTimerRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (previousHeldRef.current && !heldPresentation) {
+      setPoppingHeld(previousHeldRef.current)
+      if (poppingTimerRef.current !== null) window.clearTimeout(poppingTimerRef.current)
+      poppingTimerRef.current = window.setTimeout(() => { poppingTimerRef.current = null; setPoppingHeld(null) }, 660)
+    }
+    previousHeldRef.current = heldPresentation
+  })
+  useEffect(() => () => { if (poppingTimerRef.current !== null) window.clearTimeout(poppingTimerRef.current) }, [])
+  const readingMaskId = `mainline-reading-mask-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
+  const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
+  const [settledReadingPageKey, setSettledReadingPageKey] = useState<string | null>(null)
+  const readingShieldRef = useRef<HTMLButtonElement | null>(null)
+  const readingLayoutSessionCacheRef = useRef<MainlineReadingSessionLayoutCache | null>(null)
+  const readingPageAdvanceLockedRef = useRef(false)
+  const readingPageAdvanceLockTimerRef = useRef<number | null>(null)
+  const readingPageAdvanceLockTokenRef = useRef(0)
+  const readingPageAdvanceFlipStartedTokenRef = useRef<number | null>(null)
+  const readingPageAdvanceVisibilityListenerRef = useRef<(() => void) | null>(null)
+  const typingCompletionLockRef = useRef(false)
+  const typingCompletionLockTokenRef = useRef<number | null>(null)
+  const dialogueHandoffWasActiveRef = useRef(false)
+  const releaseReadingPageAdvance = useCallback((token?: number) => {
+    if (token !== undefined && (!mainlineReadingPageAdvanceTokenIsCurrent(readingPageAdvanceLockTokenRef.current, token) || !readingPageAdvanceLockedRef.current)) return
+    readingPageAdvanceLockTokenRef.current += 1
+    readingPageAdvanceLockedRef.current = false
+    readingPageAdvanceFlipStartedTokenRef.current = null
+    if (readingPageAdvanceLockTimerRef.current !== null) window.clearTimeout(readingPageAdvanceLockTimerRef.current)
+    readingPageAdvanceLockTimerRef.current = null
+    if (readingPageAdvanceVisibilityListenerRef.current) {
+      document.removeEventListener('visibilitychange', readingPageAdvanceVisibilityListenerRef.current)
+      readingPageAdvanceVisibilityListenerRef.current = null
+    }
+  }, [])
+  const scheduleReadingPageAdvanceFallback = useCallback((token: number, delayMs: number) => {
+    if (readingPageAdvanceLockTimerRef.current !== null) window.clearTimeout(readingPageAdvanceLockTimerRef.current)
+    readingPageAdvanceLockTimerRef.current = null
+
+    const waitForVisible = () => {
+      const onVisibilityChange = () => {
+        if (document.visibilityState === 'hidden') return
+        document.removeEventListener('visibilitychange', onVisibilityChange)
+        readingPageAdvanceVisibilityListenerRef.current = null
+        readingPageAdvanceLockTimerRef.current = window.setTimeout(() => {
+          readingPageAdvanceLockTimerRef.current = null
+          if (!mainlineReadingPageAdvanceWatchdogMayRelease(readingPageAdvanceLockTokenRef.current, token, readingPageAdvanceFlipStartedTokenRef.current) || !readingPageAdvanceLockedRef.current) return
+          if (document.visibilityState === 'hidden') {
+            waitForVisible()
+            return
+          }
+          releaseReadingPageAdvance(token)
+        }, mainlineReadingPageAdvanceResumeGraceMs)
+      }
+      if (readingPageAdvanceVisibilityListenerRef.current) document.removeEventListener('visibilitychange', readingPageAdvanceVisibilityListenerRef.current)
+      readingPageAdvanceVisibilityListenerRef.current = onVisibilityChange
+      document.addEventListener('visibilitychange', onVisibilityChange)
+    }
+
+    readingPageAdvanceLockTimerRef.current = window.setTimeout(() => {
+      readingPageAdvanceLockTimerRef.current = null
+      if (!mainlineReadingPageAdvanceWatchdogMayRelease(readingPageAdvanceLockTokenRef.current, token, readingPageAdvanceFlipStartedTokenRef.current) || !readingPageAdvanceLockedRef.current) return
+      if (document.visibilityState === 'hidden') {
+        waitForVisible()
+        return
+      }
+      releaseReadingPageAdvance(token)
+    }, delayMs)
+  }, [releaseReadingPageAdvance])
+  const lockReadingPageAdvance = useCallback(() => {
+    const token = ++readingPageAdvanceLockTokenRef.current
+    readingPageAdvanceFlipStartedTokenRef.current = null
+    readingPageAdvanceLockedRef.current = true
+    scheduleReadingPageAdvanceFallback(token, mainlineReadingPageAdvanceStartupWatchdogMs)
+    return token
+  }, [scheduleReadingPageAdvanceFallback])
+  const startReadingPageAdvanceFlip = useCallback((token: number) => {
+    if (!mainlineReadingPageAdvanceTokenIsCurrent(readingPageAdvanceLockTokenRef.current, token) || !readingPageAdvanceLockedRef.current) return
+    readingPageAdvanceFlipStartedTokenRef.current = token
+    if (readingPageAdvanceLockTimerRef.current !== null) window.clearTimeout(readingPageAdvanceLockTimerRef.current)
+    readingPageAdvanceLockTimerRef.current = null
+    if (readingPageAdvanceVisibilityListenerRef.current) {
+      document.removeEventListener('visibilitychange', readingPageAdvanceVisibilityListenerRef.current)
+      readingPageAdvanceVisibilityListenerRef.current = null
+    }
+  }, [])
+  useEffect(() => () => releaseReadingPageAdvance(), [releaseReadingPageAdvance])
+  useEffect(() => {
+    const wasActive = dialogueHandoffWasActiveRef.current
+    dialogueHandoffWasActiveRef.current = dialogueHandoffActive
+    if (mainlineDialogueHandoffLockShouldRelease(wasActive, dialogueHandoffActive)) {
+      releaseReadingPageAdvance()
+    }
+  }, [dialogueHandoffActive, releaseReadingPageAdvance])
+  const [retainedReadingOcclusion, setRetainedReadingOcclusion] = useState<RetainedReadingOcclusion | null>(null)
+  const [activeReadingOcclusionSession, setActiveReadingOcclusionSession] = useState<string | null>(null)
+  const readingOcclusionExitTimerRef = useRef<number | null>(null)
+  const readingOcclusionExitStartedAtRef = useRef<number | null>(null)
+  const readingOcclusionEntryRafRef = useRef<number | null>(null)
   const speakerPlacementRef = useRef<{ session: string; metrics: string; anchor: ReturnType<typeof mainlineSpeakerAnchor> } | null>(null)
   if (!dialogue || !dialogueLine || !dialoguePosition || sceneEcho) speakerPlacementRef.current = null
   const dialogueReadyGroupRef = useRef<string | null>(null)
   const currentDialogueGroupRef = useRef<string | null>(null)
   const dialogueAdvanceConsumedGroupRef = useRef<string | null>(null)
+  const conversationDisplayReadyKeyRef = useRef<string | null>(null)
+  const [conversationDisplayReadyKey, setConversationDisplayReadyKey] = useState<string | null>(null)
+  const conversationDisplayAdvanceConsumedKeyRef = useRef<string | null>(null)
+  const retainedReadingPresentationRef = useRef<MainlineReadingPresentationSnapshot | null>(null)
+  const dialogueHandoffPresentationRef = useRef<ReturnType<typeof mainlineDialogueHandoffPresentationForId>>(null)
+  const dialogueCameraAnchorRef = useRef<{ key: string; viewportKey: string; offset: Point } | null>(null)
+  const [dialogueCameraTransitionActive, setDialogueCameraTransitionActive] = useState(false)
+  const viewportHandoffAcknowledgedRef = useRef<number | null>(null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const [viewportOverlayHost, setViewportOverlayHost] = useState<HTMLDivElement | null>(null)
+  const [experienceOverlayHost, setExperienceOverlayHost] = useState<HTMLElement | null>(null)
+  const [deviceSafeAreaBottomPx, setDeviceSafeAreaBottomPx] = useState(0)
+  const setStageHost = useCallback((node: HTMLDivElement | null) => {
+    stageRef.current = node
+    setViewportOverlayHost(node)
+    setExperienceOverlayHost(node?.closest<HTMLElement>('.center-experience') ?? null)
+  }, [])
+  useEffect(() => {
+    if (!experienceOverlayHost) return
+    const measureSafeArea = () => {
+      const value = Number.parseFloat(window.getComputedStyle(experienceOverlayHost).getPropertyValue('--mainline-safe-area-bottom'))
+      setDeviceSafeAreaBottomPx(Number.isFinite(value) ? Math.max(0, value) : 0)
+    }
+    measureSafeArea()
+    window.addEventListener('resize', measureSafeArea)
+    window.visualViewport?.addEventListener('resize', measureSafeArea)
+    return () => {
+      window.removeEventListener('resize', measureSafeArea)
+      window.visualViewport?.removeEventListener('resize', measureSafeArea)
+    }
+  }, [experienceOverlayHost])
+  const stableViewportRef = useRef<HTMLSpanElement>(null)
   const dimmerRef = useRef<HTMLDivElement>(null)
+  const isMenuReading = Boolean(sceneEcho && isWallMenuReading(sceneEcho.entityId))
+  const keepsWorldReadingLayout = isMenuReading || sceneEcho?.entityId === 'commercial-cafe-blackboard'
+  const hasConversationDisplayContent = Boolean(conversationDisplayContent && (conversationDisplaySessionId || conversationDisplayContent.sessionId))
+  const isWideDialogueConversation = Boolean((hasConversationDisplayContent || dialogue?.dialoguePresentation === 'conversation') && viewportMetrics.width >= 960)
+  const narrowConversationOverlayHost = experienceOverlayHost ?? viewportOverlayHost
+  const readingIsSubtitle = Boolean(readingMode && !keepsWorldReadingLayout && !isWideDialogueConversation)
+  const viewportOwnsHandoffOutgoing = isWideDialogueConversation || (readingIsSubtitle && !dialogueStage)
+  useEffect(() => {
+    // Wide conversation history retains the outgoing line; a narrow subtitle
+    // has no world-stage outgoing visual when dialogueStage is absent. In
+    // either case, acknowledge the viewport-owned dismissal so Page can apply
+    // its normal minimum-visible duration. When a stage visual exists, its
+    // own deletion animation remains responsible for the acknowledgement.
+    if (!dialogueHandoffOutgoing) {
+      viewportHandoffAcknowledgedRef.current = null
+      return
+    }
+    if (!viewportOwnsHandoffOutgoing || viewportHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id) return
+    viewportHandoffAcknowledgedRef.current = dialogueHandoffOutgoing.id
+    onDialogueHandoffOutgoingDeleted?.(dialogueHandoffOutgoing.id)
+  }, [dialogueHandoffOutgoing?.id, onDialogueHandoffOutgoingDeleted, viewportOwnsHandoffOutgoing])
   const altarBreathingNodesRef = useRef(new Map<string, HTMLSpanElement>())
   const registerBreathingNode = useCallback((entityId: string, node: HTMLSpanElement | null) => {
     if (node) altarBreathingNodesRef.current.set(entityId, node)
@@ -765,10 +2189,6 @@ export function MainlineSceneRenderer({
   const altarLeaderIds = useMemo(() => new Set(scene.altars.map((altar) => altar.incenseBurnerId)), [scene.altars])
   const occupiedSeatIds = useMemo(() => runtimeOccupiedSeatIds ?? mainlineSceneOccupiedSeatIds(scene), [runtimeOccupiedSeatIds, scene])
   const protagonistPresentation = mainlineProtagonistPresentation(playerSeatId)
-  const currentDialogueGroup = dialogue && dialogueLine
-    ? `dialogue:${dialogueLine.id}:${dialogueSegmentIndex}`
-    : null
-  currentDialogueGroupRef.current = currentDialogueGroup
   const updateDialogueReady = useCallback((group: string, ready: boolean) => {
     if (ready) dialogueReadyGroupRef.current = group
     else if (dialogueReadyGroupRef.current === group) dialogueReadyGroupRef.current = null
@@ -784,18 +2204,23 @@ export function MainlineSceneRenderer({
   const cafeQaStaffArea = cafeSpatialQa ? scene.accessRegions.find((region) => region.id === 'commercial-cafe-staff-area') : undefined
   const cafeQaAccessBoundary = cafeSpatialQa ? geometrySnapshot.navigationBarriers.find((barrier) => barrier.id === 'commercial-cafe-staff-right-access-boundary') : undefined
   const cafeQaBackDoor = cafeSpatialQa ? geometrySnapshot.passages.get('cafe-back-door') : undefined
-  const hasAltarBreathing = scene.objects.some((entity) => isAltarEntity(scene, entity.id))
+  const hasAltarBreathing = incenseLit && scene.objects.some((entity) => entity.visualProfile === 'incense')
   useIsomorphicLayoutEffect(() => {
     const dimmer = dimmerRef.current
     if (!dimmer) return
     const currentOpacity = Number(getComputedStyle(dimmer).opacity)
-    const targetOpacity = readingMode ? centerReadingDimmerTargets[readingMode] : 0
+    if (readingIsSubtitle || isWideDialogueConversation) {
+      dimmer.getAnimations().forEach((animation) => animation.cancel())
+      dimmer.style.opacity = '0'
+      return
+    }
+    const targetOpacity = readingMode === 'observation' ? centerReadingDimmerTargets.observation : dialogueStage ? 0 : readingMode ? centerReadingDimmerTargets.dialogue : 0
     dimmer.getAnimations().forEach((animation) => animation.cancel())
     dimmer.style.opacity = String(currentOpacity)
     const duration = centerReadingDimmerTransitionDurationMs(
       currentOpacity,
       targetOpacity,
-      readingMode ? centerReadingDimmerTargets[readingMode] : currentOpacity,
+      readingMode === 'observation' ? centerReadingDimmerTargets.observation : dialogueStage ? 0 : readingMode ? centerReadingDimmerTargets.dialogue : currentOpacity,
     )
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (duration <= 0.5 || reducedMotion) {
@@ -811,7 +2236,7 @@ export function MainlineSceneRenderer({
       dimmer.style.opacity = String(targetOpacity)
       animation.cancel()
     }
-  }, [readingMode])
+  }, [dialogueStage, isWideDialogueConversation, readingIsSubtitle, readingMode])
   useEffect(() => {
     if (!hasAltarBreathing || typeof window === 'undefined') return undefined
     const startedAt = performance.now()
@@ -841,17 +2266,36 @@ export function MainlineSceneRenderer({
   const suppressNextLayoutStageClickRef = useRef(false)
   useIsomorphicLayoutEffect(() => {
     const stage = stageRef.current
-    if (!stage) return undefined
+    const stableViewport = stableViewportRef.current
+    if (!stage || !stableViewport) return undefined
     const reportMetrics = () => {
-      const metrics = readSceneScreenMetrics(stage)
+      const metrics = readMainlineViewportMetrics(stage, stableViewport)
       if (!metrics) return
       onScreenMetricsChange?.(metrics)
     }
     reportMetrics()
-    if (typeof ResizeObserver === 'undefined') return undefined
-    const observer = new ResizeObserver(reportMetrics)
-    observer.observe(stage)
-    return () => observer.disconnect()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reportMetrics)
+    observer?.observe(stage)
+    observer?.observe(stableViewport)
+    let dpiQuery: MediaQueryList | undefined
+    const watchDpi = () => {
+      dpiQuery?.removeEventListener('change', onDpiChange)
+      dpiQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`)
+      dpiQuery.addEventListener('change', onDpiChange)
+    }
+    const onDpiChange = () => {
+      reportMetrics()
+      watchDpi()
+    }
+    watchDpi()
+    window.addEventListener('resize', reportMetrics)
+    window.visualViewport?.addEventListener('resize', reportMetrics)
+    return () => {
+      observer?.disconnect()
+      dpiQuery?.removeEventListener('change', onDpiChange)
+      window.removeEventListener('resize', reportMetrics)
+      window.visualViewport?.removeEventListener('resize', reportMetrics)
+    }
   }, [onScreenMetricsChange])
 
   // The page owns the stage measurement and passes the same snapshot to
@@ -859,43 +2303,435 @@ export function MainlineSceneRenderer({
   // stage from projecting visible cells with one size while navigation tests
   // collision against another.
   const renderScreenMetrics = geometrySnapshot.screenMetrics
+  const horizontalGridScale = scene.id === 'commercial-street' ? commercialStreetHorizontalScale(renderScreenMetrics) : 1
+  const sceneRenderBounds = useMemo(
+    () => mainlineSceneRenderBounds(scene, geometrySnapshot.layout, renderScreenMetrics, horizontalGridScale),
+    [geometrySnapshot.layout, horizontalGridScale, renderScreenMetrics, scene],
+  )
+  const worldScale = mainlineWorldScale(viewportMetrics)
+  const readingMetrics = viewportMetrics
+  const activeReadingPosition = sceneEcho?.position ?? dialoguePosition
+  const activeReadingText = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
+  const readingIsLeaving = sceneEcho?.phase === 'leaving' || (!sceneEcho && dialoguePhase === 'leaving' && Boolean(dialogue && dialogueLine && dialoguePosition))
+  const readingPresentationPhase = readingMode ? 'active' : readingIsLeaving ? 'leaving' : 'inactive'
+  // Echoes are sometimes NPC replies and sometimes descriptions of objects.
+  // Only an echo whose stable entity id belongs to an NPC gets a name label.
+  const sceneEchoSpeaker = sceneEcho?.entityId
+    ? scene.npcs.find(npc => npc.id === sceneEcho.entityId)?.label
+    : undefined
+  useIsomorphicLayoutEffect(() => {
+    if (readingPresentationPhase !== 'active') {
+      typingCompletionLockRef.current = false
+      typingCompletionLockTokenRef.current = null
+      releaseReadingPageAdvance()
+    }
+  }, [readingPresentationPhase, releaseReadingPageAdvance])
+  useEffect(() => {
+    if (!typingCompletionLockRef.current || sceneEcho?.textMotion === 'typing' || dialogueTextMotion === 'typing') return
+    typingCompletionLockRef.current = false
+    const token = typingCompletionLockTokenRef.current
+    typingCompletionLockTokenRef.current = null
+    releaseReadingPageAdvance(token ?? undefined)
+  }, [dialogueTextMotion, releaseReadingPageAdvance, sceneEcho?.textMotion])
+  const readingPresentationMode = readingMode ?? (sceneEcho ? 'observation' : readingIsLeaving ? 'dialogue' : null)
+  const stableConversationDisplaySessionId = conversationDisplaySessionId ?? conversationDisplayContent?.sessionId ?? null
+  const readingSessionKey = !readingPresentationMode ? null : sceneEcho
+    ? `${scene.id}:observation:echo:${sceneEcho.id}:${sceneEcho.entityId ?? ''}`
+    : mainlineDialogueReadingSessionKey(scene.id, dialogue?.triggerEntityId, dialogueLine?.id, dialogueLineIndex)
+  const readingOcclusionSessionKey = !readingPresentationMode ? null : sceneEcho
+    ? `${scene.id}:observation:echo:${sceneEcho.id}`
+    : `${scene.id}:dialogue:${dialogue?.triggerEntityId ?? ''}`
+  const [readingProtectionState, setReadingProtectionState] = useState<{ sessionKey: string; rects: readonly MainlineReadingProtectionRect[] } | null>(null)
+  const currentReadingProtectionSessionRef = useRef<string | null>(readingOcclusionSessionKey)
+  currentReadingProtectionSessionRef.current = readingOcclusionSessionKey
+  // A session key makes late measurements from the previous reader inert.
+  // It also avoids a parent layout effect clearing a freshly measured first
+  // frame after the child has already reported it.
+  const readingProtectionRects = readingProtectionState?.sessionKey === readingOcclusionSessionKey
+    ? readingProtectionState.rects
+    : []
+  const updateReadingProtectionRects = useCallback((rects: readonly MainlineReadingProtectionRect[]) => {
+    if (!readingOcclusionSessionKey || readingPresentationPhase === 'inactive') return
+    const sessionKey = readingOcclusionSessionKey
+    if (currentReadingProtectionSessionRef.current !== sessionKey) return
+    setReadingProtectionState(current => {
+      if (current?.sessionKey === sessionKey && current.rects.length === rects.length && current.rects.every((rect, index) => {
+        const next = rects[index]!
+        return Math.abs(rect.x - next.x) < .1 && Math.abs(rect.y - next.y) < .1
+          && Math.abs(rect.width - next.width) < .1 && Math.abs(rect.height - next.height) < .1
+      })) return current
+      return { sessionKey, rects }
+    })
+  }, [readingOcclusionSessionKey, readingPresentationPhase])
+  const readingAnchorSessionKey = readingOcclusionSessionKey
+  const readingTextDeleting = sceneEcho
+    ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
+    : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
+  const retainedReadingPresentation = (readingPresentationPhase === 'leaving' || readingTextDeleting)
+    && readingSessionKey
+    && retainedReadingPresentationRef.current?.sessionKey === readingSessionKey
+    ? retainedReadingPresentationRef.current
+    : null
+  const readingOverflowKey = sceneEcho
+    ? `${readingSessionKey}:echo:${sceneEcho.segmentIndex}:${activeReadingText}`
+    : `${readingSessionKey}:dialogue:${dialogueSegmentIndex}:${activeReadingText}`
+  const readingOverflowIndex = mainlineReadingOverflowPageIndex(readingOverflowPage, readingSessionKey, readingOverflowKey)
+  useEffect(() => {
+    setReadingOverflowPage(current => mainlineReadingOverflowPageForSession(current, readingSessionKey))
+  }, [readingSessionKey])
+  const dialogueParticipantResolution = resolveMainlineDialogueParticipants(scene, dialogue, dialogueLine)
+  const dialogueParticipantNpcIds = dialogueParticipantResolution.npcIds
+  const cameraParticipantSeatKey = JSON.stringify([...dialogueParticipantNpcIds].sort().map(id => {
+    const snapshot = npcRuntimeSnapshots?.get(id)
+    return [id, mainlineNpcVisualSeatId(scene, id, snapshot) ?? '']
+  }))
+  const wideConversationCameraSession = dialogue
+    && (dialogue.dialoguePresentation === 'conversation' || dialogue.dialoguePresentation === 'aside')
+    && dialoguePhase !== 'leaving'
+    && viewportMetrics.width >= 960
+    ? `${scene.id}:${dialogue.triggerEntityId}:${playerSeatId ?? 'standing'}:${cameraParticipantSeatKey}` : null
+  const wideConversationViewportKey = `${viewportMetrics.width}:${viewportMetrics.height}:${viewportMetrics.viewportWidth ?? ''}:${embedded}`
+  if (!wideConversationCameraSession) dialogueCameraAnchorRef.current = null
+  else if (dialogueCameraAnchorRef.current?.key !== wideConversationCameraSession || dialogueCameraAnchorRef.current.viewportKey !== wideConversationViewportKey) {
+    const participantBounds = [...dialogueParticipantNpcIds].flatMap(id => {
+      if (hiddenNpcIds?.has(id)) return []
+      const npc = scene.npcs.find(candidate => candidate.id === id)
+      if (!npc) return []
+      const point = npcPositions?.get(id) ?? resolveMainlineNpcPosition(scene, id, geometrySnapshot.layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
+      if (!point) return []
+      const seatId = mainlineNpcVisualSeatId(scene, id, npcRuntimeSnapshots?.get(id))
+      const visualPosition = mainlineSeatedActorVisualPosition(point, seatId, seatId ? geometrySnapshot.objects.get(seatId)?.position : undefined)
+      return [mainlineLabelFootprint(npc.label, visualPosition, renderScreenMetrics, { lineHeight: 1 })]
+    })
+    participantBounds.push(mainlineLabelFootprint(protagonistPresentation.kind === 'dot' ? '修杰' : protagonistPresentation.label, protagonistVisualPosition, renderScreenMetrics, { lineHeight: 1 }))
+    const actorBounds = unionWorldBounds(participantBounds)
+    const conversationRailWidthPx = Math.max(320, Math.min(viewportMetrics.width * .34, 460))
+    const visibleSpan = mainlineVisibleWorldSpan(viewportMetrics)
+    const railLeftPx = viewportMetrics.width - conversationRailWidthPx
+    const actorBoundsCenterY = actorBounds.y + actorBounds.height / 2
+    const actorLeftPx = mainlineViewportPointFromWorld({ x: actorBounds.x, y: actorBoundsCenterY }, viewportMetrics, cameraOffset).x / 100 * viewportMetrics.width
+    const actorRightPx = mainlineViewportPointFromWorld({ x: actorBounds.x + actorBounds.width, y: actorBoundsCenterY }, viewportMetrics, cameraOffset).x / 100 * viewportMetrics.width
+    const sidebarGapPx = 14
+    // Preserve the live gameplay camera unless the participants' actual label
+    // bounds enter the rail. If blocked, translate only enough to clear its
+    // left edge; do not center the participants in the remaining viewport.
+    const overlapsSidebar = actorRightPx > railLeftPx - sidebarGapPx && actorLeftPx < viewportMetrics.width
+    const panLeftPx = overlapsSidebar ? Math.max(0, actorRightPx - (railLeftPx - sidebarGapPx)) : 0
+    const conversationOffset = {
+      // `visibleSpan` is already expressed in world-percent units. Converting
+      // a viewport pixel delta back into that basis must not multiply by 100
+      // again (which would pan roughly one hundred times too far).
+      x: embedded ? cameraOffset.x : cameraOffset.x - panLeftPx / Math.max(1, viewportMetrics.width) * visibleSpan.x,
+      y: cameraOffset.y,
+    }
+    dialogueCameraAnchorRef.current = {
+      key: wideConversationCameraSession,
+      viewportKey: wideConversationViewportKey,
+      offset: conversationOffset,
+    }
+  }
+  const wideConversationCameraOffset = dialogueCameraAnchorRef.current?.offset ?? null
+  const wideConversationCameraComposed = Boolean(wideConversationCameraSession && wideConversationCameraOffset)
+  useEffect(() => {
+    if (wideConversationCameraComposed) {
+      setDialogueCameraTransitionActive(true)
+      return
+    }
+    const timer = window.setTimeout(() => setDialogueCameraTransitionActive(false), 460)
+    return () => window.clearTimeout(timer)
+  }, [wideConversationCameraComposed])
+  const readingProtectedEntityIds = useMemo(() => {
+    if (isWideDialogueConversation) return new Set<string>()
+    if (isMenuReading) return new Set<string>()
+    if (readingIsSubtitle) return new Set(dialogueStage?.protectedEntityIds ?? [])
+    const readingRoomId = activeReadingPosition ? mainlineInteractionRoom(scene, activeReadingPosition)?.id : null
+    return currentMainlineReadingTargetIds({
+      readingMode: readingPresentationPhase !== 'inactive',
+      activeObjectId,
+      sceneEchoEntityId: sceneEcho?.entityId,
+      sceneActionEntityId: sceneAction?.entityId,
+      dialogueTriggerEntityId: dialogue?.triggerEntityId,
+      objects: scene.objects,
+      npcs: scene.npcs,
+      continuousStructures: scene.continuousStructures,
+      geometry: scene.geometry,
+      rooms: scene.rooms,
+      extraProtectedEntityIds: dialogueStage?.protectedEntityIds,
+      roomId: readingRoomId,
+      preserveServiceEntities: readingMode === 'dialogue',
+    })
+  }, [isMenuReading, isWideDialogueConversation, readingIsSubtitle, activeObjectId, activeReadingPosition, dialogue?.triggerEntityId, dialogueStage?.protectedEntityIds, readingPresentationPhase, scene.objects, scene.npcs, scene.continuousStructures, scene.geometry, scene.rooms, sceneAction?.entityId, sceneEcho?.entityId, scene])
+  const subtitleMaximumWidthPx = Math.max(1, readingMetrics.width - 40)
+  const currentReadingWidthPx = readingIsSubtitle ? subtitleMaximumWidthPx : activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset) : readingMetrics.width - 24
+  const maximumReadingWidthPx = readingIsSubtitle ? subtitleMaximumWidthPx : activeReadingPosition ? mainlineMaximumReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale) : currentReadingWidthPx
+  const readingEnvelopeEntries = useMemo<readonly MainlineReadingSessionTextEntry[]>(() => sceneEcho
+    ? (sceneEcho.segments.length ? sceneEcho.segments : [sceneEcho.text]).map(text => ({ text, speaker: sceneEchoSpeaker }))
+    : dialogue ? dialogue.lines.map(line => ({ text: line.text, speaker: line.speaker }))
+      : dialogueLine ? [{ text: dialogueLine.text, speaker: dialogueLine.speaker }]
+        : [{ text: activeReadingText }],
+  [activeReadingText, dialogue?.lines, dialogueLine?.speaker, dialogueLine?.text, sceneEcho?.segments, sceneEcho?.text, sceneEchoSpeaker])
+  const readingLayoutFontFaceKey = useMainlineReadingFontRevision(readingOcclusionSessionKey)
+  // MainlineScenePage's shared cache is sized for world-space text (12px in
+  // compact portrait). A pinned subtitle is rendered at 18px CSS size, so it
+  // must not reuse that smaller-font pagination plan.
+  const readingLayoutFontKey = readingIsSubtitle ? `${readingLayoutFontFaceKey}:subtitle-18px` : readingLayoutFontFaceKey
+  const readingMeasurementKey = mainlineReadingMeasurementKey(readingMetrics, worldScale)
+  let readingLayoutSessionCache = readingLayoutSessionCacheRef.current
+  if (!readingOcclusionSessionKey) {
+    readingLayoutSessionCacheRef.current = null
+    readingLayoutSessionCache = null
+  } else if (activeReadingPosition) {
+    const sessionTextEntries = [...readingEnvelopeEntries, { text: activeReadingText, speaker: sceneEchoSpeaker ?? dialogueLine?.speaker }]
+    if (sharedReadingSessionLayoutCache?.sessionKey === readingOcclusionSessionKey
+      && sharedReadingSessionLayoutCache.fontKey === readingLayoutFontKey
+      && sharedReadingSessionLayoutCache.measurementKey === readingMeasurementKey) {
+      readingLayoutSessionCache = sharedReadingSessionLayoutCache
+      readingLayoutSessionCache.addEntries(sessionTextEntries)
+      readingLayoutSessionCacheRef.current = readingLayoutSessionCache
+    } else if (!readingLayoutSessionCache
+      || readingLayoutSessionCache.sessionKey !== readingOcclusionSessionKey
+      || readingLayoutSessionCache.fontKey !== readingLayoutFontKey
+      || readingLayoutSessionCache.measurementKey !== readingMeasurementKey) {
+      const frozenMetrics = readingMetrics
+      // A new viewport measurement means a true resize. Freeze this dialogue
+      // session to the legal room/viewport width now, so later camera motion
+      // cannot make the box resize between lines.
+      const frozenMaximumWidth = readingIsSubtitle ? subtitleMaximumWidthPx : sceneEcho ? maximumReadingWidthPx : currentReadingWidthPx
+      readingLayoutSessionCache = createMainlineReadingSessionLayoutCache({
+        sessionKey: readingOcclusionSessionKey,
+        entries: sessionTextEntries,
+        metrics: frozenMetrics,
+        maximumWidthPx: frozenMaximumWidth,
+        fontSizePx: readingIsSubtitle ? 18 : undefined,
+        fontKey: readingLayoutFontKey,
+        worldScale,
+        preferWholeText: Boolean(sceneEcho),
+        ...(isMenuReading ? {
+          layoutText: (text, metrics, options) => mainlineEchoLayout(text, metrics, { ...options, lineHeight: metrics.width <= 600 && metrics.height > metrics.width ? 1.6 : 1.72 }),
+          measureText: (text, size) => mainlineMeasuredTextWidth(text, commercialStreetDrinkCatalog.some(item => item.description && item.description.includes(text) && text.trim().length > 0) ? size * 2 / 3 : size),
+        } : {}),
+      })
+      readingLayoutSessionCacheRef.current = readingLayoutSessionCache
+    } else {
+      readingLayoutSessionCache.addEntries(sessionTextEntries)
+    }
+  }
+  const maximumReadingLayout = activeReadingPosition && readingLayoutSessionCache
+    ? readingLayoutSessionCache.envelopeAtOrBelow(maximumReadingWidthPx)
+    : null
+  const dialogueSpeakerEnvelope = readingMode === 'dialogue' && dialogue && activeReadingPosition
+    ? mainlineSpeakerAnchor(dialogue.lines, readingMetrics, {
+      x: scene.id === 'commercial-street' ? projectCommercialStreetX(activeReadingPosition.x, readingMetrics) : activeReadingPosition.x,
+      y: activeReadingPosition.y,
+    }, { x: 0, y: 0 }, worldScale, maximumReadingWidthPx, readingLayoutSessionCache?.speakerWidthAtOrBelow(maximumReadingWidthPx))
+    : null
+  const dialogueEnvelopeNeedsPan = dialogueSpeakerEnvelope
+    ? mainlineReadingEnvelopeNeedsCameraPan(dialogueSpeakerEnvelope.left, dialogueSpeakerEnvelope.widthPx, readingMetrics, worldScale, cameraOffset)
+    : false
+  const shouldPanForReading = Boolean(!readingIsSubtitle && readingMode && activeReadingPosition && maximumReadingLayout && (
+    maximumReadingLayout.widthPx > currentReadingWidthPx + 1 || dialogueEnvelopeNeedsPan
+  ))
+  const readingCameraOffset = wideConversationCameraOffset ?? (readingIsSubtitle ? cameraOffset : retainedReadingPresentation?.cameraOffset ?? (shouldPanForReading && activeReadingPosition
+    ? mainlineReadingCameraOffset(scene, activeReadingPosition, readingMetrics, worldScale, cameraOffset)
+    : cameraOffset))
+  const questionDialogueActive = scene.id === 'commercial-street'
+    && (sceneEcho?.presentationKind === 'commercial-street-question' || dialogue?.triggerEntityId === 'commercial-street-question')
+  const questionReadingActive = questionDialogueActive && readingPresentationPhase !== 'inactive'
+  const [questionExitCameraOffset, setQuestionExitCameraOffset] = useState<Point | null>(null)
+  const questionNormalCameraOffsetRef = useRef(cameraOffset)
+  questionNormalCameraOffsetRef.current = cameraOffset
+  const lastQuestionReadingCameraOffsetRef = useRef<Point | null>(null)
+  useLayoutEffect(() => {
+    if (questionReadingActive) lastQuestionReadingCameraOffsetRef.current = readingCameraOffset
+  }, [questionReadingActive, readingCameraOffset])
+  useLayoutEffect(() => {
+    if (questionReadingActive) {
+      setQuestionExitCameraOffset(null)
+      return
+    }
+
+    if (readingPresentationPhase !== 'inactive' || scene.id !== 'commercial-street') {
+      lastQuestionReadingCameraOffsetRef.current = null
+      setQuestionExitCameraOffset(null)
+      return
+    }
+
+    const retainedOffset = lastQuestionReadingCameraOffsetRef.current
+    lastQuestionReadingCameraOffsetRef.current = null
+    if (!retainedOffset) {
+      setQuestionExitCameraOffset(null)
+      return
+    }
+
+    let current = retainedOffset
+    let previousTime = performance.now()
+    let frame = 0
+    setQuestionExitCameraOffset(current)
+    const advance = (now: number) => {
+      current = advanceCommercialStreetQuestionCameraHandoff(current, questionNormalCameraOffsetRef.current, now - previousTime)
+      previousTime = now
+      if (commercialStreetQuestionCameraHandoffSettled(current, questionNormalCameraOffsetRef.current)) {
+        setQuestionExitCameraOffset(null)
+        return
+      }
+      setQuestionExitCameraOffset(current)
+      frame = window.requestAnimationFrame(advance)
+    }
+    frame = window.requestAnimationFrame(advance)
+    return () => window.cancelAnimationFrame(frame)
+  }, [questionReadingActive, readingPresentationPhase, scene.id])
+  const renderCameraOffset = questionExitCameraOffset ?? readingCameraOffset
+  const sceneActionViewportKey = JSON.stringify([renderScreenMetrics.width, renderScreenMetrics.height, viewportMetrics.width, viewportMetrics.height])
+  const sceneActionViewportCameraOffset = mainlineReadingActionViewportCameraOffset(scene, sceneAction?.position ?? position, cameraOffset, viewportMetrics, embedded)
+  const sceneActionCameraAnchorRef = useRef<MainlineReadingActionCameraAnchor | null>(null)
+  if (!sceneAction) sceneActionCameraAnchorRef.current = null
+  else sceneActionCameraAnchorRef.current = mainlineReadingActionCameraAnchor({
+    previous: sceneActionCameraAnchorRef.current,
+    actionId: sceneAction.id,
+    viewportKey: sceneActionViewportKey,
+    authoredOffset: sceneAction.cameraOffset,
+    currentOffset: sceneActionViewportCameraOffset,
+  })
+  const sceneActionCameraOffset = sceneActionCameraAnchorRef.current?.offset ?? cameraOffset
+  const sceneActionMaxWidthPx = sceneAction
+    ? mainlineAvailableReadingWidthPx(scene, sceneAction.position, viewportMetrics, worldScale, sceneActionCameraOffset)
+    : 0
+  const sceneActionMeasureKey = sceneAction ? JSON.stringify([
+    scene.id,
+    sceneAction.entityId ?? 'scene',
+    sceneAction.options,
+    sceneAction.position.x,
+    sceneAction.position.y,
+    sceneActionCameraOffset.x,
+    sceneActionCameraOffset.y,
+    renderScreenMetrics.width,
+    renderScreenMetrics.height,
+    viewportMetrics.width,
+    viewportMetrics.height,
+    worldScale,
+    sceneActionMaxWidthPx,
+  ]) : null
+  const sceneActionRef = useRef<HTMLDivElement | null>(null)
+  const [sceneActionMeasuredSize, setSceneActionMeasuredSize] = useState<{ key: string; width: number; height: number } | null>(null)
+  useLayoutEffect(() => {
+    const node = sceneActionRef.current
+    if (!sceneActionMeasureKey || !node || sceneAction?.phase !== 'active') {
+      setSceneActionMeasuredSize(current => current?.key === sceneActionMeasureKey ? null : current)
+      return
+    }
+    const measure = () => {
+      const rect = node.getBoundingClientRect()
+      if (!(rect.width > 0) || !(rect.height > 0)) return
+      const next = {
+        key: sceneActionMeasureKey,
+        width: rect.width,
+        // scrollHeight captures the full wrapped option content after the
+        // bounded viewport is applied; transform scale converts it to screen px.
+        height: Math.max(rect.height, node.scrollHeight * worldScale),
+      }
+      setSceneActionMeasuredSize(current => current?.key === next.key
+        && Math.abs(current.width - next.width) < .25
+        && Math.abs(current.height - next.height) < .25
+        ? current
+        : next)
+    }
+    measure()
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure)
+    observer?.observe(node)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [sceneActionMeasureKey, sceneAction?.phase, worldScale])
+  const matchingSceneActionSize = sceneActionMeasureKey && sceneActionMeasuredSize?.key === sceneActionMeasureKey
+    ? sceneActionMeasuredSize
+    : null
+  const sceneActionPlacement = sceneAction && matchingSceneActionSize
+    ? mainlinePlaceReadingAction(scene, sceneAction.position, matchingSceneActionSize, viewportMetrics, worldScale, sceneActionCameraOffset)
+    : null
+  const sceneActionPosition = sceneActionPlacement?.position ?? sceneAction?.position
+  const sceneActionLayerPosition = sceneActionPosition && sceneAction
+    ? mainlineReadingActionLayerPosition({
+      ...sceneActionPosition,
+      x: scene.id === 'commercial-street' ? projectCommercialStreetX(sceneActionPosition.x, renderScreenMetrics) : sceneActionPosition.x,
+    }, sceneActionCameraOffset, renderCameraOffset)
+    : null
+  // Capture the last painted placement in world-layer coordinates. Once exit
+  // starts, live camera transforms still apply, but measurements and clamping
+  // can no longer drag the departing action around.
+  const actionExitPlacementRef = useRef<{ id: number; position: Point; maxWidth: number; maxHeight: number; overflowY: boolean } | null>(null)
+  useLayoutEffect(() => {
+    if (!sceneAction) {
+      actionExitPlacementRef.current = null
+      return
+    }
+    if (sceneAction.phase !== 'active' || !sceneActionLayerPosition || !sceneActionPlacement || !matchingSceneActionSize) return
+    actionExitPlacementRef.current = {
+      id: sceneAction.id,
+      position: { ...sceneActionLayerPosition },
+      maxWidth: Math.max(1, Math.min(sceneActionMaxWidthPx, sceneActionPlacement.availableWidthPx) / worldScale),
+      maxHeight: Math.max(1, sceneActionPlacement.availableHeightPx / worldScale),
+      overflowY: sceneActionPlacement.overflowY,
+    }
+  }, [sceneAction, sceneActionLayerPosition?.x, sceneActionLayerPosition?.y, sceneActionPlacement, matchingSceneActionSize, sceneActionMaxWidthPx, worldScale])
+  const frozenActionPlacement = sceneAction && sceneAction.phase !== 'active' && actionExitPlacementRef.current?.id === sceneAction.id
+    ? actionExitPlacementRef.current : null
+  const activeReadingWidthPx = readingIsSubtitle ? subtitleMaximumWidthPx : activeReadingPosition ? mainlineAvailableReadingWidthPx(scene, activeReadingPosition, readingMetrics, worldScale, renderCameraOffset) : readingMetrics.width - 24
+  const activeReadingLayout = activeReadingPosition
+    ? readingLayoutSessionCache?.pageLayoutAtOrBelow(activeReadingText, sceneEchoSpeaker ?? dialogueLine?.speaker, activeReadingWidthPx)
+      ?? mainlineEchoLayout(activeReadingText, readingMetrics, { speaker: sceneEchoSpeaker ?? dialogueLine?.speaker, maxWidthPx: activeReadingWidthPx })
+    : null
+  const projectReadingX = useCallback((x: number) => scene.id === 'commercial-street' ? projectCommercialStreetX(x, renderScreenMetrics) : x, [renderScreenMetrics, scene.id])
   const geometryUnits = geometrySnapshot.units
   const switchableStorefronts = useMemo(() => scene.storefronts.filter(slot => slot.portalId && slot.characterSwitch), [scene.storefronts])
-  // Keep the three glyph anchors tied to the storefront's real near geometry
-  // for the full presentation lifecycle. The render snapshot intentionally
-  // swaps visual projections as the player approaches; deriving these cells
-  // from that changing snapshot made the glyphs jump between source cells.
   const switchCells = useMemo(() => new Map(switchableStorefronts.map(slot => {
-    const presentationGeometry = mainlineSceneGeometryUnits(scene, mainlineStorefrontApproach(scene, slot), geometrySnapshot.screenMetrics)
-    return [slot.id, storefrontCharacterCells(scene, slot, presentationGeometry)] as const
-  })), [geometrySnapshot.screenMetrics, scene, switchableStorefronts])
-  const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => switchCells.get(slot.id)?.length === 3), [switchCells, switchableStorefronts])
+    const projected = mainlineCanonicalSceneGeometryUnits(scene, renderScreenMetrics)
+    return [slot.id, storefrontCharacterCells(scene, slot, projected)] as const
+  })), [renderScreenMetrics, scene, switchableStorefronts])
+  const activeSwitchableStorefronts = useMemo(() => switchableStorefronts.filter(slot => (switchCells.get(slot.id)?.length ?? 0) > 0), [switchCells, switchableStorefronts])
+  const storefrontLabelGeometry = useMemo(() => new Map(switchableStorefronts.flatMap(slot => {
+    const geometry = storefrontContactGeometry(slot, geometryUnits, renderScreenMetrics, true)
+    return geometry ? [[slot.id, geometry] as const] : []
+  })), [geometryUnits, renderScreenMetrics, switchableStorefronts])
   // Player movement only invalidates frame targets when crossing a storefront
   // approach boundary. Keep ordinary walking out of the measured-frame path.
   const approachedStorefrontIds = useMemo(
     () => new Set(activeStorefrontId ? [activeStorefrontId] : []),
     [activeStorefrontId],
   )
-  const replacedWallCellIds = useMemo(() => {
-    const ids = new Set<string>()
-    activeSwitchableStorefronts.forEach(slot => {
-      const cells = switchCells.get(slot.id) ?? []
-      const vertical = slot.edge === 'left' || slot.edge === 'right'
-      const position = ({ x, y }: { x: number; y: number }) => vertical ? y : x
-      const start = Math.min(...cells.map(position))
-      const end = Math.max(...cells.map(position))
-      geometryUnits.forEach(unit => {
-        if (unit.sourceWallId !== slot.wallId || unit.edge !== slot.edge || unit.storefrontId) return
-        unit.visual.cells.forEach(cell => {
-          if (cell.kind !== 'wall' || cell.cellStart === undefined || cell.cellEnd === undefined) return
-          if (cell.cellStart <= end && cell.cellEnd >= start) ids.add(cell.id)
-        })
-      })
-    })
-    return ids
-  }, [activeSwitchableStorefronts, geometryUnits, switchCells])
-  const geometryCells = useMemo(() => geometryUnits.filter(unit => !activeSwitchableStorefronts.some(slot => slot.id === unit.storefrontId)).flatMap((unit) => unit.visual.cells
-    .filter(cell => !replacedWallCellIds.has(cell.id)).map((cell) => ({
+  const activeShellRoom = scene.rooms.find((room) => room.id.endsWith('-interior')
+    && position.x >= room.bounds.x
+    && position.x <= room.bounds.x + room.bounds.width
+    && position.y >= room.bounds.y
+    && position.y <= room.bounds.y + room.bounds.height)
+  const activeSpatialSpaceId = mainlineActiveSpatialSpaceId(scene, position)
+  const streetPresentationActive = mainlinePublicStreetPresentationIsActive(scene, position)
+  const streetSpaceContentRetained = Boolean(scene.id === 'commercial-street' || scene.id === 'yonghe-mining-perimeter')
+  const activeShellRoomConnection = activeShellRoom && scene.storefronts.map(slot => storefrontRoomConnection(scene, slot)).find(connection => connection?.interiorRoom.id === activeShellRoom.id)
+  const activeShellRoomId = activeShellRoomConnection && activeShellRoomConnection.passage.access !== 'open' ? undefined : activeShellRoom?.id
+  const interiorStorefrontId = activeStorefrontInteriorOwner(scene, position)
+  const visibleInteriorRoomIds = new Set(visibleInteriorStorefrontIds.flatMap(storefrontId => {
+    const storefront = scene.storefronts.find(candidate => candidate.id === storefrontId)
+    const room = storefront && storefrontRoomConnection(scene, storefront)?.interiorRoom
+    return room ? [room.id] : []
+  }))
+  const interiorRoomOwner = (roomId: string | undefined) => roomId
+    ? scene.storefronts.find(storefront => storefrontRoomConnection(scene, storefront)?.interiorRoom.id === roomId)?.id ?? null
+    : null
+  const interiorRoomPresentationActive = (roomId: string | undefined) => {
+    const owner = interiorRoomOwner(roomId)
+    return owner ? owner === paintedInteriorStorefrontId : undefined
+  }
+  const interiorRoomIsVisuallyActive = (roomId: string | undefined) => interiorRoomPresentationActive(roomId) !== false
+  const renderedRoomIds = new Set([...visibleInteriorRoomIds, ...(activeShellRoomId ? [activeShellRoomId] : [])])
+  const visibleInteriorRoomIdsKey = [...visibleInteriorRoomIds].sort().join('|')
+  const geometryCells = useMemo(() => geometryUnits.flatMap((unit) => unit.visual.cells
+    .filter(cell => {
+      const slot = unit.storefrontId ? activeSwitchableStorefronts.find(candidate => candidate.id === unit.storefrontId) : undefined
+      if (!slot) return true
+      return storefrontGeometryCellShouldRender(slot, unit, cell, switchCells.get(slot.id))
+    }).map((cell) => ({
     unit,
     // The compiled geometry unit owns storefront identity. Carry it into
     // every visual cell so a vertical label cannot split into one focus group
@@ -903,7 +2739,17 @@ export function MainlineSceneRenderer({
     cell: cell.kind === 'storefront' && unit.storefrontId
       ? { ...cell, storefrontId: unit.storefrontId }
       : cell,
-  }))), [activeSwitchableStorefronts, geometryUnits, replacedWallCellIds])
+  }))), [activeSwitchableStorefronts, geometryUnits, switchCells])
+
+  // In the continuous commercial street, room ownership only controls room
+  // contents. Shell glyphs are culled by camera visibility, never by room
+  // transitions, while their collision/navigation geometry stays persistent.
+  const visibleShellWorldSpan = useMemo(() => mainlineVisibleWorldSpan(viewportMetrics), [viewportMetrics])
+  const renderedGeometryCells = useMemo(() => geometryCells.filter(({ unit, cell }) => {
+    if (!mainlineGeometryUnitShouldRender(scene.id, unit, activeShellRoomId, layoutMode)) return false
+    if (!unit.sourceWallId?.endsWith('-shell')) return true
+    return mainlineGeometryCellWithinViewport(cell, renderCameraOffset, 5, scene.id, renderScreenMetrics, viewportMetrics, visibleShellWorldSpan)
+  }), [activeShellRoomId, renderCameraOffset, geometryCells, layoutMode, renderScreenMetrics, scene.id, viewportMetrics, visibleShellWorldSpan])
 
   const focusGroupCells = useMemo(() => {
     const groups = new Map<string, MainlineGeometryCellEntry[]>()
@@ -920,6 +2766,192 @@ export function MainlineSceneRenderer({
   const wallFeatureEntityIds = useMemo(() => new Set(geometryUnits.flatMap((unit) => unit.visual.cells
     .filter((cell) => cell.kind === 'feature' && cell.entityId)
     .flatMap((cell) => cell.entityId ? [cell.entityId] : []))), [geometryUnits])
+  const counterSurfaces = useMemo(() => {
+    const groups = new Map<string, typeof scene.continuousStructures[number][]>()
+    scene.continuousStructures.forEach(body => {
+      if (!body.counterSurface) return
+      const group = body.counterSurface.groupId
+      groups.set(group, [...(groups.get(group) ?? []), body])
+    })
+    return [...groups.values()]
+  }, [scene.continuousStructures])
+  const readingProtectedVisuals = useMemo<CollisionBox[]>(() => {
+    if (readingPresentationPhase === 'inactive') return []
+    const boxes: CollisionBox[] = []
+    const add = (box: CollisionBox | null | undefined) => {
+      if (box && Number.isFinite(box.x) && Number.isFinite(box.y) && box.width > 0 && box.height > 0) boxes.push(box)
+    }
+    for (const entity of scene.objects) {
+      if (!readingProtectedEntityIds.has(entity.id)) continue
+      add(geometrySnapshot.objects.get(entity.id)?.visualBounds
+        ?? mainlineEntityVisualBounds(scene, entity, geometrySnapshot.layout, renderScreenMetrics))
+    }
+    const glyphHalfWidth = mainlineWorldFontSizePx / 1920 * 50 / Math.max(.01, horizontalGridScale)
+    const glyphHalfHeight = mainlineWorldFontSizePx / 1080 * 50
+    geometrySnapshot.units.forEach(unit => unit.visual.cells.forEach(cell => {
+      const entityId = cell.entityId ?? unit.entityId
+      if (!entityId || !readingProtectedEntityIds.has(entityId)) return
+      add({ x: cell.x - glyphHalfWidth, y: cell.y - glyphHalfHeight, width: glyphHalfWidth * 2, height: glyphHalfHeight * 2 })
+    }))
+    scene.continuousStructures.forEach(structure => {
+      const surface = structure.counterSurface
+      if (!surface || !readingProtectedEntityIds.has(surface.interactionEntityId)) return
+      add(surface.outlineBounds ?? structure)
+    })
+    scene.npcs.forEach(npc => {
+      if (!readingProtectedEntityIds.has(npc.id) && !dialogueParticipantNpcIds.has(npc.id)) return
+      const snapshot = npcRuntimeSnapshots?.get(npc.id)
+      const seatId = mainlineNpcVisualSeatId(scene, npc.id, snapshot)
+      const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, geometrySnapshot.layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
+      const visualPosition = mainlineSeatedActorVisualPosition(npcPosition, seatId, seatId ? geometrySnapshot.objects.get(seatId)?.position : undefined)
+      add(mainlineLabelFootprint(npc.label, visualPosition, renderScreenMetrics, { lineHeight: 1 }))
+    })
+    add(mainlineLabelFootprint(protagonistPresentation.kind === 'dot' ? '人' : protagonistPresentation.label, protagonistVisualPosition, renderScreenMetrics, { lineHeight: 1 }))
+    return boxes
+  }, [dialogueParticipantNpcIds, geometrySnapshot, horizontalGridScale, npcPositions, npcRuntimeSnapshots, protagonistPresentation.label, protagonistVisualPosition, readingPresentationPhase, readingProtectedEntityIds, renderScreenMetrics, scene])
+  const readingFit = readingMode && activeReadingPosition
+    ? readingLayoutSessionCache?.fit({
+      scene,
+      source: activeReadingPosition,
+      outside: sceneEcho ? undefined : dialogueOutside,
+      text: activeReadingText,
+      speaker: sceneEchoSpeaker ?? dialogueLine?.speaker,
+      maximumWidthPx: activeReadingWidthPx,
+      protectedVisuals: readingProtectedVisuals,
+      metrics: readingMetrics,
+      worldScale,
+      cameraOffset: renderCameraOffset,
+      sourceOffset: readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey ? readingOverflowPage.sourceOffset : undefined,
+      subtitle: readingIsSubtitle,
+      subtitleSafeAreaBottomPx: deviceSafeAreaBottomPx,
+    }) ?? null
+    : null
+  const fittedReadingSegments = readingFit?.segments ?? [activeReadingText]
+  const activeDisplayOverflowIndex = readingOverflowPage?.sessionKey === readingSessionKey && readingOverflowPage.key === readingOverflowKey && readingOverflowPage.sourceOffset !== undefined
+    ? mainlineReadingPageIndexForSourceOffset(fittedReadingSegments, readingOverflowPage.sourceOffset)
+    : Math.min(readingOverflowIndex, Math.max(0, fittedReadingSegments.length - 1))
+  const activeDisplayReadingText = sceneEcho
+    ? fittedReadingSegments[activeDisplayOverflowIndex] ?? activeReadingText
+    : mainlineReadingPageDisplayText(fittedReadingSegments, activeDisplayOverflowIndex)
+  const activeDisplayReadingLayout = readingFit
+    ? readingFit.pageLayouts[activeDisplayOverflowIndex] ?? readingFit.layout
+    : activeReadingLayout
+  const readingAnchorContextKey = useMemo(() => activeReadingPosition ? createReadingAnchorContextKey({
+    sceneId: scene.id,
+    viewport: readingMetrics,
+    worldScale,
+    cameraOffset,
+    source: activeReadingPosition,
+    protectedBoxes: readingProtectedVisuals,
+  }) : '', [activeReadingPosition?.x, activeReadingPosition?.y, cameraOffset.x, cameraOffset.y, readingMetrics.height, readingMetrics.viewportWidth, readingMetrics.width, readingProtectedVisuals, scene.id, worldScale])
+  const candidateReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
+    ? readingFit?.position ?? mainlinePlaceReadingBox(scene, activeReadingPosition, { width: activeDisplayReadingLayout.widthPx, height: activeDisplayReadingLayout.heightPx }, readingProtectedVisuals, readingMetrics, worldScale, renderCameraOffset, sceneEcho ? undefined : dialogueOutside) ?? activeReadingPosition
+    : activeReadingPosition
+  const activeDisplayReadingPosition = readingMode && activeReadingPosition && activeDisplayReadingLayout
+    ? readingAnchorSessionKey
+      ? mainlineReadingAnchorForSession(readingAnchorSessionKey, readingAnchorContextKey, candidateReadingPosition!, retainedReadingPresentationRef.current)
+      : candidateReadingPosition
+    : activeReadingPosition
+  const currentReadingPresentation: MainlineReadingPresentationSnapshot | null = readingMode && readingSessionKey && activeDisplayReadingPosition && activeDisplayReadingLayout
+    ? { sessionKey: readingSessionKey, anchorSessionKey: readingAnchorSessionKey ?? undefined, anchorContextKey: readingAnchorContextKey, position: activeDisplayReadingPosition, cameraOffset: renderCameraOffset, layout: activeDisplayReadingLayout, maxWidthPx: readingFit?.maxWidthPx ?? activeReadingWidthPx, text: activeDisplayReadingText, overflowIndex: activeDisplayOverflowIndex }
+    : null
+  dialogueHandoffPresentationRef.current = mainlineDialogueHandoffPresentationForId(
+    dialogueHandoffOutgoing?.id ?? null,
+    dialogueHandoffPresentationRef.current,
+    retainedReadingPresentationRef.current,
+  )
+  const dialogueHandoffPresentation = dialogueHandoffOutgoing && dialogueHandoffPresentationRef.current?.id === dialogueHandoffOutgoing.id
+    ? dialogueHandoffPresentationRef.current.presentation
+    : null
+  const readingPresentation = mainlineReadingPresentationForPhase(readingTextDeleting ? 'deleting' : readingPresentationPhase, readingSessionKey, currentReadingPresentation, retainedReadingPresentation)
+  useIsomorphicLayoutEffect(() => {
+    if (readingPresentationPhase === 'active' && !readingTextDeleting && currentReadingPresentation) retainedReadingPresentationRef.current = currentReadingPresentation
+    else if (readingPresentationPhase === 'inactive') retainedReadingPresentationRef.current = null
+  }, [currentReadingPresentation, readingPresentationPhase, readingTextDeleting])
+  const displayOverflowIndex = readingPresentation?.overflowIndex ?? activeDisplayOverflowIndex
+  const displayReadingText = readingPresentation?.text ?? activeDisplayReadingText
+  const displayReadingLayout = readingPresentation?.layout ?? activeDisplayReadingLayout
+  const displayReadingMaxWidthPx = readingPresentation?.maxWidthPx ?? activeReadingWidthPx
+  const readingLayoutContinuityKey = !readingSessionKey ? null : sceneEcho
+    ? `echo:${scene.id}:${sceneEcho.id}`
+    : `dialogue:${scene.id}:${dialogue?.triggerEntityId ?? dialogueLine?.id ?? ''}:${dialogueLine?.speaker ?? ''}`
+  const readingLayoutPageKey = readingSessionKey && displayReadingLayout
+    ? mainlineReadingPageKey({ sessionKey: readingSessionKey, segmentIndex: sceneEcho?.segmentIndex ?? dialogueSegmentIndex, overflowIndex: displayOverflowIndex, text: displayReadingText })
+    : null
+  const readingLayoutTransition = useMainlineReadingLayoutTransition(
+    readingPresentationPhase,
+    readingLayoutContinuityKey,
+    readingLayoutPageKey,
+    settledReadingPageKey,
+    displayReadingLayout,
+  )
+  const presentedReadingLayout = readingLayoutTransition.layout ?? displayReadingLayout
+  const readingLayoutTransitioning = readingLayoutTransition.transitioning
+  const dialogueOptionsAllowed = mainlineDialogueTurnAllowsOptions({
+    hasDialogue: Boolean(dialogue && dialogueLine && readingMode === 'dialogue'),
+    ready: dialogueReady,
+    motion: dialogueTextMotion,
+    handoffActive: dialogueHandoffActive,
+    currentSegmentIndex: dialogueSegmentIndex,
+    segmentCount: dialogueSegmentCount,
+    currentOverflowPageIndex: displayOverflowIndex,
+    overflowPageCount: fittedReadingSegments.length,
+    layoutTransitioning: readingLayoutTransitioning,
+  })
+  const actionVisible = Boolean(frozenActionPlacement || (matchingSceneActionSize && sceneActionPlacement && (sceneAction?.phase !== 'active' || dialogueOptionsAllowed)))
+  const currentDialogueGroup = dialogue && dialogueLine
+    ? isWideDialogueConversation
+      ? mainlineConversationTurnGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId)
+      : mainlineDialoguePageGroup(dialogue, dialogueLine, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex)
+    : null
+  currentDialogueGroupRef.current = currentDialogueGroup
+  const conversationDisplayUnitKey = conversationDisplayContent && 'displayUnitKey' in conversationDisplayContent
+    ? conversationDisplayContent.displayUnitKey
+    : undefined
+  const conversationDisplayContentKey = conversationDisplayContent?.kind === 'waiting'
+    ? `${stableConversationDisplaySessionId ?? 'conversation'}:waiting`
+    : conversationDisplayContent?.kind === 'choice'
+      ? `action:${conversationDisplayContent.actionId}`
+      : conversationDisplayUnitKey ?? `${conversationDisplayContent?.kind ?? 'none'}:${dialogueLine?.id ?? (sceneEcho ? `echo:${sceneEcho.id}` : conversationDisplayContent?.text ?? '')}`
+  const conversationDisplayPageKey = conversationDisplayUnitKey
+    ? `${conversationDisplayContentKey}:${displayOverflowIndex}`
+    : readingLayoutPageKey ?? `${conversationDisplayContentKey}:${displayOverflowIndex}`
+  const conversationDisplayRequiredReadyKey = stableConversationDisplaySessionId
+    ? `${stableConversationDisplaySessionId}:${conversationDisplayPageKey}`
+    : conversationDisplayPageKey
+  const conversationDisplayAdvanceReady = conversationDisplayReadyKey === conversationDisplayRequiredReadyKey
+  const conversationDisplayAdvanceRoute = !conversationDisplayContent?.canAdvance
+    ? 'blocked:can-advance-false'
+    : !conversationDisplayAdvanceReady
+      ? 'blocked:surface-not-ready'
+      : sceneEcho
+        ? 'onSceneEchoAdvance'
+        : dialogue && dialogueLine
+          ? `onDialogueAdvance:${isWideDialogueConversation ? 'line' : 'segment'}`
+          : 'blocked:no-active-handler'
+  const conversationDisplayPageText = conversationDisplayContent?.kind === 'waiting'
+    ? conversationDisplayContent.text
+    : conversationDisplayContent?.kind === 'choice'
+      ? ''
+      : conversationDisplayContent?.kind === 'text' && conversationDisplayContent.choicePrompt
+        ? conversationDisplayContent.text
+        : isWideDialogueConversation ? conversationDisplayContent?.text ?? '' : activeDisplayReadingText
+  const readingVisualActive = Boolean(readingPresentation && activeReadingPosition && displayReadingLayout)
+  const readingMaskRects = useMemo(() => keepsWorldReadingLayout ? mainlineReadingMaskRects(sceneRenderBounds, readingProtectedVisuals) : [], [keepsWorldReadingLayout, readingProtectedVisuals, sceneRenderBounds])
+  const readingDisplayPosition = readingPresentation?.position ?? activeReadingPosition
+  const readingDisplayShift = activeReadingPosition && readingDisplayPosition
+    ? { x: projectReadingX(readingDisplayPosition.x) - projectReadingX(activeReadingPosition.x), y: readingDisplayPosition.y - activeReadingPosition.y }
+    : { x: 0, y: 0 }
+  const actorReadingOpacity = (point: Point) => (readingIsSubtitle || isWideDialogueConversation) ? 1 : readingVisualActive && readingDisplayPosition && presentedReadingLayout
+    ? mainlineReadingActorOpacity(point, readingDisplayPosition, presentedReadingLayout, worldScale, projectReadingX)
+    : 1
+  const objectFrameOwners = useMemo(() => {
+    const owners = new Map<string, string>()
+    scene.objects.forEach(entity => {
+      if (entity.focusFrameGroup && !owners.has(entity.focusFrameGroup)) owners.set(entity.focusFrameGroup, entity.id)
+    })
+    return owners
+  }, [scene.objects])
   const focusFrameTargets = useMemo<readonly SceneFrameTarget[]>(() => {
     if (layoutMode) return []
     const targetMap = new Map<string, SceneFrameTarget>()
@@ -948,11 +2980,11 @@ export function MainlineSceneRenderer({
         : undefined
       const passageEntityId = storefrontPassageEntityId ?? entityId
       const interactionId = target.storefrontInteractionId ?? entityId
-      const sceneExitMatchesTarget = sceneFrameExit.scope === 'scene'
-        || (target.policy === 'passage' && sceneFrameExit.passageEntityId === passageEntityId)
-      const retractRequested = sceneFrameExit.phase === 'retracting'
-        && sceneExitMatchesTarget
-        && (!sceneFrameExit.requestedGroups || sceneFrameExit.requestedGroups.includes(target.group))
+      const retractRequested = sceneFrameExitRequestsTarget(
+        sceneFrameExit,
+        target.group,
+        target.policy === 'passage' ? passageEntityId : undefined,
+      )
       addTarget({
         group: target.group,
         policy: target.policy,
@@ -962,37 +2994,50 @@ export function MainlineSceneRenderer({
         interactionActive: target.policy === 'interactive' && (activeObjectId === interactionId || sceneEcho?.entityId === interactionId),
         retractRequested: Boolean(retractRequested
           || (cell.kind === 'storefront' && cell.storefrontRole === 'sign' && storefrontPresentationRetractsFrame(storefrontPresentationPhase))
-          || (cell.kind === 'door' && storefront?.characterSwitch && (storefrontPresentationPhase !== 'revealed' || !approachedStorefrontIds.has(storefront.id)))),
+          || (cell.kind === 'door' && storefront?.characterSwitch && storefrontDoorFrameShouldRetract(storefront.id, interiorStorefrontId, storefrontPresentationPhase, approachedStorefrontIds.has(storefront.id)))),
         suppressed: false,
       })
     })
-    activeSwitchableStorefronts.forEach(slot => {
+    switchableStorefronts.forEach(slot => {
       const phase = storefrontPresentation.get(slot.id) ?? 'baseline'
-      addTarget({ group: 'storefront:' + slot.id + ':baseline', policy: 'passage', phase: 'closed', gateTriggered: false, interactionBusy: false, interactionActive: false, retractRequested: phase !== 'baseline' || sceneFrameExit.phase === 'retracting', suppressed: false })
       const entityId = scene.passages.find(passage => passage.portalId === slot.portalId)?.entityId ?? slot.portalId!
-      addTarget({ group: `door:${entityId}`, policy: 'passage', phase: doorPhases.get(entityId) ?? 'closed', gateTriggered: false,
-        interactionBusy: false, interactionActive: false, retractRequested: phase !== 'revealed' || !approachedStorefrontIds.has(slot.id)
-          || (sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId), suppressed: false })
+      const baselineGroup = 'storefront:' + slot.id + ':baseline'
+      const doorGroup = `door:${entityId}`
+      addTarget({ group: baselineGroup, policy: 'passage', phase: 'closed', gateTriggered: false, interactionBusy: false, interactionActive: false,
+        retractRequested: phase !== 'baseline' || sceneFrameExitRequestsTarget(sceneFrameExit, baselineGroup, entityId), suppressed: false })
+      const doorCells = (switchCells.get(slot.id) ?? []).filter(cell => cell.role === 'door')
+      const independentDoorCells = doorCells.length > 1
+      const frameGroups = independentDoorCells
+        ? doorCells.map(cell => storefrontDoorFocusGroup({ ...cell, storefrontId: slot.id }, undefined, true))
+        : [doorGroup]
+      frameGroups.forEach(group => addTarget({ group, policy: 'passage', phase: doorPhases.get(entityId) ?? 'closed', gateTriggered: false,
+        interactionBusy: false, interactionActive: false, retractRequested: storefrontDoorFrameShouldRetract(slot.id, interiorStorefrontId, phase, approachedStorefrontIds.has(slot.id))
+          || sceneFrameExitRequestsTarget(sceneFrameExit, group, entityId), suppressed: false }))
     })
     scene.objects.forEach((entity) => {
       if (entity.focusFrame !== 'interactive' || entity.visible === false) return
-      const group = `interactive:${entity.id}`
+      const streetContent = mainlineEntityIsPublicStreetContent(scene.id, entity)
+      // Keep the focus-frame target mounted so it can collapse smoothly. The
+      // street entity itself is disabled and removed from active interaction.
+      if (!mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId) && !streetContent) return
+      const group = `interactive:${entity.focusFrameGroup ?? entity.id}`
       addTarget({
         group,
         policy: 'interactive',
         phase: 'closed',
         gateTriggered: false,
         interactionBusy: activeObjectId === entity.id && moving,
-        interactionActive: activeObjectId === entity.id || sceneEcho?.entityId === entity.id,
-        retractRequested: false,
+        interactionActive: !streetContent && (activeObjectId === entity.id || sceneEcho?.entityId === entity.id),
+        retractRequested: streetContent && !streetPresentationActive,
         suppressed: isMainlineSeatLabelSuppressed(entity, occupiedSeatIds),
       })
     })
     return [...targetMap.values()]
-  }, [activeObjectId, activeSwitchableStorefronts, approachedStorefrontIds, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds])
+  }, [activeObjectId, switchableStorefronts, approachedStorefrontIds, interiorStorefrontId, doorPhases, gateTriggered, geometryCells, layoutMode, moving, scene, sceneEcho, sceneFrameExit, storefrontPresentation, occupiedSeatIds, renderedRoomIds, activeSpatialSpaceId, streetPresentationActive])
   const focusFrames = useSceneFocusFrameController({
     targets: focusFrameTargets,
     freezeMeasurements: freezeFrameMeasurements,
+    projectionScale: worldScale,
   })
   useEffect(() => {
     scene.storefronts.forEach(storefront => {
@@ -1000,6 +3045,23 @@ export function MainlineSceneRenderer({
       if (focusFrames.isCollapsed('storefront:' + storefront.id + ':baseline')) onStorefrontFrameRetractionComplete?.(storefront.id)
     })
   }, [focusFrames.isCollapsed, geometryCells, onStorefrontFrameRetractionComplete, scene.storefronts, storefrontPresentation])
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = []
+    switchableStorefronts.forEach(slot => {
+      const phase = storefrontPresentation.get(slot.id)
+      if (phase !== 'revealing' && phase !== 'restoring') return
+      const callback = phase === 'revealing' ? onStorefrontRevealMotionComplete : onStorefrontRestoreMotionComplete
+      if (!callback) return
+      const reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      timers.push(setTimeout(() => {
+        callback(slot.id)
+        if (phase === 'revealing' && typeof window !== 'undefined') {
+          window.requestAnimationFrame(() => window.requestAnimationFrame(() => focusFrames.remeasureGroup(`door:${slot.portalId}`)))
+        }
+      }, reducedMotion ? 1 : storefrontLabelRollDurationMs))
+    })
+    return () => timers.forEach(clearTimeout)
+  }, [focusFrames.remeasureGroup, onStorefrontRestoreMotionComplete, onStorefrontRevealMotionComplete, storefrontPresentation, switchableStorefronts])
   // Reading and an immediately following local Action are one interaction
   // lifecycle for the source content. Focus-frame targets intentionally keep
   // their neutral contract; this helper is only for the object/glyph content.
@@ -1022,11 +3084,8 @@ export function MainlineSceneRenderer({
   const pointFromPointer = useCallback((clientX: number, clientY: number) => {
     const rect = stageRef.current?.getBoundingClientRect()
     if (!rect || rect.width === 0 || rect.height === 0) return null
-    return {
-      x: ((clientX - rect.left) / rect.width) * 100 - cameraOffset.x,
-      y: ((clientY - rect.top) / rect.height) * 100 - cameraOffset.y,
-    }
-  }, [cameraOffset.x, cameraOffset.y])
+    return mainlineWorldPointFromClient({ x: clientX, y: clientY }, rect, viewportMetrics, renderCameraOffset)
+  }, [renderCameraOffset, viewportMetrics])
 
   const startLayoutDrag = useCallback((itemId: LayoutItemId, event: React.PointerEvent<HTMLElement>) => {
     if (!layoutMode) return
@@ -1089,7 +3148,7 @@ export function MainlineSceneRenderer({
       x: Math.max(0, Math.min(100, ((clientX - rect.left) / rect.width) * 100)),
       y: Math.max(0, Math.min(100, ((clientY - rect.top) / rect.height) * 100)),
     }
-    const point = { x: screenPoint.x - cameraOffset.x, y: screenPoint.y - cameraOffset.y }
+    const point = mainlineWorldPointFromClient({ x: clientX, y: clientY }, rect, viewportMetrics, renderCameraOffset)
     onInputDiagnostic?.({
       ...input,
       client: { x: clientX, y: clientY },
@@ -1106,7 +3165,7 @@ export function MainlineSceneRenderer({
       return
     }
     onWalk(point)
-  }, [cameraOffset.x, cameraOffset.y, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId])
+  }, [renderCameraOffset, layoutMode, onInputDiagnostic, onLayoutChange, onWalk, scene, selectedLayoutItemId, viewportMetrics])
 
   const walkToEmptySpace = (event: React.MouseEvent<HTMLDivElement>) => {
     const touchWalk = touchWalkRef.current
@@ -1135,85 +3194,389 @@ export function MainlineSceneRenderer({
     })
   }
 
+  const windowRoom = officeWindowRoom(scene)
+  const currentOfficeRoom = scene.id === 'zhongshuyuan-office' ? mainlineInteractionRoom(scene, position) : undefined
+  const officeShadeRooms = scene.id === 'zhongshuyuan-office' ? scene.rooms.filter(room => room.kind === 'room').map(room => ({
+    room,
+    closed: !(room.id === windowRoom?.id ? officeBlindsOpen : officeRoomBlindsOpen(officeRoomBlindsState, room.id, windowRoom?.id)),
+  })) : []
+  const hasOfficeShade = officeShadeRooms.some(({ closed }) => closed)
+  const worldProjectionStyle = {
+    left: '50%',
+    top: '50%',
+    width: `${sceneDesignReferenceMetrics.width}px`,
+    height: `${sceneDesignReferenceMetrics.height}px`,
+    marginLeft: `${-sceneDesignReferenceMetrics.width * worldScale / 2}px`,
+    marginTop: `${-sceneDesignReferenceMetrics.height * worldScale / 2}px`,
+    transform: `scale(${worldScale}) translate(${renderCameraOffset.x}%, ${renderCameraOffset.y}%)`,
+    transition: wideConversationCameraComposed || dialogueCameraTransitionActive ? 'transform 420ms ease-in-out' : undefined,
+    transformOrigin: 'top left',
+    '--scene-horizontal-grid-counter-scale': String(1 / horizontalGridScale),
+  } as CSSProperties
+
+  const extractProtectedWallNode = (_entityId: string, _key: string, node: ReactNode): ReactNode => node
+  const renderedRoomIdsKey = [...renderedRoomIds].sort().join('|')
+  const visibleObjectEntities = useMemo(() => scene.objects.filter(entity => entity.visible !== false
+    && !entity.counterSurfaceId
+    && entity.kind !== 'door'
+    && !wallFeatureEntityIds.has(entity.id)
+    && (mainlineEntityMatchesCurrentPresentation(entity, renderedRoomIds, activeSpatialSpaceId)
+      || (streetSpaceContentRetained && mainlineEntityIsPublicStreetContent(scene.id, entity)))),
+  [activeSpatialSpaceId, renderedRoomIdsKey, scene, streetSpaceContentRetained, wallFeatureEntityIds])
+  const visibleCounterSurfaces = useMemo(() => counterSurfaces.filter(parts => !parts[0].counterSurface?.roomId || visibleInteriorRoomIds.has(parts[0].counterSurface.roomId)),
+    [counterSurfaces, visibleInteriorRoomIdsKey])
+  const readingOcclusionRect = useMemo(() => readingVisualActive && readingDisplayPosition && maximumReadingLayout
+    ? mainlineReadingOcclusionRect(readingDisplayPosition, maximumReadingLayout, worldScale, projectReadingX)
+    : null, [maximumReadingLayout, projectReadingX, readingDisplayPosition, readingVisualActive, worldScale])
+  const readingOcclusionContextKey = JSON.stringify([scene.id, viewportMetrics.width, viewportMetrics.height, viewportMetrics.viewportWidth ?? null, worldScale, renderScreenMetrics.width, renderScreenMetrics.height, activeSpatialSpaceId ?? null])
+  const readingOcclusionSnapshotFrozen = Boolean(retainedReadingOcclusion
+    && retainedReadingOcclusion.sessionKey === readingOcclusionSessionKey
+    && retainedReadingOcclusion.contextKey === readingOcclusionContextKey)
+  const readingOcclusionCandidates = useMemo<MainlineReadingOcclusionCandidate[]>(() => {
+    if (!readingVisualActive || !readingOcclusionSessionKey || !readingOcclusionRect || readingOcclusionSnapshotFrozen) return []
+    const candidates: MainlineReadingOcclusionCandidate[] = []
+    const add = (identityKey: string, entityId: string | undefined, bounds: CollisionBox, spaceId?: string, relatedEntityIds?: readonly string[]) => {
+      candidates.push({ identityKey, entityId, relatedEntityIds, bounds, spaceId })
+    }
+    for (const slot of activeSwitchableStorefronts) {
+      const cells = switchCells.get(slot.id) ?? []
+      if (!cells.length) continue
+      const portalBoxes = cells.map(cell => cellGlyphWorldBounds({ ...cell, kind: cell.role === 'door' ? 'door' : 'storefront' } as MainlineSceneGeometryUnit['visual']['cells'][number], horizontalGridScale))
+      const bounds = unionWorldBounds(portalBoxes, 8)
+      const portalEntity = scene.objects.find(object => object.id === slot.portalId)
+      add(`portal:${slot.id}`, slot.id, bounds, portalEntity ? mainlineActiveSpatialSpaceId(scene, portalEntity.position) : undefined, slot.portalId ? [slot.portalId] : undefined)
+    }
+    for (const { unit, cell } of geometryCells) {
+      if (sceneEcho && (cell.kind === 'wall' || cell.kind === 'door' || cell.kind === 'opening')) continue
+      const sourceEntityId = cell.entityId ?? unit.entityId
+      const target = mainlineCellFocusTarget(scene, cell, sourceEntityId, unit.variant)
+      const entries = target ? focusGroupCells.get(target.group) : undefined
+      const groupedFocus = Boolean(target && entries && (entries.length > 1 || cell.kind === 'storefront' && cell.storefrontRole === 'sign'))
+      if (groupedFocus && entries?.[0]?.cell.id !== cell.id) continue
+      if (cell.glyph === '' && !(cell.kind === 'feature' && cell.featureCellRole === 'flank')) continue
+      const entityId = cell.kind === 'feature' && cell.featureCellRole === 'flank'
+        ? `wall-cell:${cell.id}`
+        : cell.entityId ?? unit.entityId ?? cell.storefrontId ?? unit.storefrontId ?? cell.id
+      const featureOwner = cell.kind === 'feature' && entityId
+        ? scene.objects.find(candidate => candidate.id === entityId)
+        : undefined
+      const spaceId = featureOwner?.roomId ?? mainlineActiveSpatialSpaceId(scene, { x: cell.x, y: cell.y })
+      const groupedOcclusion = Boolean(groupedFocus && entries?.every(entry => {
+        const entryEntityId = entry.cell.entityId ?? entry.unit.entityId
+        const entryRoomId = entry.cell.kind === 'feature' && entryEntityId
+          ? scene.objects.find(candidate => candidate.id === entryEntityId)?.roomId
+          : undefined
+        return (entryRoomId ?? mainlineActiveSpatialSpaceId(scene, { x: entry.cell.x, y: entry.cell.y })) === spaceId
+      }))
+      // A rendered focus group is one DOM visual. If its cells span spaces,
+      // do not let one room's reading envelope hide the combined visual.
+      if (groupedFocus && !groupedOcclusion) continue
+      const boundsEntries = groupedOcclusion ? entries! : [{ unit, cell } as MainlineGeometryCellEntry]
+      const visualBoxes = boundsEntries.map(entry => cellGlyphWorldBounds(entry.cell, horizontalGridScale))
+      const cellStorefrontId = cell.storefrontId ?? unit.storefrontId
+      const cellStorefront = cellStorefrontId ? scene.storefronts.find(candidate => candidate.id === cellStorefrontId) : undefined
+      const storefrontVisual = cellStorefront ? storefrontLabelGeometry.get(cellStorefront.id) : undefined
+      if (groupedOcclusion && storefrontVisual) visualBoxes.push(mainlineReadingWorldBox(storefrontVisual.visualBounds))
+      const bounds = unionWorldBounds(visualBoxes, groupedOcclusion ? 3 : 0)
+      add(mainlineReadingOcclusionCellIdentity(cell.id, groupedOcclusion ? target?.group : undefined, spaceId), entityId, bounds, spaceId)
+    }
+    for (const parts of visibleCounterSurfaces) {
+      const meta = parts[0].counterSurface!
+      const boxes = parts.map(part => {
+        const outline = part.counterSurface?.outlineBounds
+        const bounds = outline ?? { x: part.x, y: part.y, width: part.width, height: part.height }
+        return { x: bounds.x * 19.2, y: bounds.y * 10.8, width: bounds.width * 19.2, height: bounds.height * 10.8 }
+      })
+      const labelBoxes = parts.map(part => {
+        const label = part.counterSurface!.label ?? '柜台'
+        const vertical = part.counterSurface!.orientation === 'vertical'
+        const width = (vertical ? 1 : Array.from(label).length) * 16
+        const height = (vertical ? Array.from(label).length : 1) * 16
+        const centerX = (part.x + part.width / 2) * 19.2
+        const centerY = (part.y + part.height / 2) * 10.8
+        return { x: centerX - width / 2, y: centerY - height / 2, width, height }
+      })
+      // Include the counter outline stroke and its antialiased edge inside the
+      // same bounded plane that carries the reading alpha mask.
+      const bounds = unionWorldBounds([...boxes, ...labelBoxes], 2)
+      const first = parts[0]
+      const spaceId = meta.roomId ?? mainlineActiveSpatialSpaceId(scene, { x: first.x + first.width / 2, y: first.y + first.height / 2 })
+      add(`counter:${meta.groupId}`, meta.interactionEntityId, bounds, spaceId)
+    }
+    for (const entity of visibleObjectEntities) {
+      const object = geometrySnapshot.objects.get(entity.id)
+      const normalizedBounds = object?.visualBounds ?? mainlineEntityVisualBounds(scene, entity, geometrySnapshot.layout, renderScreenMetrics)
+        ?? mainlineLabelFootprint(entity.label, object?.position ?? entity.position, renderScreenMetrics, { vertical: entity.textLayout === 'vertical', visualScale: entity.visualScale, lineHeight: 1.2 })
+      const bounds = mainlineReadingWorldBox(normalizedBounds, value => value, entity.focusFrame === 'interactive' ? 5 : 0)
+      const entityPosition = object?.position ?? entity.position
+      add(`object:${entity.id}`, entity.id, bounds, entity.spaceId ?? entity.roomId ?? mainlineActiveSpatialSpaceId(scene, entityPosition))
+    }
+    return candidates
+  }, [activeSwitchableStorefronts, focusGroupCells, geometryCells, geometrySnapshot, horizontalGridScale, readingOcclusionRect, readingOcclusionSessionKey, readingOcclusionSnapshotFrozen, readingVisualActive, renderScreenMetrics, scene, sceneEcho, storefrontLabelGeometry, switchCells, visibleCounterSurfaces, visibleObjectEntities])
+  const currentReadingOcclusion = useMemo<RetainedReadingOcclusion | null>(() => {
+    if (!readingVisualActive || !readingOcclusionSessionKey || !readingOcclusionRect) return null
+    if (readingOcclusionSnapshotFrozen && retainedReadingOcclusion) return retainedReadingOcclusion
+    return {
+      sessionKey: readingOcclusionSessionKey,
+      contextKey: readingOcclusionContextKey,
+      rect: readingOcclusionRect,
+      protectedEntityIds: readingProtectedEntityIds,
+      hiddenIdentityKeys: mainlineReadingOccludedIdentityKeys(readingOcclusionCandidates, readingOcclusionRect, readingProtectedEntityIds, activeSpatialSpaceId),
+    }
+  }, [activeSpatialSpaceId, readingOcclusionCandidates, readingOcclusionContextKey, readingOcclusionRect, readingOcclusionSessionKey, readingOcclusionSnapshotFrozen, readingProtectedEntityIds, readingVisualActive, retainedReadingOcclusion])
+  useEffect(() => {
+    if (readingPresentationPhase !== 'active' || !currentReadingOcclusion) return
+    setRetainedReadingOcclusion(current => retainMainlineReadingOcclusionSnapshot(current, currentReadingOcclusion))
+  }, [currentReadingOcclusion, readingPresentationPhase])
+  useEffect(() => {
+    if (readingPresentationPhase !== 'active' || !readingVisualActive || !readingOcclusionSessionKey) return
+    if (activeReadingOcclusionSession === readingOcclusionSessionKey) return
+    setActiveReadingOcclusionSession(null)
+    readingOcclusionEntryRafRef.current = window.requestAnimationFrame(() => {
+      readingOcclusionEntryRafRef.current = null
+      setActiveReadingOcclusionSession(readingOcclusionSessionKey)
+    })
+    return () => {
+      if (readingOcclusionEntryRafRef.current !== null) window.cancelAnimationFrame(readingOcclusionEntryRafRef.current)
+      readingOcclusionEntryRafRef.current = null
+    }
+  }, [activeReadingOcclusionSession, readingPresentationPhase, readingOcclusionSessionKey, readingVisualActive])
+  useEffect(() => {
+    if (readingPresentationPhase === 'active') {
+      if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+      readingOcclusionExitTimerRef.current = null
+      readingOcclusionExitStartedAtRef.current = null
+      return
+    }
+    if (!retainedReadingOcclusion) return
+    if (readingOcclusionExitStartedAtRef.current === null) readingOcclusionExitStartedAtRef.current = performance.now()
+    if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+    const elapsed = performance.now() - readingOcclusionExitStartedAtRef.current
+    const remaining = Math.max(0, mainlineReadingMaskReleaseDelayMs + mainlineReadingFadeTransitionMs - elapsed)
+    readingOcclusionExitTimerRef.current = window.setTimeout(() => {
+      readingOcclusionExitTimerRef.current = null
+      readingOcclusionExitStartedAtRef.current = null
+      setRetainedReadingOcclusion(null)
+      setActiveReadingOcclusionSession(null)
+    }, remaining)
+    return () => {
+      if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+      readingOcclusionExitTimerRef.current = null
+    }
+  }, [readingPresentationPhase, retainedReadingOcclusion])
+  useEffect(() => () => {
+    if (readingOcclusionExitTimerRef.current !== null) window.clearTimeout(readingOcclusionExitTimerRef.current)
+    if (readingOcclusionEntryRafRef.current !== null) window.cancelAnimationFrame(readingOcclusionEntryRafRef.current)
+  }, [])
+  const retainedOcclusionSnapshot = readingVisualActive && currentReadingOcclusion
+    ? retainMainlineReadingOcclusionSnapshot(retainedReadingOcclusion, currentReadingOcclusion)
+    : retainedReadingOcclusion
+  const readingOcclusionActive = !readingIsSubtitle && !isWideDialogueConversation && readingPresentationPhase === 'active' && readingVisualActive && activeReadingOcclusionSession === readingOcclusionSessionKey
+  const observationProtection = keepsWorldReadingLayout && readingProtectionRects.length ? readingProtectionRects : undefined
+  const readingOcclusionProtectedEntityIds = readingPresentationPhase === 'inactive'
+    ? retainedReadingOcclusion?.protectedEntityIds ?? readingProtectedEntityIds
+    : readingProtectedEntityIds
+  const renderMainlineObject = (entity: MainlineSceneEntity, coordinateBounds: CollisionBox) => {
+    const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
+    const localVisualPosition = localPointInWorldBounds(entityPosition, coordinateBounds)
+    const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.focusFrameGroup ?? entity.id}` : undefined
+    const streetContent = mainlineEntityIsPublicStreetContent(scene.id, entity)
+    const presentationActive = streetContent ? streetPresentationActive : interiorRoomPresentationActive(entity.roomId)
+    const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
+    return <MemoMainlineObject
+      entity={entity}
+      scene={scene}
+      position={entityPosition}
+      visualPosition={localVisualPosition}
+      collision={geometrySnapshot.objects.get(entity.id)?.collision ?? undefined}
+      visualBounds={geometrySnapshot.objects.get(entity.id)?.visualBounds}
+      focusGroup={focusGroup}
+      renderFrame={!entity.focusFrameGroup || objectFrameOwners.get(entity.focusFrameGroup) === entity.id ? focusFrames.renderFrame : undefined}
+      visibility={objectVisibility(entity, layoutMode)}
+      active={isCurrentInteractionSource(entity.id) && !readingMode}
+      explored={exploredObjectIds.has(entity.id)}
+      tutorialCompleted={interactionTutorialCompleted}
+      underPlayer={underPlayer}
+      layoutMode={layoutMode}
+      screenMetrics={renderScreenMetrics}
+      incenseLit={incenseLit}
+      cafeRestroomFixtureUsePhases={cafeRestroomFixtureUsePhases}
+      incenseBurnRemainingMs={incenseBurnRemainingMs}
+      onIncenseBurnComplete={onIncenseBurnComplete}
+      selected={selectedLayoutItemId === mainlineLayoutItemForEntity(scene, entity.id)}
+      dragging={draggingItemId === mainlineLayoutItemForEntity(scene, entity.id)}
+      onStartLayoutDrag={startLayoutDrag}
+      onSelectLayoutItem={setSelectedLayoutItemId}
+      onInteract={onInteract}
+      breathingAnimationDelay={synchronizedBreathingDelay}
+      sharedBreathingClock={entity.visualProfile === 'incense' && incenseLit}
+      registerBreathingNode={registerBreathingNode}
+      suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
+      prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
+      debugRuntimeEvidence={debugRuntimeEvidence}
+      interiorPresentationActive={presentationActive}
+      presentationDurationMs={focusGroup ? focusFrames.motionDurationMs(focusGroup) : sceneFrameDefaultMotionMs}
+      readingProtected={readingPresentationPhase !== 'inactive' && readingOcclusionProtectedEntityIds.has(entity.id)}
+    />
+  }
   return (
     <section className="scene-wrap" aria-label={`${scene.title}可探索场景`}>
-      <div ref={stageRef} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-scene-dialogue-state={dialoguePhase}>
+      <div ref={setStageHost} className={`scene-stage mainline-scene-stage ${layoutMode ? 'is-layout-editing' : ''} ${readingMode ? 'is-scene-dialogue-active' : ''}`} style={{ '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} onClick={walkToEmptySpace} onPointerUp={walkFromTouch} onPointerDownCapture={focusFrames.onPointerDownCapture} onPointerOverCapture={focusFrames.onPointerOverCapture} onPointerOutCapture={focusFrames.onPointerOutCapture} onClickCapture={focusFrames.onClickCapture} data-layout-mode={layoutMode ? 'edit' : 'play'} data-mainline-scene={scene.id} data-cafe-restroom-toilet-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomToiletId] ?? 'idle'} data-cafe-restroom-sink-use-phase={cafeRestroomFixtureUsePhases[cafeRestroomFaucetId] ?? 'idle'} data-camera-offset-x={debugRuntimeEvidence ? cameraOffset.x : undefined} data-camera-offset-y={debugRuntimeEvidence ? cameraOffset.y : undefined} data-render-camera-offset-x={renderCameraOffset.x} data-render-camera-offset-y={renderCameraOffset.y} data-wide-conversation-camera-session={wideConversationCameraSession ?? ''} data-wide-conversation-camera-target-x={wideConversationCameraOffset?.x} data-wide-conversation-camera-target-y={wideConversationCameraOffset?.y} data-wide-conversation-camera-transition-active={String(wideConversationCameraComposed || dialogueCameraTransitionActive)} data-reading-layout-fit-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.fitCalls : undefined} data-reading-layout-split-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.splitCalls : undefined} data-reading-layout-layout-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.layoutCalls : undefined} data-reading-layout-measure-calls={debugRuntimeEvidence ? readingLayoutSessionCache?.counts.textMeasureCalls : undefined} data-scene-dialogue-state={dialoguePhase} data-scene-dialogue-unresolved-speakers={dialogueParticipantResolution.unresolvedSpeakers.join('|') || undefined}>
         {layoutMode && <div className="scene-layout-grid" aria-hidden="true" />}
+        <span ref={stableViewportRef} className="scene-mainline-stable-viewport" aria-hidden="true" />
 
-        <div className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''}`} style={{ transform: `translate(${cameraOffset.x}%, ${cameraOffset.y}%)` }}>
+        <div
+          className={`scene-mainline-world ${suppressWorldEnterAnimation ? 'is-local-slide-handoff' : ''} ${hasOfficeShade ? 'has-office-blinds-shade' : ''}`}
+          data-commercial-street-grid={scene.id === 'commercial-street' ? 'equal-pitch' : undefined}
+          data-commercial-street-grid-scale={scene.id === 'commercial-street' ? horizontalGridScale : undefined}
+          data-world-projection-scale={worldScale}
+          data-world-projection-policy={(viewportMetrics as MainlineViewportMetrics).projectionPolicy}
+          style={worldProjectionStyle}
+        >
           <>
-          <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels">
-            {activeSwitchableStorefronts.map(slot => <PortalStorefrontCharacters key={slot.id} scene={scene} storefront={slot} cells={switchCells.get(slot.id)!}
-              phase={storefrontPresentation.get(slot.id) ?? 'baseline'} doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'}
-              renderFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete}
-              frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
-              onMotionComplete={phase => {
-                if (phase === 'revealing') {
-                  onStorefrontRevealMotionComplete?.(slot.id)
-                  focusFrames.remeasureGroup(`door:${slot.portalId}`)
-                } else onStorefrontRestoreMotionComplete?.(slot.id)
-              }} />)}
-
-            {geometryCells.map(({ unit, cell }) => {
-              if (cell.glyph === '') return null
-              const visibilityClass = mainlineWallCellVisibility(cell, unit)
+          <div className="scene-spatial-labels scene-spatial-labels--wall scene-mainline-wall-labels" data-reading-occlusion-layer="wall">
+            {activeSwitchableStorefronts.map(slot => {
+              const cells = switchCells.get(slot.id)!
+              const portalBoxes = cells.map(cell => cellGlyphWorldBounds({ ...cell, kind: cell.role === 'door' ? 'door' : 'storefront' } as MainlineSceneGeometryUnit['visual']['cells'][number], horizontalGridScale))
+              const portalBounds = unionWorldBounds(portalBoxes, 8)
+              return <MainlineReadingIdentityPlane key={`portal:${slot.id}`} identityKey={`portal:${slot.id}`} entityId={slot.id} relatedEntityIds={slot.portalId ? [slot.portalId] : []} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={portalBounds} active={readingOcclusionActive && !sceneEcho} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">
+                <PortalStorefrontCharacters scene={scene} storefront={slot}
+                  cells={cells} coordinateBounds={portalBounds} phase={storefrontPresentation.get(slot.id) ?? 'baseline'}
+                  doorPhase={doorPhases.get(slot.portalId!) ?? 'closed'} screenMetrics={renderScreenMetrics} renderFrame={focusFrames.renderFrame}
+                  onInteract={onInteract} onStorefrontInteract={onStorefrontInteract} onDoorTransitionComplete={onDoorTransitionComplete}
+                  frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === slot.portalId}
+                  onMotionComplete={phase => {
+                    if (phase === 'revealing') {
+                      onStorefrontRevealMotionComplete?.(slot.id)
+                      focusFrames.remeasureGroup(`door:${slot.portalId}`)
+                    } else onStorefrontRestoreMotionComplete?.(slot.id)
+                  }} />
+              </MainlineReadingIdentityPlane>
+            })}
+            {renderedGeometryCells.map(({ unit, cell }) => {
+              const sourceEntityId = cell.entityId ?? unit.entityId
+              const cellFocusTarget = mainlineCellFocusTarget(scene, cell, sourceEntityId, unit.variant)
+              const sourceFocusEntries = cellFocusTarget ? focusGroupCells.get(cellFocusTarget.group) : undefined
+              const groupedFocus = Boolean(cellFocusTarget && sourceFocusEntries && (sourceFocusEntries.length > 1 || cell.kind === 'storefront' && cell.storefrontRole === 'sign'))
+              const boundsEntries = groupedFocus ? sourceFocusEntries! : [{ unit, cell } as MainlineGeometryCellEntry]
+              const visualBoxes = boundsEntries.map(entry => cellGlyphWorldBounds(entry.cell, horizontalGridScale))
+              const cellStorefront = (cell.storefrontId ?? unit.storefrontId) ? scene.storefronts.find(candidate => candidate.id === (cell.storefrontId ?? unit.storefrontId)) : undefined
+              const storefrontVisual = cellStorefront ? storefrontLabelGeometry.get(cellStorefront.id) : undefined
+              if (groupedFocus && storefrontVisual) visualBoxes.push(mainlineReadingWorldBox(storefrontVisual.visualBounds))
+              const cellWorldBounds = unionWorldBounds(visualBoxes, groupedFocus ? 3 : 0)
+              const localCellStyle = (targetCell: MainlineGeometryCellEntry['cell']) => {
+                const local = localPointInWorldBounds({ x: targetCell.x, y: targetCell.y }, cellWorldBounds)
+                return { left: `${local.x}%`, top: `${local.y}%` }
+              }
+              const localAxisValue = (value: number, vertical: boolean) => {
+                const world = value / 100 * (vertical ? sceneDesignReferenceMetrics.height : sceneDesignReferenceMetrics.width)
+                const origin = vertical ? cellWorldBounds.y : cellWorldBounds.x
+                const extent = vertical ? cellWorldBounds.height : cellWorldBounds.width
+                return extent > 0 ? (world - origin) / extent * 100 : 50
+              }
+              const localizedFocusEntries = sourceFocusEntries?.map(entry => {
+                const local = localCellStyle(entry.cell)
+                const vertical = entry.cell.layoutOrientation
+                  ? entry.cell.layoutOrientation === 'vertical'
+                  : entry.cell.orientation === 'vertical'
+                return { ...entry, cell: { ...entry.cell, x: Number.parseFloat(local.left), y: Number.parseFloat(local.top),
+                  ...(entry.cell.cellStart === undefined ? {} : { cellStart: localAxisValue(entry.cell.cellStart, vertical) }),
+                  ...(entry.cell.cellEnd === undefined ? {} : { cellEnd: localAxisValue(entry.cell.cellEnd, vertical) }),
+                } }
+              })
+              const renderCell = () => {
+              const featureFlank = cell.kind === 'feature' && cell.featureCellRole === 'flank'
+              if (cell.glyph === '' && !featureFlank) return null
+              const readingStyle = {}
+              const shellRoomId = unit.sourceWallId?.endsWith('-shell') ? unit.sourceWallId.slice(0, -'-shell'.length) : undefined
+              const visibilityClass = mainlineWallCellVisibility(scene, cell, unit)
               const portalGlyphStyle = {}
               const portalGlyphAttributes = {}
               const entityId = cell.entityId ?? unit.entityId
-              const focusTarget = mainlineCellFocusTarget(scene, cell, entityId, unit.variant)
-              const focusEntries = focusTarget ? focusGroupCells.get(focusTarget.group) : undefined
+              // A menu can replace a shared boundary cell owned geometrically
+              // by the neighboring shell. Its display still belongs to the
+              // shop named by the wall feature entity.
+              const featureEntity = cell.kind === 'feature' && entityId
+                ? scene.objects.find((candidate) => candidate.id === entityId)
+                : undefined
+              const interiorWallRoomId = featureEntity?.roomId ?? shellRoomId
+              const featureRoomOwner = cell.kind === 'feature' ? interiorRoomOwner(interiorWallRoomId) : undefined
+              const interiorWallActive = interiorRoomIsVisuallyActive(interiorWallRoomId)
+              if (featureFlank) {
+                // Flanks are ordinary wall cells and keep their baseline styling.
+                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={localCellStyle(cell)} aria-hidden="true"><SceneCharacters>{cell.baselineGlyph ?? '墙'}</SceneCharacters></span>
+              }
+              // A multi-glyph menu is rendered as one focus group, but each
+              // occupied wall cell must independently restore its glyph when
+              // its room is not visible. Do this before collapsing the group.
+              if (cell.kind === 'feature' && cell.featureCellRole === 'content' && interiorWallRoomId && !visibleInteriorRoomIds.has(interiorWallRoomId)) {
+                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={localCellStyle(cell)} aria-hidden="true"><SceneCharacters>{cell.baselineGlyph ?? '\u5899'}</SceneCharacters></span>
+              }
+              const focusTarget = cellFocusTarget
+              const focusEntries = localizedFocusEntries
       if (focusTarget && focusEntries && (focusEntries.length > 1 || cell.kind === 'storefront' && cell.storefrontRole === 'sign')) {
                 if (focusEntries[0]?.cell.id !== cell.id) return null
-                const groupVisibilityClass = focusEntries.some((entry) => mainlineWallCellVisibility(entry.cell, entry.unit) === 'is-near')
+                const groupVisibilityClass = focusEntries.some((entry) => mainlineWallCellVisibility(scene, entry.cell, entry.unit) === 'is-near')
                   ? 'is-near'
-                  : focusEntries.some((entry) => mainlineWallCellVisibility(entry.cell, entry.unit) === 'is-baseline')
+                  : focusEntries.some((entry) => mainlineWallCellVisibility(scene, entry.cell, entry.unit) === 'is-baseline')
                   ? 'is-baseline'
                   : 'is-hidden'
                 const firstEntry = focusEntries[0]
                 if (cell.kind === 'storefront') {
                   const storefront = (cell.storefrontId ?? unit.storefrontId) ? scene.storefronts.find((candidate) => candidate.id === (cell.storefrontId ?? unit.storefrontId)) : undefined
-                  const storefrontState = firstEntry.unit.variant === 'near' ? 'near' : 'baseline'
                   const storefrontRole = cell.storefrontRole ?? 'sign'
+                  const storefrontState = storefrontCellVisualState(storefront, firstEntry.unit.variant, storefrontRole)
                   const storefrontPassageEntityId = storefront?.portalId
                     ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
                     : undefined
                   const storefrontPhase = storefrontPassageEntityId ? doorPhases.get(storefrontPassageEntityId) ?? 'closed' : 'closed'
-                  const groupClass = `scene-mainline-storefront scene-mainline-storefront--${cell.storefrontStyle ?? 'modern'} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${storefront?.portalId ? 'scene-mainline-storefront--portal' : ''} is-${storefrontState}`
-                  return <MainlineFocusGroup
+                  const groupClass = `scene-mainline-storefront ${storefrontMaterialClass(scene.id, cell.storefrontStyle, storefrontRole)} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${storefront?.portalId ? 'scene-mainline-storefront--portal' : ''} is-${storefrontState}`
+                  return extractProtectedWallNode(storefront?.id ?? entityId ?? cell.id, focusTarget.group, <MainlineFocusGroup
                     key={`focus-${focusTarget.group}`}
                     entries={focusEntries}
                     className={groupClass}
                     visibilityClass={groupVisibilityClass}
                     renderFrame={focusFrames.renderFrame}
                     onStorefrontInteract={onStorefrontInteract}
-                    storefrontInteractionId={commercialStreetStorefrontInteractionFor(storefront?.id ?? '') ? storefront?.id : undefined}
+                    storefrontInteractionId={storefront?.portalId ? undefined : commercialStreetStorefrontInteractionFor(storefront?.id ?? '') ? storefront?.id : undefined}
                     storefrontId={storefrontRole === 'sign' ? storefront?.id : undefined}
                     storefrontSpan={storefront ? storefront.end - storefront.start : undefined}
                     storefrontCenter={storefront ? mainlineStorefrontAnchor(scene, storefront) : undefined}
-                    storefrontLabel={storefrontRole === 'sign' ? storefront?.label : undefined}
-                    storefrontGeometry={storefrontRole === 'sign' && storefront ? geometrySnapshot.storefronts.get(storefront.id) : undefined}
+                    storefrontLabel={storefrontRole === 'sign' && storefront && !storefront.composition?.fixedCellCount ? storefront.label : undefined}
+                    storefrontGeometry={storefrontRole === 'sign' && storefront && !storefront.composition?.fixedCellCount ? (geometrySnapshot.storefronts.get(storefront.id) ?? storefrontLabelGeometry.get(storefront.id)) : undefined}
+                    storefrontPresentationPhase={storefront ? storefrontPresentation.get(storefront.id) ?? 'baseline' : 'baseline'}
                     passagePhase={storefrontPhase}
                     frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId}
-                    active={activeObjectId === storefront?.id && Boolean(commercialStreetStorefrontInteractionFor(storefront.id))}
-                  />
+                    active={activeObjectId === storefront?.id && Boolean(commercialStreetStorefrontInteractionFor(storefront.id)) && !readingMode}
+                    suppressInteractionEmphasis={Boolean(readingMode && readingProtectedEntityIds.has(storefront?.id ?? ''))}
+                  />)
                 }
                 if (cell.kind === 'feature' && entityId) {
-                  const entity = scene.objects.find((candidate) => candidate.id === entityId)
+                  const entity = featureEntity
                   if (entity) {
-                    return <Fragment key={`feature-${focusTarget.group}`}>
-                      <MainlineFocusGroup key={`focus-${focusTarget.group}`} entries={focusEntries} className="scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady" visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId)} explored={exploredObjectIds.has(entityId)} />
+                    const menuFeature = entity.id.toLowerCase().includes('menu')
+                    const readingProtected = readingPresentationPhase !== 'inactive' && readingOcclusionProtectedEntityIds.has(entityId)
+                    const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner ?? null, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
+                    const featureMotionMs = focusFrames.motionDurationMs(focusTarget.group)
+                    const renderedFeature = <Fragment key={`focus-${focusTarget.group}`}>
+                      {featureRoomOwner && focusEntries.map(entry => <span key={`wall-${entry.cell.id}`} className={`scene-spatial-glyph scene-mainline-wall ${groupVisibilityClass}`} style={{ left: `${entry.cell.x}%`, top: `${entry.cell.y}%`, opacity: featureOpacity.wall === 0 ? 0 : undefined, transition: `opacity ${featureMotionMs}ms ease-in-out` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>)}
+                      <MainlineFocusGroup entries={focusEntries} className={`scene-mainline-wall scene-mainline-wall-feature scene-mainline-wall-feature--interaction scene-mainline-exploration--steady ${menuFeature ? 'scene-mainline-menu-feature' : ''}`} visibilityClass={groupVisibilityClass} renderFrame={focusFrames.renderFrame} onInteract={onInteract} interactionEntityId={entityId} ariaLabel={`${entity.label}，点击让主角前往互动`} active={isCurrentInteractionSource(entityId) && !readingMode} explored={exploredObjectIds.has(entityId)} suppressInteractionEmphasis={menuFeature || readingProtected} interiorPresentationActive={interiorRoomPresentationActive(interiorWallRoomId)} presentationDurationMs={focusFrames.motionDurationMs(focusTarget.group)} />
                     </Fragment>
+                    if (readingProtected) {
+                      return extractProtectedWallNode(entityId, focusTarget.group, renderedFeature)
+                    }
+                    return renderedFeature
                   }
                 }
               }
               if (cell.kind === 'storefront') {
-                const storefrontState = unit.variant === 'near' ? 'near' : 'baseline'
-                const storefrontStateClass = `is-${storefrontState}`
                 const storefrontRole = cell.storefrontRole ?? 'wall'
                 const storefront = (cell.storefrontId ?? unit.storefrontId) ? scene.storefronts.find((candidate) => candidate.id === (cell.storefrontId ?? unit.storefrontId)) : undefined
+                const storefrontState = storefrontCellVisualState(storefront, unit.variant, storefrontRole)
+                const storefrontStateClass = `is-${storefrontState}`
                 const storefrontPresentationPhase = storefront ? storefrontPresentation.get(storefront.id) ?? 'baseline' : 'baseline'
                 const portalClass = storefront?.portalId ? 'scene-mainline-storefront--portal' : ''
-                const storefrontClass = `scene-spatial-glyph scene-mainline-storefront-cell scene-mainline-wall scene-mainline-storefront scene-mainline-storefront--${cell.storefrontStyle ?? 'modern'} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${portalClass} ${storefrontRole === 'door' ? 'scene-spatial-glyph--door' : ''} ${storefrontStateClass}`
+                const storefrontClass = `scene-spatial-glyph scene-mainline-storefront-cell scene-mainline-wall scene-mainline-storefront ${storefrontMaterialClass(scene.id, cell.storefrontStyle, storefrontRole)} scene-mainline-storefront--${storefrontRole} scene-mainline-storefront--${cell.orientation ?? 'horizontal'} ${portalClass} ${storefrontRole === 'door' ? 'scene-spatial-glyph--door' : ''} ${storefrontStateClass}`
                 const storefrontGlyphAttributes = portalGlyphAttributes
                 const storefrontPassageEntityId = storefront?.portalId
                   ? scene.passages.find((passage) => passage.portalId === storefront.portalId)?.entityId
@@ -1228,92 +3591,147 @@ export function MainlineSceneRenderer({
                   const doorLabel = cell.label ?? cell.glyph ?? '门'
                   const doorPhase = doorPhases.get(entityId) ?? 'closed'
                   const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
-                  return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={storefrontClass} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.glyph ?? '门'} doorPhase={doorPhase} focusGroup={passageFocusGroup} focusPolicy="passage" gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={{ 'data-storefront-cell-id': cell.id, 'data-storefront-state': storefrontState, 'data-storefront-presentation-phase': storefrontPresentationPhase, ...storefrontGlyphAttributes }} />
+                  return extractProtectedWallNode(entityId, cell.id, <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={storefrontClass} style={{ ...localCellStyle(cell), ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.glyph ?? '门'} doorPhase={doorPhase} focusGroup={passageFocusGroup} focusPolicy="passage" gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId && !readingMode} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={{ 'data-storefront-cell-id': cell.id, 'data-storefront-state': storefrontState, 'data-storefront-presentation-phase': storefrontPresentationPhase, ...storefrontGlyphAttributes }} />)
                 }
                 const storefrontPhase = storefrontPassageEntityId ? doorPhases.get(storefrontPassageEntityId) ?? 'closed' : 'closed'
-                return <span key={cell.id} className={storefrontClass} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} data-storefront-cell-id={cell.id} data-storefront-state={storefrontState} data-storefront-presentation-phase={storefrontPresentationPhase} {...storefrontGlyphAttributes} data-focus-target-id={focusGroup ? cell.id : undefined} data-focus-target-group={focusGroup} data-focus-target-policy={focusGroup ? 'passage' : undefined} data-focus-passage-phase={focusGroup ? storefrontPhase : undefined} data-focus-passage-retracting={focusGroup && storefrontPassageEntityId && sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId ? 'true' : undefined} aria-hidden="true">{cell.glyph}{focusGroup && focusFrames.renderFrame(focusGroup)}</span>
+                return <span key={cell.id} className={storefrontClass} style={{ ...localCellStyle(cell), ...portalGlyphStyle }} data-storefront-cell-id={cell.id} data-storefront-state={storefrontState} data-storefront-presentation-phase={storefrontPresentationPhase} {...storefrontGlyphAttributes} data-focus-target-id={focusGroup ? cell.id : undefined} data-focus-target-group={focusGroup} data-focus-target-policy={focusGroup ? 'passage' : undefined} data-focus-passage-phase={focusGroup ? storefrontPhase : undefined} data-focus-passage-retracting={focusGroup && storefrontPassageEntityId && sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === storefrontPassageEntityId ? 'true' : undefined} aria-hidden="true">{cell.glyph}{focusGroup && focusFrames.renderFrame(focusGroup)}</span>
               }
               if (cell.kind === 'door' && entityId) {
+                const doorEntity = scene.objects.find((candidate) => candidate.id === entityId)
+                if (!mainlineDoorPortalShouldRender(doorEntity, activeSpatialSpaceId)) {
+                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ ...localCellStyle(cell), ...portalGlyphStyle }} aria-hidden="true"><SceneCharacters>{cell.baselineGlyph ?? '墙'}</SceneCharacters></span>
+                }
                 const doorLabel = cell.displayLabel ?? cell.label ?? '门'
                 const doorPhase = doorPhases.get(entityId) ?? 'closed'
                 const closeHint = cell.access === 'locked' ? (cell.lockedText ?? '当前权限不足') : '接近时自动开门，进入门洞后继续路线'
                 const yardGatePart = cell.doorLabelPart
                 const focusGroup = yardGatePart ? `gate:${entityId}:${yardGatePart}` : `door:${entityId}`
                 const focusPolicy = yardGatePart ? 'gate' : 'passage' as const
-                return <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={portalGlyphAttributes} />
+                const passage = scene.passages.find((candidate) => candidate.portalId === entityId)
+                const doorPresentationActive = mainlinePassageDoorPresentationActive(passage, activeSpatialSpaceId, interiorRoomPresentationActive(interiorWallRoomId))
+                return extractProtectedWallNode(entityId, cell.id, <MainlineDoorButton key={cell.id} cell={cell} entityId={entityId} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-door ${visibilityClass}`} style={{ ...localCellStyle(cell), ...portalGlyphStyle }} doorLabel={doorLabel} glyph={cell.doorLabelPart ?? doorLabel} doorPhase={doorPhase} focusGroup={focusGroup} focusPolicy={focusPolicy} gateTriggered={gateTriggered} frameRetracting={sceneFrameExit.phase === 'retracting' && sceneFrameExit.passageEntityId === entityId} active={activeObjectId === entityId && !readingMode} closeHint={closeHint} ariaLabel={`${doorLabel}，点击门后目标会在接近时自动开门并穿过`} renderFocusFrame={focusFrames.renderFrame} presentationActive={doorPresentationActive} presentationDurationMs={focusFrames.motionDurationMs(focusGroup)} onInteract={onInteract} onDoorTransitionComplete={onDoorTransitionComplete} dataAttributes={portalGlyphAttributes} />)
               }
               if (cell.kind === 'opening') {
-                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-opening ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.label ?? cell.glyph}</SceneCharacters></span>
+                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-opening ${visibilityClass}`} style={{ ...localCellStyle(cell), ...readingStyle }} aria-hidden="true"><SceneCharacters>{cell.label ?? cell.glyph}</SceneCharacters></span>
               }
               if (cell.kind === 'feature' && entityId) {
-                const entity = scene.objects.find((candidate) => candidate.id === entityId)
+                const entity = featureEntity
+                const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
+                if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
+                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ ...localCellStyle(cell), ...readingStyle }} aria-hidden="true"><SceneCharacters>墙</SceneCharacters></span>
+                }
                 const directWallFeature = entity?.interactionBehavior === 'direct-wall'
                 if (entity && (entity.interactive !== false || directWallFeature)) {
                   const focusGroup = `interactive:${cell.featureId ?? entityId}`
+                  const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
+                  const presentationDurationMs = focusFrames.motionDurationMs(focusGroup)
+              const readingProtected = readingPresentationPhase !== 'inactive' && readingOcclusionProtectedEntityIds.has(entityId)
                   const featureVisualState = resolveMainlineInteractionVisualState({
-                    active: isCurrentInteractionSource(entityId),
-                    explored: exploredObjectIds.has(entityId),
+                    active: isCurrentInteractionSource(entityId) && !readingMode,
+                    explored: exploredObjectIds.has(entityId) && !readingProtected,
                     tutorialCompleted: true,
                     tutorialEligible: false,
                   })
-                  return <button key={cell.id} className={`scene-spatial-glyph scene-spatial-glyph--feature scene-mainline-wall scene-mainline-wall-feature ${visibilityClass} scene-mainline-interaction--${featureVisualState}`} type="button" style={{ left: `${cell.x}%`, top: `${cell.y}%` }} onClick={(event) => { event.stopPropagation(); onInteract(entityId) }} aria-label={`${entity.label}，点击让主角前往互动`} data-focus-target-id={cell.id} data-focus-target-group={focusGroup} data-focus-target-policy="interactive" data-focus-interaction-busy={activeObjectId === entityId && moving ? 'true' : undefined}>
-                    <SceneCharacters data-focus-visual-group={focusGroup}>{cell.glyph}</SceneCharacters>
-                    {focusFrames.renderFrame(focusGroup)}
+                  const feature = <button className={`scene-spatial-glyph scene-spatial-glyph--feature scene-mainline-wall scene-mainline-wall-feature ${visibilityClass} scene-mainline-interaction--${featureVisualState}`} type="button" style={{ ...localCellStyle(cell), pointerEvents: featureRoomOwner && featureOpacity.feature === 0 ? 'none' : 'auto' }} data-interior-active={interiorWallActive ? 'true' : 'false'} onClick={(event) => { event.stopPropagation(); onInteract(entityId) }} aria-label={`${entity.label}，点击让主角前往互动`} data-focus-target-id={cell.id} data-focus-target-group={focusGroup} data-focus-target-policy="interactive" data-focus-interaction-busy={activeObjectId === entityId && moving ? 'true' : undefined}>
+                    <SceneCharacters style={{ opacity: featureRoomOwner ? featureOpacity.feature : 1, transition: featureRoomOwner ? `opacity ${presentationDurationMs}ms ease-in-out` : undefined }} data-focus-visual-group={focusGroup}>{cell.glyph}</SceneCharacters>
+                    {focusFrames.renderFrame(focusGroup, interiorRoomPresentationActive(interiorWallRoomId))}
                   </button>
+                  if (!featureRoomOwner) return extractProtectedWallNode(entityId, cell.id, <Fragment key={cell.id}>{feature}</Fragment>)
+                  return <Fragment key={cell.id}>
+                    <span className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ ...localCellStyle(cell), opacity: featureOpacity.wall, transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out` }} aria-hidden="true"><SceneCharacters>墙</SceneCharacters></span>
+                    {feature}
+                  </Fragment>
                 }
               }
               if (cell.kind === 'feature') {
-                return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%` }} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
+                const featureRoomOwner = interiorRoomOwner(interiorWallRoomId)
+                if (featureRoomOwner && !visibleInteriorRoomIds.has(interiorWallRoomId!)) {
+                  return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ ...localCellStyle(cell), ...readingStyle }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
+                }
+                const featureOpacity = storefrontInteriorFeatureOpacity(featureRoomOwner, visibleInteriorStorefrontIds, paintedInteriorStorefrontId)
+                const feature = <span className={`scene-spatial-glyph scene-mainline-wall scene-mainline-wall-feature ${unit.sourceWallId === 'mining-industrial-edge' ? 'scene-mainline-industrial-facility' : ''} ${visibilityClass}`} style={{ ...localCellStyle(cell), opacity: featureRoomOwner ? featureOpacity.feature : 1, transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out` }} data-interior-active={interiorWallActive ? 'true' : 'false'} aria-hidden="true"><SceneCharacters>{cell.glyph}</SceneCharacters></span>
+                if (!featureRoomOwner) return <Fragment key={cell.id}>{feature}</Fragment>
+                return <Fragment key={cell.id}>
+                  <span className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ ...localCellStyle(cell), opacity: featureOpacity.wall, transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out` }} aria-hidden="true"><SceneCharacters>{'\u5899'}</SceneCharacters></span>
+                  {feature}
+                </Fragment>
               }
-              return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ left: `${cell.x}%`, top: `${cell.y}%`, ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true"><SceneCharacters>{cell.glyph ?? '墙'}</SceneCharacters></span>
+              return <span key={cell.id} className={`scene-spatial-glyph scene-mainline-wall ${visibilityClass}`} style={{ ...localCellStyle(cell), ...portalGlyphStyle }} {...portalGlyphAttributes} aria-hidden="true"><SceneCharacters>{cell.glyph ?? '墙'}</SceneCharacters></span>
+              }
+              const node = renderCell()
+              if (!node) return null
+              const entityId = cell.kind === 'feature' && cell.featureCellRole === 'flank'
+                ? `wall-cell:${cell.id}`
+                : cell.entityId ?? unit.entityId ?? cell.storefrontId ?? unit.storefrontId ?? cell.id
+              const relatedEntityIds = [cell.storefrontId ?? unit.storefrontId, cell.entityId ?? unit.entityId].filter((id): id is string => Boolean(id) && id !== entityId)
+              const storefront = cellStorefront
+              const featureSpaceId = cell.kind === 'feature' && entityId ? scene.objects.find(candidate => candidate.id === entityId)?.roomId : undefined
+              const occlusionSpaceId = featureSpaceId ?? mainlineActiveSpatialSpaceId(scene, { x: cell.x, y: cell.y })
+              const sameSpaceFocusGroup = Boolean(groupedFocus && sourceFocusEntries?.every(entry => {
+                const entryEntityId = entry.cell.entityId ?? entry.unit.entityId
+                const entryRoomId = entry.cell.kind === 'feature' && entryEntityId
+                  ? scene.objects.find(candidate => candidate.id === entryEntityId)?.roomId
+                  : undefined
+                return (entryRoomId ?? mainlineActiveSpatialSpaceId(scene, { x: entry.cell.x, y: entry.cell.y })) === occlusionSpaceId
+              }))
+              const occlusionIdentityKey = mainlineReadingOcclusionCellIdentity(cell.id, sameSpaceFocusGroup ? cellFocusTarget?.group : undefined, occlusionSpaceId)
+              const cellEntity = scene.objects.find(candidate => candidate.id === entityId)
+              const preserveBoundary = cell.kind === 'wall' || cell.kind === 'door' || cell.kind === 'opening'
+                || unit.surface === 'wall' || unit.surface === 'door'
+              const canFadeFeature = Boolean(observationProtection && !preserveBoundary && cellEntity && cellEntity.kind !== 'door' && cellEntity.surface !== 'wall')
+              return <MainlineReadingIdentityPlane key={`cell:${cell.id}`} identityKey={occlusionIdentityKey} entityId={entityId} relatedEntityIds={relatedEntityIds} protectedEntityIds={readingOcclusionProtectedEntityIds} hiddenIdentityKeys={sceneEcho ? undefined : retainedOcclusionSnapshot?.hiddenIdentityKeys} worldBounds={cellWorldBounds} observationProtectionRects={canFadeFeature ? observationProtection : undefined} active={Boolean(observationProtection) && canFadeFeature} className="scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--wall">{node}</MainlineReadingIdentityPlane>
             })}
           </div>
-
-          {scene.objects.filter((entity) => entity.visible !== false && entity.kind !== 'door' && !wallFeatureEntityIds.has(entity.id)).map((entity) => {
-            const entityPosition = geometrySnapshot.objects.get(entity.id)?.position ?? entity.position
-            const focusGroup = !layoutMode && entity.focusFrame === 'interactive' ? `interactive:${entity.id}` : undefined
-            const underPlayer = entity.visualProfile === 'tree-ring' && entity.interactive === false && Math.hypot(position.x - entityPosition.x, position.y - entityPosition.y) <= 2.8
-            return <MemoMainlineObject
-              key={entity.id}
-              entity={entity}
-              scene={scene}
-              position={entityPosition}
-              collision={geometrySnapshot.objects.get(entity.id)?.collision ?? undefined}
-              visualBounds={geometrySnapshot.objects.get(entity.id)?.visualBounds}
-              focusGroup={focusGroup}
-              renderFrame={focusFrames.renderFrame}
-              visibility={objectVisibility(entity, layoutMode)}
-              active={isCurrentInteractionSource(entity.id)}
-              explored={exploredObjectIds.has(entity.id)}
-              tutorialCompleted={interactionTutorialCompleted}
-              underPlayer={underPlayer}
-              layoutMode={layoutMode}
-              screenMetrics={renderScreenMetrics}
-              incenseLit={incenseLit}
-              incenseBurnRemainingMs={incenseBurnRemainingMs}
-              onIncenseBurnComplete={onIncenseBurnComplete}
-              selected={selectedLayoutItemId === mainlineLayoutItemForEntity(scene, entity.id)}
-              dragging={draggingItemId === mainlineLayoutItemForEntity(scene, entity.id)}
-              onStartLayoutDrag={startLayoutDrag}
-              onSelectLayoutItem={setSelectedLayoutItemId}
-              onInteract={onInteract}
-              breathingAnimationDelay={synchronizedBreathingDelay}
-              sharedBreathingClock={isAltarEntity(scene, entity.id)}
-              registerBreathingNode={registerBreathingNode}
-              suppressLabel={isMainlineSeatLabelSuppressed(entity, occupiedSeatIds)}
-              prompted={isMainlineSeatPrompted(entity, promptedSeatId, playerSeatId)}
-              debugRuntimeEvidence={debugRuntimeEvidence}
-            />
-          })}
+          <div className="scene-mainline-counter-layer" data-reading-occlusion-layer="counter">
+          {(() => {
+            const renderCounter = (parts: typeof counterSurfaces[number]) => {
+            const meta = parts[0].counterSurface!
+            const entityId = meta.interactionEntityId
+            const stageHidden = Boolean(dialogueStage?.hiddenEntityIds.has(entityId))
+            const boxes = parts.map(part => {
+              const outline = part.counterSurface?.outlineBounds
+              const bounds = outline ?? { x: part.x, y: part.y, width: part.width, height: part.height }
+              return { x: bounds.x * 19.2, y: bounds.y * 10.8, width: bounds.width * 19.2, height: bounds.height * 10.8 }
+            })
+            const labelBoxes = parts.map(part => {
+              const label = part.counterSurface!.label ?? '柜台'
+              const vertical = part.counterSurface!.orientation === 'vertical'
+              const width = (vertical ? 1 : Array.from(label).length) * 16
+              const height = (vertical ? Array.from(label).length : 1) * 16
+              const centerX = (part.x + part.width / 2) * 19.2
+              const centerY = (part.y + part.height / 2) * 10.8
+              return { x: centerX - width / 2, y: centerY - height / 2, width, height }
+            })
+            const counterBounds = unionWorldBounds([...boxes, ...labelBoxes], 2)
+            return <MainlineReadingIdentityPlane key={meta.groupId} identityKey={`counter:${meta.groupId}`} entityId={entityId} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={counterBounds} observationProtectionRects={observationProtection} active={Boolean(observationProtection)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--counter${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}><MainlineCounterSurface boundedWrapper coordinateBounds={counterBounds} parts={parts} objects={scene.objects} onInteract={onInteract} onCounterInteract={onCounterInteract} presentationActive={interiorRoomPresentationActive(meta.roomId)}/></MainlineReadingIdentityPlane>
+            }
+            return visibleCounterSurfaces.map(renderCounter)
+          })()}
+          </div>
+          {/* Street lane objects stay rendered for the visual fade; their current-space targets and collisions remain unchanged. */}
+          <div className="scene-mainline-object-layer" data-reading-occlusion-layer="object">
+            {visibleObjectEntities.map(entity => {
+              const object = geometrySnapshot.objects.get(entity.id)
+              const normalizedBounds = object?.visualBounds ?? mainlineEntityVisualBounds(scene, entity, geometrySnapshot.layout, renderScreenMetrics)
+                ?? mainlineLabelFootprint(entity.label, object?.position ?? entity.position, renderScreenMetrics, { vertical: entity.textLayout === 'vertical', visualScale: entity.visualScale, lineHeight: 1.2 })
+              const objectBounds = mainlineReadingWorldBox(normalizedBounds, value => value, entity.focusFrame === 'interactive' ? 5 : 0)
+              const stageHidden = Boolean(dialogueStage?.hiddenEntityIds.has(entity.id))
+              const canFadeObject = Boolean(observationProtection && entity.kind !== 'door' && entity.surface !== 'wall')
+              return <MainlineReadingIdentityPlane key={entity.id} identityKey={`object:${entity.id}`} entityId={entity.id} protectedEntityIds={readingOcclusionProtectedEntityIds} worldBounds={objectBounds} observationProtectionRects={canFadeObject ? observationProtection : undefined} active={Boolean(observationProtection)} stageFaded={dialogueStage ? stageHidden : undefined} className={`scene-mainline-reading-identity-plane scene-mainline-reading-identity-plane--object${dialogueStage ? ' scene-mainline-dialogue-stage-object' : ''}${stageHidden ? ' is-stage-faded' : ''}`}>{renderMainlineObject(entity, objectBounds)}</MainlineReadingIdentityPlane>
+            })}
+          </div>
 
           {scene.npcs.map((npc) => {
             if (scene.ambientNpcRoutes.some((schedule) => schedule.npcId === npc.id)) return null
             if (hiddenNpcIds?.has(npc.id)) return null
+            if (npc.roomId && !renderedRoomIds.has(npc.roomId)) return null
             const npcPosition = npcPositions?.get(npc.id) ?? resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics: renderScreenMetrics })
+            const streetNpc = streetSpaceContentRetained && !npc.roomId
             const npcSnapshot = npcRuntimeSnapshots?.get(npc.id)
-            const npcSeatId = mainlineNpcStagedSeatId(scene, npc.id)
+            const npcSeatId = mainlineNpcVisualSeatId(scene, npc.id, npcSnapshot)
             return <MemoMainlineNpcActor
               key={npc.id}
+              sceneId={scene.id}
               npc={npc}
               position={npcPosition}
               snapshot={npcSnapshot}
@@ -1321,12 +3739,24 @@ export function MainlineSceneRenderer({
               seatPosition={npcSeatId ? geometrySnapshot.objects.get(npcSeatId)?.position : undefined}
               screenMetrics={renderScreenMetrics}
               interactive={npc.interactive !== false}
+              presentationActive={streetNpc ? streetPresentationActive : interiorRoomIsVisuallyActive(npc.roomId)}
+              readingOpacity={dialogueStage
+                ? mainlineDialogueStageActorOpacity({ active: true, actorId: npc.id, currentSpeakerActorId: dialogueStage.speakerActorId, participantActorIds: dialogueStage.participantActorIds, protectedActorIds: dialogueStage.protectedActorIds, actorRoomId: npc.roomId, stageRoomId: dialogueStage.roomId })
+                : mainlineReadingOpacityForActor(npc.id, dialogueParticipantNpcIds, actorReadingOpacity(npcPosition))}
+              readingStageBrightness={Boolean(dialogueStage)}
+              readingProtected={Boolean(readingMode && !dialogueStage && (dialogueParticipantNpcIds.has(npc.id) || readingProtectedEntityIds.has(npc.id)))}
               debugRuntimeEvidence={debugRuntimeEvidence}
               onInteract={onNpcInteract}
             />
           })}
 
-          {ambientNpcActorLayer}
+          {ambientNpcActorLayer && (streetSpaceContentRetained
+            ? <div
+                className="scene-mainline-street-ambient-layer"
+                aria-hidden={!streetPresentationActive}
+                style={{ position: 'absolute', inset: 0, opacity: streetPresentationActive ? 1 : 0, pointerEvents: 'none', transition: `opacity ${sceneFrameDefaultMotionMs}ms ease-in-out` }}
+              >{ambientNpcActorLayer}</div>
+            : ambientNpcActorLayer)}
 
           {cafeSpatialQa && <div className="scene-spatial-qa" aria-hidden="true">
             <svg className="scene-spatial-qa__geometry" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -1346,11 +3776,23 @@ export function MainlineSceneRenderer({
             </div>
           </div>}
           {destination && <div className={`scene-walk-target ${moving ? 'is-active' : ''}`} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} aria-hidden="true" />}
-          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px` } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined}>
+          {showProtagonist && <div className={`scene-protagonist ${moving ? 'is-moving' : ''} ${readingMode ? 'is-reading-protected' : ''} ${onProtagonistInteract ? 'is-followup-interactive' : ''}`} style={{ left: `${protagonistVisualPosition.x}%`, top: `${protagonistVisualPosition.y}%`, filter: dialogueStage ? `brightness(${mainlineDialogueStageActorOpacity({ active: true, actorId: 'protagonist', currentSpeakerActorId: dialogueStage.speakerActorId, participantActorIds: dialogueStage.participantActorIds, actorRoomId: dialogueStage.roomId, stageRoomId: dialogueStage.roomId })})` : undefined, transition: dialogueStage ? 'filter 380ms ease-in-out' : undefined, '--scene-mainline-object-font-size': `${mainlineEntityFontSizePx(null, renderScreenMetrics)}px`, cursor: onProtagonistInteract ? 'pointer' : undefined, pointerEvents: onProtagonistInteract ? 'auto' : undefined } as CSSProperties} data-actor-id="protagonist" data-runtime-x={debugRuntimeEvidence ? position.x : undefined} data-runtime-y={debugRuntimeEvidence ? position.y : undefined} data-rendered-x={debugRuntimeEvidence ? scene.id === 'commercial-street' ? projectCommercialStreetX(protagonistVisualPosition.x, renderScreenMetrics) : protagonistVisualPosition.x : undefined} data-rendered-y={debugRuntimeEvidence ? protagonistVisualPosition.y : undefined} data-seat-entity-id={playerSeatId ?? undefined} onClick={onProtagonistInteract ? (event) => { event.stopPropagation(); onProtagonistInteract() } : undefined} onKeyDown={onProtagonistInteract ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); onProtagonistInteract() } } : undefined} role={onProtagonistInteract ? 'button' : undefined} tabIndex={onProtagonistInteract ? 0 : undefined} aria-label={onProtagonistInteract ? '修杰' : undefined}>
+            <span className="scene-protagonist__grid-content">
             {protagonistPresentation.kind === 'dot'
               ? <span className="scene-protagonist__dot" aria-label="修杰所在位置" />
               : <span className="scene-protagonist__seat-label" aria-label="修杰，已坐下">{protagonistPresentation.label}</span>}
-            {carriedMilkTea && !playerSeatId && <button type="button" className="scene-protagonist__drink-icon scene-protagonist__drink-icon--milk-tea" aria-label="修杰带着奶茶，点击饮用" onClick={(event) => { event.stopPropagation(); onMilkTeaInteract?.() }} />}
+            </span>
+            {heldPresentation && !playerSeatId && <button
+              type="button"
+              className={`scene-protagonist__held-action${heldPresentation.action === 'eat' ? ' scene-protagonist__held-action--meal' : ''}`}
+              data-held-consumable-kind={heldConsumable?.kind}
+              data-held-consumable-id={heldConsumable?.productId}
+              aria-label={`修杰带着${heldPresentation.name}，点击${heldPresentation.actionLabel}`}
+              onClick={(event) => { event.stopPropagation(); onHeldConsumableInteract?.() }}
+            ><HeldConsumableMark item={heldPresentation} /></button>}
+            {!heldPresentation && poppingHeld && !playerSeatId && <span className="scene-protagonist__held-action scene-protagonist__held-action--pop" aria-hidden="true">
+              <HeldConsumableMark item={poppingHeld} />
+            </span>}
           </div>}
           {worldQuestionMark?.visible && <span
             className="scene-commercial-question-mark"
@@ -1359,95 +3801,281 @@ export function MainlineSceneRenderer({
             data-world-anchor-x={worldQuestionMark.anchor.x}
             data-world-anchor-y={worldQuestionMark.anchor.y}
             aria-hidden="true"
-          >?</span>}
+          ><span className="scene-commercial-question-mark__visual">?</span></span>}
           </>
-        </div>
+        {officeShadeRooms.map(({ room, closed }) => {
+          const edges = officeRoomShadeEdges(room, scene.rooms, currentOfficeRoom?.id)
+          return <div key={room.id} className="scene-office-blinds-shade" aria-hidden="true" data-office-blinds-shade="closed" data-office-shade-room={room.id} style={{
+            left: `calc(${room.bounds.x}% - ${edges.left}px)`, top: `calc(${room.bounds.y}% - ${edges.top}px)`,
+            width: `calc(${room.bounds.width}% + ${edges.left + edges.right}px)`, height: `calc(${room.bounds.height}% + ${edges.top + edges.bottom}px)`,
+            opacity: closed ? .3 : 0,
+          }} />
+        })}
         <div className="scene-mainline-reading-layer">
-          {(sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
+  {!hasConversationDisplayContent && !isWideDialogueConversation && (!readingIsSubtitle || viewportOverlayHost) && (sceneEcho || (dialogue && dialogueLine && dialoguePosition)) && (() => {
             const isDialogue = !sceneEcho && Boolean(dialogue && dialogueLine && dialoguePosition)
             const isLeaving = sceneEcho?.phase === 'leaving' || (isDialogue && dialoguePhase === 'leaving')
-            const text = sceneEcho?.text ?? dialogueText ?? dialogueLine?.text ?? ''
-            const position = sceneEcho?.position ?? dialoguePosition!
-            const group = sceneEcho ? `echo:${sceneEcho.id}` : `dialogue:${dialogueLine!.id}`
+            const text = displayReadingText
+            const sourcePosition = sceneEcho?.position ?? dialoguePosition!
+            const position = readingDisplayPosition ?? sourcePosition
+            const group = sceneEcho ? `echo:${sceneEcho.id}` : `dialogue:${dialogue!.triggerEntityId}:${dialogueLineIndex ?? 0}:${dialogueLine!.id}:${dialogueTextSessionId}`
+            const stageDialogue = Boolean(isDialogue && dialogueStage)
             const hasNextSegment = sceneEcho
               ? sceneEcho.segmentIndex + 1 < sceneEcho.segments.length
               : dialogueSegmentIndex + 1 < dialogueSegmentCount || Boolean(dialogue && dialogueLineIndex! + 1 < dialogue.lines.length)
-            const echoLayout = mainlineEchoLayout(text, renderScreenMetrics, {
-              speaker: isDialogue ? dialogueLine!.speaker : undefined,
+            const echoLayout = presentedReadingLayout ?? mainlineEchoLayout(text, readingMetrics, {
+              speaker: isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker,
+              maxWidthPx: displayReadingMaxWidthPx,
             })
-            if (isDialogue) {
+            // Subtitle text is portaled to the viewport overlay, outside the
+            // scaled world layer. Its layout metrics are already CSS pixels.
+            const readingTextWorldScale = readingIsSubtitle ? 1 : worldScale
+            const readingBackdropOpening = readingIsSubtitle && (sceneEcho
+              ? sceneEcho.segmentIndex === 0 && displayOverflowIndex === 0
+              : (dialogueLineIndex ?? 0) === 0 && dialogueSegmentIndex === 0 && displayOverflowIndex === 0)
+            if (isDialogue && !stageDialogue) {
               const session = `${scene.id}:${dialogue!.triggerEntityId}`
-              const metrics = `${renderScreenMetrics.width}:${renderScreenMetrics.height}:${renderScreenMetrics.viewportWidth}`
+              const metrics = `${readingMetrics.width}:${readingMetrics.height}:${readingMetrics.viewportWidth}:${worldScale}:${displayReadingMaxWidthPx}`
               if (speakerPlacementRef.current?.session !== session || speakerPlacementRef.current.metrics !== metrics) {
-                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, renderScreenMetrics, position, cameraOffset) }
+                speakerPlacementRef.current = { session, metrics, anchor: mainlineSpeakerAnchor(dialogue!.lines, readingMetrics, { x: projectReadingX(sourcePosition.x), y: sourcePosition.y }, { x: 0, y: 0 }, worldScale, displayReadingMaxWidthPx, readingLayoutSessionCache?.speakerWidthAtOrBelow(displayReadingMaxWidthPx)) }
               }
             }
-            const speakerAnchor = isDialogue ? speakerPlacementRef.current!.anchor : null
-            return <Fragment>
+            const baseSpeakerAnchor = isDialogue && !stageDialogue && !readingIsSubtitle ? speakerPlacementRef.current!.anchor : null
+            const speakerPageAnchor = baseSpeakerAnchor ? mainlineSpeakerPageAnchor(baseSpeakerAnchor, echoLayout, worldScale) : null
+            const speakerAnchor = speakerPageAnchor ? { ...speakerPageAnchor, left: speakerPageAnchor.left + readingDisplayShift.x, top: speakerPageAnchor.top + readingDisplayShift.y } : null
+            const readingText = <Fragment>
             {isDialogue && speakerAnchor && <div
               key={`speaker:${scene.id}:${dialogue!.triggerEntityId}`}
               className={`scene-mainline-speaker-anchor ${isLeaving ? 'is-leaving' : ''}`}
               aria-live="polite"
-              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.widthPx}px`, minHeight: `${echoLayout.heightPx}px` }}
+              style={{ left: `${speakerAnchor.left}%`, top: `${speakerAnchor.top}%`, width: `${speakerAnchor.worldWidthPx}px`, minHeight: `${echoLayout.heightPx / readingTextWorldScale}px`, fontSize: `${echoLayout.fontSizePx / readingTextWorldScale}px` }}
             ><DialogueSpeaker speaker={dialogueLine!.speaker} /></div>}
             <div
-              key={sceneEcho?.id ?? dialogueLine!.id}
-              className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${isLeaving ? 'is-leaving' : ''}`}
+              key={readingIsSubtitle ? readingOcclusionSessionKey ?? readingSessionKey : readingLayoutContinuityKey ?? sceneEcho?.id ?? dialogueLine!.id}
+              className={`scene-mainline-text scene-mainline-text--${isDialogue ? 'dialogue' : 'observation'} ${readingIsSubtitle ? 'scene-mainline-text--subtitle' : ''} ${stageDialogue ? 'scene-mainline-text--stage-dialogue' : ''} ${isMenuReading ? 'scene-mainline-text--menu' : ''} ${isLeaving ? 'is-leaving' : ''}`}
               style={{
-                left: `${speakerAnchor ? speakerAnchor.left + (speakerAnchor.widthPx / renderScreenMetrics.width) * 50 : Math.max((echoLayout.widthPx / renderScreenMetrics.width) * 50 + 2, Math.min(98 - (echoLayout.widthPx / renderScreenMetrics.width) * 50, position.x + cameraOffset.x))}%`,
-                top: `${speakerAnchor?.top ?? Math.max(10, Math.min(85, position.y + cameraOffset.y))}%`,
-                '--scene-mainline-text-width': `${echoLayout.widthPx}px`,
-                '--scene-mainline-text-height': `${echoLayout.heightPx}px`,
+                left: readingIsSubtitle ? '0%' : `${speakerAnchor
+                  ? speakerAnchor.left + speakerAnchor.worldWidthPx / sceneDesignReferenceMetrics.width * 50
+                  : projectReadingX(position.x)}%`,
+                top: readingIsSubtitle ? 'auto' : `${speakerAnchor?.top ?? position.y}%`,
+                bottom: readingIsSubtitle ? '0' : undefined,
+                transform: readingIsSubtitle ? 'none' : undefined,
+                width: readingIsSubtitle ? '100%' : undefined,
+                height: readingIsSubtitle ? 'auto' : undefined,
+                '--scene-mainline-text-width': `${echoLayout.widthPx / readingTextWorldScale}px`,
+                '--scene-mainline-text-height': `${echoLayout.heightPx / readingTextWorldScale}px`,
+                fontSize: `${echoLayout.fontSizePx / readingTextWorldScale}px`,
+                maxWidth: readingIsSubtitle ? '100%' : `${Math.max(1, displayReadingMaxWidthPx / readingTextWorldScale)}px`,
+                // Pagination fits the 18px text to the measured safe content
+                // rect. Contain the fitted page so stale geometry cannot spill
+                // into the phone handle or viewport edge.
+                overflow: readingIsSubtitle ? 'hidden' : 'visible',
+                visibility: sceneEcho && readingFit?.fits === false ? 'hidden' : undefined,
               } as CSSProperties}
               aria-live="polite"
               data-scene-interaction-text={sceneEcho?.entityId ?? dialogue?.triggerEntityId ?? 'scene'}
               data-scene-echo={sceneEcho ? sceneEcho.entityId ?? 'scene' : undefined}
-              data-scene-observation-typing={sceneEcho ? String(sceneEcho.typing) : undefined}
+              data-scene-observation-typing={sceneEcho ? String(sceneEcho.textMotion === 'typing') : undefined}
               data-scene-dialogue={isDialogue ? dialogue?.triggerEntityId : undefined}
               data-dialogue-line-id={isDialogue ? dialogueLine?.id : undefined}
               data-dialogue-speaker={isDialogue ? dialogueLine?.speaker : undefined}
-              data-scene-segment-index={sceneEcho?.segmentIndex ?? dialogueSegmentIndex}
-              data-scene-segment-count={sceneEcho?.segments.length ?? dialogueSegmentCount}
-              data-scene-segment-advance={hasNextSegment ? 'available' : 'complete'}
+              data-dialogue-stage-handoff={stageDialogue ? String(dialogueHandoffActive) : undefined}
+              data-dialogue-stage-fade-duration-ms={stageDialogue ? dialogueHandoffFadeDurationMs : undefined}
+              data-scene-segment-index={(sceneEcho?.segmentIndex ?? dialogueSegmentIndex) + displayOverflowIndex}
+              data-scene-segment-count={(sceneEcho?.segments.length ?? dialogueSegmentCount) + fittedReadingSegments.length - 1}
+              data-scene-segment-advance={hasNextSegment || displayOverflowIndex + 1 < fittedReadingSegments.length ? 'available' : 'complete'}
+              data-scene-reading-page-fit={readingFit?.fits === false ? 'false' : 'true'}
+              data-scene-reading-layout-width={echoLayout.widthPx}
+              data-scene-reading-layout-height={echoLayout.heightPx}
+              data-scene-reading-layout-transitioning={String(readingLayoutTransitioning)}
+              data-scene-reading-world-scale={worldScale}
+              data-scene-reading-page-key={readingLayoutPageKey ?? undefined}
+              data-scene-reading-page-index={displayOverflowIndex}
+              data-scene-reading-position-x={readingDisplayPosition?.x}
+              data-scene-reading-position-y={readingDisplayPosition?.y}
+              data-scene-reading-occlusion-width={readingOcclusionRect?.width}
+              data-scene-reading-occlusion-height={readingOcclusionRect?.height}
               data-scene-dialogue-ready={isDialogue ? String(dialogueReady) : undefined}
+              data-scene-dialogue-current-group={isDialogue ? currentDialogueGroup ?? '' : undefined}
+              data-scene-dialogue-rendered-group={isDialogue ? mainlineDialoguePageGroup(dialogue!, dialogueLine!, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex) : undefined}
+              data-scene-dialogue-ready-group={isDialogue ? dialogueReadyGroupRef.current ?? '' : undefined}
+              data-scene-dialogue-consumed-group={isDialogue ? dialogueAdvanceConsumedGroupRef.current ?? '' : undefined}
+              data-scene-dialogue-ready-match={isDialogue ? String(currentDialogueGroup !== null && dialogueReadyGroupRef.current === currentDialogueGroup) : undefined}
+              data-scene-dialogue-consumed-match={isDialogue ? String(currentDialogueGroup !== null && dialogueAdvanceConsumedGroupRef.current === currentDialogueGroup) : undefined}
+              data-scene-dialogue-segment-index={isDialogue ? dialogueSegmentIndex : undefined}
+              data-scene-dialogue-line-index={isDialogue ? dialogueLineIndex ?? '' : undefined}
+              data-scene-dialogue-display-session={hasConversationDisplayContent ? stableConversationDisplaySessionId ?? '' : undefined}
+              data-scene-dialogue-display-phase={hasConversationDisplayContent ? conversationDisplayContent?.kind === 'text' ? conversationDisplayContent.textMotion ?? dialogueTextMotion : conversationDisplayContent?.kind ?? '' : undefined}
+              data-scene-dialogue-display-advance-ready={hasConversationDisplayContent ? String(conversationDisplayAdvanceReady) : undefined}
+              data-scene-dialogue-display-advance-route={hasConversationDisplayContent ? conversationDisplayAdvanceRoute : undefined}
+              data-scene-dialogue-display-consumed-key={hasConversationDisplayContent ? conversationDisplayAdvanceConsumedKeyRef.current ?? '' : undefined}
+              data-scene-dialogue-overflow-index={isDialogue ? displayOverflowIndex : undefined}
+              data-scene-dialogue-text-motion={isDialogue ? dialogueTextMotion : undefined}
+              data-scene-dialogue-handoff-active={isDialogue ? String(dialogueHandoffActive) : undefined}
+              data-scene-dialogue-handoff-id={isDialogue ? dialogueHandoffOutgoing?.id ?? '' : undefined}
+              data-scene-dialogue-handoff-acknowledged={isDialogue ? String(Boolean(dialogueHandoffOutgoing && viewportHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id)) : undefined}
+              data-scene-reading-advance-locked={isDialogue ? String(readingPageAdvanceLockedRef.current) : undefined}
+              data-scene-reading-advance-lock-token={isDialogue ? readingPageAdvanceLockTokenRef.current : undefined}
+              data-scene-reading-advance-flip-started={isDialogue ? String(readingPageAdvanceFlipStartedTokenRef.current === readingPageAdvanceLockTokenRef.current) : undefined}
               onAnimationEnd={(event) => {
                 if (!isLeaving || event.target !== event.currentTarget) return
-                if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id)
+                if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id, readingDisplayPosition ?? position, renderCameraOffset)
                 else onDialogueExitComplete?.()
               }}
             >
-              {isDialogue && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
+              {readingIsSubtitle && (isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker) && <DialogueSpeaker speaker={isDialogue ? dialogueLine!.speaker : sceneEchoSpeaker!} />}
+              {isDialogue && !stageDialogue && !readingIsSubtitle && <span className="scene-mainline-text__speaker scene-mainline-text__speaker-space" aria-hidden="true">&nbsp;</span>}
               {isDialogue
-                ? <DialogueText group={`${group}:${dialogueSegmentIndex}`} text={text} onReadyChange={updateDialogueReady} />
-                : <ObservationText echoId={sceneEcho!.id} text={text} typing={sceneEcho!.typing} onTypingComplete={onSceneEchoTypingComplete} />}
+              ? <DialogueText onProtectionRects={updateReadingProtectionRects} paused={dialogueTextMotion === 'typing' && !readingIsSubtitle && !readingProtectionRects.length} group={mainlineDialoguePageGroup(dialogue!, dialogueLine!, dialogueLineIndex, dialogueTextSessionId, dialogueSegmentIndex, displayOverflowIndex)} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} typingDelayMs={readingBackdropOpening ? mainlineReadingBackdropTypingDelayMs : undefined} layout={displayReadingLayout ?? echoLayout} worldScale={readingTextWorldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={updateDialogueReady} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />
+                : <ObservationText onProtectionRects={updateReadingProtectionRects} menu={isMenuReading} sourceText={sceneEcho!.segments.join('')} echoId={sceneEcho!.id} continuityKey={readingLayoutContinuityKey ?? group} pageKey={readingLayoutPageKey ?? group} text={text} motion={sceneEcho!.textMotion} paused={readingFit?.fits === false || (sceneEcho!.textMotion === 'typing' && !readingIsSubtitle && !observationProtection)} typingDelayMs={readingBackdropOpening ? mainlineReadingBackdropTypingDelayMs : undefined} layout={displayReadingLayout ?? echoLayout} worldScale={readingTextWorldScale} lockToken={readingPageAdvanceLockTokenRef.current} onMotionComplete={onSceneEchoTextMotionComplete} onFlipStart={startReadingPageAdvanceFlip} onFlipComplete={releaseReadingPageAdvance} onFlipCancel={releaseReadingPageAdvance} onSettled={setSettledReadingPageKey} />}
             </div>
+            {dialogueHandoffOutgoing && dialogueHandoffPresentation && stageDialogue && <DialogueHandoffOutgoingText
+              id={dialogueHandoffOutgoing.id}
+              text={dialogueHandoffPresentation.text}
+              position={dialogueHandoffPresentation.position}
+              overflowIndex={dialogueHandoffPresentation.overflowIndex}
+              durationMs={mainlineDialogueHandoffDurationMs(dialogueHandoffPresentation.text.length)}
+              layout={dialogueHandoffPresentation.layout}
+              worldScale={worldScale}
+              lockToken={readingPageAdvanceLockTokenRef.current}
+              projectX={projectReadingX}
+              onDeleted={(id) => onDialogueHandoffOutgoingDeleted?.(id)}
+            />}
             </Fragment>
+            return readingIsSubtitle && narrowConversationOverlayHost ? createPortal(readingText, narrowConversationOverlayHost) : readingText
           })()}
-          {sceneAction && <div
-            className="scene-mainline-action"
-            style={{ left: `${Math.max(12, Math.min(88, sceneAction.position.x + cameraOffset.x))}%`, top: `${Math.max(10, Math.min(85, sceneAction.position.y + cameraOffset.y))}%` }}
+          {hasConversationDisplayContent && stableConversationDisplaySessionId && (isWideDialogueConversation ? viewportOverlayHost : narrowConversationOverlayHost) && conversationDisplayContent && createPortal(<ConversationDisplaySurface
+            key={stableConversationDisplaySessionId}
+            sessionId={stableConversationDisplaySessionId}
+            content={conversationDisplayContent}
+            contentKey={conversationDisplayContentKey}
+            pageKey={conversationDisplayPageKey}
+            pageText={conversationDisplayPageText}
+            speaker={conversationDisplayContent.kind === 'waiting' || conversationDisplayContent.kind === 'choice' ? undefined : conversationDisplayContent.speaker ?? dialogueLine?.speaker ?? sceneEchoSpeaker}
+            speakerIsNpc={Boolean(conversationDisplayContent.kind !== 'waiting' && conversationDisplayContent.kind !== 'choice' && (conversationDisplayContent.speakerIsNpc ?? (dialogueLine?.speakerNpcId || scene.npcs.some(npc => npc.label === (dialogueLine?.speaker ?? sceneEchoSpeaker)))))}
+            narrow={!isWideDialogueConversation}
+            windowHeightPx={!isWideDialogueConversation
+              ? Math.max(1, viewportMetrics.height * .15)
+              : Math.min(260, Math.max(92, viewportMetrics.height * .34))}
+            availableWidthPx={Math.max(1, viewportMetrics.width)}
+            measuredPageHeightPx={Math.max(1, Math.min(260, (displayReadingLayout ?? activeDisplayReadingLayout ?? activeReadingLayout ?? mainlineEchoLayout(conversationDisplayPageText, readingMetrics, { speaker: dialogueLine?.speaker ?? sceneEchoSpeaker, maxWidthPx: displayReadingMaxWidthPx })).heightPx))}
+            pageIndex={displayOverflowIndex}
+            isFinalLinePage={Boolean(dialogue && dialogueLine && dialogueLineIndex === dialogue.lines.length - 1 && dialogueSegmentIndex + 1 >= dialogueSegmentCount && displayOverflowIndex + 1 >= fittedReadingSegments.length && conversationDisplayContent.kind === 'text')}
+            textSessionId={sceneEcho ? sceneEcho.id : dialogueTextSessionId}
+            textMotion={conversationDisplayContent.kind === 'text' && conversationDisplayContent.textMotion ? conversationDisplayContent.textMotion : sceneEcho?.textMotion ?? dialogueTextMotion}
+            pageAdvanceDiagnostic={dialogueAdvanceDiagnostic}
+            onTextMotionComplete={(sessionId, motion) => {
+              if (sceneEcho) return onSceneEchoTextMotionComplete?.(sceneEcho.id, stableConversationDisplaySessionId, motion) ?? 'rejected:no-scene-echo-handler'
+              return onDialogueTextMotionComplete?.(sessionId, motion) ?? 'rejected:no-dialogue-handler'
+            }}
+            onReadyChange={(group, ready) => {
+              if (ready) {
+                conversationDisplayReadyKeyRef.current = conversationDisplayRequiredReadyKey
+                setConversationDisplayReadyKey(conversationDisplayRequiredReadyKey)
+                releaseReadingPageAdvance()
+              } else if (conversationDisplayReadyKeyRef.current === conversationDisplayRequiredReadyKey) {
+                conversationDisplayReadyKeyRef.current = null
+                setConversationDisplayReadyKey(null)
+              }
+              if (dialogue && dialogueLine) updateDialogueReady(currentDialogueGroupRef.current ?? group, ready)
+            }}
+            onAdvance={(identity) => {
+              if (identity.sessionKey !== stableConversationDisplaySessionId
+                || identity.pageKey !== conversationDisplayPageKey
+                || !conversationDisplayContent.canAdvance) return
+              readingShieldRef.current?.click()
+            }}
+            advanceReady={conversationDisplayAdvanceReady}
+            advanceReadyKey={conversationDisplayReadyKey}
+            requiredAdvanceReadyKey={conversationDisplayRequiredReadyKey}
+            advanceRoute={conversationDisplayAdvanceRoute}
+            dialogueChoiceWheel={dialogueChoiceWheel}
+            onSceneActionChoice={onSceneActionChoice}
+            onSceneActionCancel={onSceneActionCancel}
+            onSceneActionExitComplete={onSceneActionExitComplete}
+            isLeaving={readingIsLeaving}
+            onExitComplete={() => {
+              if (sceneEcho) onSceneEchoExitComplete?.(sceneEcho.id, readingDisplayPosition ?? sceneEcho.position, renderCameraOffset)
+              else onDialogueExitComplete?.()
+            }}
+          />, isWideDialogueConversation ? viewportOverlayHost! : narrowConversationOverlayHost!)}
+          {!hasConversationDisplayContent && isWideDialogueConversation && viewportOverlayHost && dialogue && dialogueLine && createPortal(<MainlineDialogueConversation
+            scene={scene}
+            dialogue={dialogue}
+            dialogueLine={dialogueLine}
+            dialogueLineIndex={dialogueLineIndex}
+            dialogueTextSessionId={dialogueTextSessionId}
+            dialogueTextMotion={dialogueTextMotion}
+            isLeaving={readingIsLeaving}
+            isReady={dialogueReadyGroupRef.current === currentDialogueGroup}
+            isConsumed={dialogueAdvanceConsumedGroupRef.current === currentDialogueGroup}
+            readyGroup={dialogueReadyGroupRef.current}
+            consumedGroup={dialogueAdvanceConsumedGroupRef.current}
+            handoffActive={dialogueHandoffActive}
+            handoffId={dialogueHandoffOutgoing?.id ?? null}
+            handoffAcknowledged={Boolean(dialogueHandoffOutgoing && viewportHandoffAcknowledgedRef.current === dialogueHandoffOutgoing.id)}
+            onDialogueTextMotionComplete={onDialogueTextMotionComplete}
+            onDialogueReadyChange={updateDialogueReady}
+          />, viewportOverlayHost)}
+          {sceneAction && dialogueChoiceWheel?.actionId !== sceneAction.id && <div
+            ref={sceneActionRef}
+            className="scene-mainline-action scene-mainline-action--reading"
+            style={{
+              left: `${frozenActionPlacement?.position.x ?? sceneActionLayerPosition?.x ?? sceneAction.position.x}%`,
+              top: `${frozenActionPlacement?.position.y ?? sceneActionLayerPosition?.y ?? sceneAction.position.y}%`,
+              maxWidth: `${frozenActionPlacement?.maxWidth ?? Math.max(1, Math.min(sceneActionMaxWidthPx, sceneActionPlacement?.availableWidthPx ?? sceneActionMaxWidthPx) / worldScale)}px`,
+              maxHeight: frozenActionPlacement ? `${frozenActionPlacement.maxHeight}px` : sceneActionPlacement ? `${Math.max(1, sceneActionPlacement.availableHeightPx / worldScale)}px` : undefined,
+              overflowY: (frozenActionPlacement?.overflowY ?? sceneActionPlacement?.overflowY) ? 'auto' : 'visible',
+              visibility: actionVisible ? 'visible' : 'hidden',
+              pointerEvents: actionVisible ? undefined : 'none',
+            }}
             data-scene-action={sceneAction.entityId ?? 'scene'}
+            data-scene-action-phase={sceneAction.phase ?? 'active'}
+            data-scene-action-waiting-for-dialogue={sceneAction.phase === 'active' && !dialogueOptionsAllowed ? 'true' : 'false'}
+            data-scene-action-position-x={sceneAction.position.x}
+            data-scene-action-position-y={sceneAction.position.y}
+            data-scene-action-rendered-x={sceneActionPlacement?.position.x ?? sceneAction.position.x}
+            data-scene-action-rendered-y={sceneActionPlacement?.position.y ?? sceneAction.position.y}
+            data-scene-action-measured-width={matchingSceneActionSize?.width}
+            data-scene-action-measured-height={matchingSceneActionSize?.height}
+            data-scene-action-max-height={sceneActionPlacement?.availableHeightPx}
+            data-scene-action-overflow-y={String(sceneActionPlacement?.overflowY ?? false)}
+            onPointerUp={(event) => event.stopPropagation()}
+            onPointerCancel={(event) => event.stopPropagation()}
             onClick={(event) => event.stopPropagation()}
           >
             {sceneAction.options.map((option, index) => (
               <EntryButtonSurface
                 key={option}
-                visible
+                visible={sceneAction.phase === 'active'}
                 entryId={`scene-action:${sceneAction.entityId ?? 'scene'}:${option}`}
+                actionScopeId={sceneAction.id}
                 label={option}
                 contentSized
                 materialMode="world"
                 worldLayer="surface"
-                disabled={sceneAction.phase === 'committing'}
-                onActionStart={() => onSceneActionStart?.(index)}
-                onActionComplete={() => onSceneActionChoice?.(index)}
+                disabled={sceneAction.phase !== 'active'}
+                dataAttributes={{ 'data-scene-action-option-index': index }}
+                onActionStart={(event: { actionScopeId?: number }) => onSceneActionStart?.(event.actionScopeId as number, index)}
+                onActionComplete={(event: { actionScopeId?: number }) => onSceneActionChoice?.(event.actionScopeId as number, index)}
+                onExitComplete={(event: { actionScopeId?: number }) => onSceneActionExitComplete?.(event.actionScopeId as number, index)}
               />
             ))}
           </div>}
         </div>
-          <div ref={dimmerRef} className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} style={{ opacity: 0 }} aria-hidden="true" />
+          {readingMaskRects.length > 0 && <svg className="scene-dialogue-dimmer-mask-defs" aria-hidden="true" data-reading-protection-count={readingMaskRects.length}>
+            <defs>
+              <mask id={readingMaskId} maskUnits="objectBoundingBox" maskContentUnits="objectBoundingBox" x="0" y="0" width="1" height="1">
+                <rect x="0" y="0" width="1" height="1" fill="white" />
+                {readingMaskRects.map((rect, index) => <rect key={index} x={rect.x} y={rect.y} width={rect.width} height={rect.height} fill="black" data-reading-protection-hole="true" />)}
+              </mask>
+            </defs>
+          </svg>}
+          <div ref={dimmerRef} className={`scene-dialogue-dimmer${readingMode ? ` scene-dialogue-dimmer--${readingMode}` : ''}`} style={{ opacity: 0, left: `${sceneRenderBounds.x}%`, top: `${sceneRenderBounds.y}%`, width: `${sceneRenderBounds.width}%`, height: `${sceneRenderBounds.height}%`, mask: readingMaskRects.length ? `url(#${readingMaskId})` : undefined, WebkitMaskImage: readingMaskRects.length ? `url(#${readingMaskId})` : undefined }} aria-hidden="true" />
+        </div>
           {readingMode && <>
             <button
+              ref={readingShieldRef}
               type="button"
               className="scene-dialogue-shield"
               aria-label="继续阅读"
@@ -1455,20 +4083,82 @@ export function MainlineSceneRenderer({
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
+                if (conversationDisplayContent?.kind === 'choice' && dialogueChoiceWheel?.dismissible && dialogueChoiceWheel.phase === 'active') {
+                  onSceneActionCancel?.()
+                  return
+                }
+                if (conversationDisplayContent?.kind === 'waiting' || conversationDisplayContent?.kind === 'choice' || (conversationDisplayContent && 'canAdvance' in conversationDisplayContent && !conversationDisplayContent.canAdvance)) return
+                if (hasConversationDisplayContent && conversationDisplayContent?.kind === 'text') {
+                  // A click while a long line is still being typed shows the whole line at once.
+                  const typingNow = sceneEcho ? sceneEcho.textMotion === 'typing' : dialogueTextMotion === 'typing'
+                  if (typingNow) {
+                    // Hurry the typing along instead of jumping to the full text.
+                    readingTextMotionSpeed = readingTextMotionClickSpeed
+                    return
+                  }
+                }
+                if (hasConversationDisplayContent && conversationDisplayReadyKeyRef.current !== conversationDisplayRequiredReadyKey) return
+                if (hasConversationDisplayContent && !sceneEcho && dialogue && dialogueLine && currentDialogueGroupRef.current !== null) {
+                  dialogueReadyGroupRef.current = currentDialogueGroupRef.current
+                  setDialogueReady(true)
+                }
+                const readingTextIsDeleting = sceneEcho
+                  ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
+                  : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
+                if (readingTextIsDeleting) {
+                  readingTextMotionSpeed = readingTextMotionClickSpeed
+                  if (isMenuReading && sceneEcho?.textMotion === 'deleting') onSceneEchoAdvance?.()
+                  return
+                }
+                if ((readingPageAdvanceLockedRef.current && !hasConversationDisplayContent) || (sceneEcho && readingFit?.fits === false)) return
+                if (readingPresentationMode === 'dialogue') {
+                  const clickAction = mainlineDialogueClickAction({ motion: dialogueTextMotion, handoffActive: dialogueHandoffActive })
+                  if (clickAction === 'ignore') return
+                  if (clickAction === 'complete-typing') {
+                    onDialogueTypingSkip?.(dialogueTextSessionId)
+                    return
+                  }
+                }
+                if (readingPresentationMode === 'observation' && sceneEcho?.textMotion === 'typing') {
+                  typingCompletionLockRef.current = true
+                  typingCompletionLockTokenRef.current = lockReadingPageAdvance()
+                  onSceneEchoAdvance?.()
+                  return
+                }
+                if (!isWideDialogueConversation && displayOverflowIndex + 1 < fittedReadingSegments.length) {
+                  if (!hasConversationDisplayContent) lockReadingPageAdvance()
+                  if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1, sourceOffset: fittedReadingSegments.slice(0, displayOverflowIndex + 1).join('').length })
+                  return
+                }
                 if (readingMode === 'dialogue') {
+                  if (hasConversationDisplayContent && !sceneEcho && dialogue && dialogueLine) {
+                    if (conversationDisplayAdvanceConsumedKeyRef.current !== conversationDisplayRequiredReadyKey) {
+                      conversationDisplayAdvanceConsumedKeyRef.current = conversationDisplayRequiredReadyKey
+                      if (currentDialogueGroupRef.current !== null) dialogueAdvanceConsumedGroupRef.current = currentDialogueGroupRef.current
+                      dialogueReadyGroupRef.current = null
+                      setDialogueReady(false)
+                      onDialogueAdvance?.(isWideDialogueConversation ? 'line' : 'segment')
+                    }
+                    return
+                  }
                   if (currentDialogueGroupRef.current !== null
                     && dialogueAdvanceConsumedGroupRef.current !== currentDialogueGroupRef.current
                     && dialogueReadyGroupRef.current === currentDialogueGroupRef.current) {
+                    // Wide conversations advance through their own stable
+                    // per-line consumed key; they do not run a world-space
+                    // ReadingPageFlip that could release this page lock.
+                    if (!isWideDialogueConversation && !hasConversationDisplayContent) lockReadingPageAdvance()
                     dialogueAdvanceConsumedGroupRef.current = currentDialogueGroupRef.current
                     dialogueReadyGroupRef.current = null
                     setDialogueReady(false)
-                    onDialogueAdvance?.()
+                    onDialogueAdvance?.(isWideDialogueConversation ? 'line' : 'segment')
                   }
                   return
                 }
+                lockReadingPageAdvance()
                 onSceneEchoAdvance?.()
               }}
-            />
+            >{sceneEcho && readingFit?.fits === false && <span role="status" style={{ position: 'absolute', top: '1rem', left: '50%', transform: 'translateX(-50%)', color: 'white', background: '#222', padding: '8px 12px' }}>空间不足，请调整窗口大小</span>}</button>
           </>}
         {(debugInput || debugNpcMovement) && <div className="scene-input-debug" aria-live="polite">
           {debugNpcMovement && <button type="button" onClick={(event) => { event.stopPropagation(); onDebugNpcMovement?.() }}>演示店员移动</button>}

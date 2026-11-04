@@ -307,7 +307,7 @@ function cleanEventData(eventName, value) {
   }
   if (eventName === 'commercial_storefront_interacted') {
     const slotId = cleanAnalyticsId(value.slotId)
-    const storeType = cleanChoice(value.storeType, ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '书店', '甜品店', '鞋店', '潮玩店', '香氛店', '奶茶店', '周边店', '首饰店'])
+    const storeType = cleanChoice(value.storeType, ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '书店', '甜品店', '鞋店', '潮玩店', '香氛店', '奶茶店', '周边店', '首饰店', '文创店', '玩具店', '咖啡馆', '潮牌店', '快餐店', '珠宝店'])
     return slotId && storeType ? { slotId, storeType } : {}
   }
   if (eventName === 'milk_tea_order_confirmed') {

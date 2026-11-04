@@ -154,6 +154,15 @@ export function doorPassageIsPassable(phase: DoorPassagePhase) {
   return phase === 'open' || phase === 'crossing' || phase === 'holding'
 }
 
+/** Stable identity for the set of passages whose physical door is passable. */
+export function doorPassagePassableSignature(states: ReadonlyMap<string, DoorPassagePhase | Pick<DoorPassageRuntime, 'phase'>>) {
+  return [...states]
+    .filter(([, state]) => doorPassageIsPassable(typeof state === 'string' ? state : state.phase))
+    .map(([passageId]) => passageId)
+    .sort()
+    .join('\u001f')
+}
+
 export function containsDoorRegion(point: Point, box: DoorRegionBox) {
   return point.x >= box.x
     && point.x <= box.x + box.width

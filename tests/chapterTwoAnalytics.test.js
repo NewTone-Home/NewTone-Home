@@ -11,6 +11,18 @@ const dependencies = {
 }
 
 describe('Chapter Two commercial analytics contract', () => {
+  it('accepts the final three-character storefront names emitted by the restored commercial street', () => {
+    const labels = [
+      '\u679c\u8336\u5e97', '\u6587\u521b\u5e97', '\u7f8e\u5986\u5e97', '\u773c\u955c\u5e97', '\u73a9\u5177\u5e97', '\u9999\u6c1b\u5e97', '\u5496\u5561\u9986',
+      '\u6f6e\u724c\u5e97', '\u5feb\u9910\u5e97', '\u670d\u88c5\u5e97', '\u5976\u8336\u5e97', '\u751c\u54c1\u5e97', '\u73e0\u5b9d\u5e97',
+    ]
+    const events = labels.map((storeType, index) => buildAnalyticsEvent('commercial_storefront_interacted', {
+      sceneId: 'commercial-street',
+      eventData: { slotId: 'commercial-north-slot-2', storeType },
+    }, { ...dependencies, clientEventId: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}` }))
+    expect(events.map(event => event?.event_data.storeType)).toEqual(labels)
+  })
+
   it('keeps milk-tea order data structured and rejects arbitrary payload text', () => {
     const confirmed = buildAnalyticsEvent('milk_tea_order_confirmed', {
       sceneId: 'commercial-street',

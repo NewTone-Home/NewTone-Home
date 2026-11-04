@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  commercialCafeSeatGuideDialogue,
   commercialCafeAnalyticsMilestonePatch,
   commercialCafeAnalyticsMilestonesFromSceneState,
   commercialCafeAnalyticsStageForCursor,
@@ -12,13 +13,14 @@ import {
   commercialCafeCoffeeReady,
   commercialCafeCoffeeStatusKey,
   commercialCafeCoffeeOrdered,
-  commercialCafeCompletionPresenceMs,
   commercialCafeFinishCursorOne,
   commercialCafeFinishDeliveryLine,
+  commercialCafeFinishDeliveryReturn,
   commercialCafeFloorServerNpcId,
   commercialCafeLaoZhouConversationSeatId,
-  commercialCafeLaoZhouDepartureDue,
   commercialCafeLaoZhouIsPresent,
+  commercialCafeDepartureOnTransition,
+  commercialCafeLegacyDeparture,
   commercialCafeNarrativeDialogue,
   commercialCafeNarrativePhaseKey,
   commercialCafePrepTargetId,
@@ -40,16 +42,16 @@ import { npcRoles } from '../src/center/runtime/npcRoles'
 describe('commercial café story contract', () => {
   it('uses exactly the approved fourteen dialogue ids, speakers, and text', () => {
     const expected = [
-      ['commercial-cafe-lao-zhou-first-xiujie', '修杰', '陈副部长还是没有消息吗？'],
-      ['commercial-cafe-lao-zhou-first-lao-zhou', '老周', '完全没有。'],
+      ['commercial-cafe-lao-zhou-first-xiujie', '修杰', '陈副部长那边，还是没消息吗？'],
+      ['commercial-cafe-lao-zhou-first-lao-zhou', '老周', '还没有。'],
       ['commercial-cafe-coffee-xiujie', '修杰', '你还是不爱喝咖啡。'],
-      ['commercial-cafe-coffee-lao-zhou', '老周', '是啊，我真喝不惯那玩意儿，而且上次喝完失眠了，我这把年纪了还是不要折腾比较好。'],
-      ['commercial-cafe-intel-lao-zhou-document', '老周', '我昨天无意间看到了一份文件，不过我权限不够，只能看到一部分。'],
-      ['commercial-cafe-intel-lao-zhou-camera', '老周', '说是在矿区附近的监控疑似拍到过陈副部长。不过没有照片，我也不能确定是不是真的。'],
+      ['commercial-cafe-coffee-lao-zhou', '老周', '喝不惯。上次就因为喝了杯咖啡，折腾得半宿没睡好。年纪大了，经不起这个。'],
+      ['commercial-cafe-intel-lao-zhou-document', '老周', '说正事儿。昨天整理文件时，我无意中看到一份材料，不过权限不够，只看到了其中一部分。'],
+      ['commercial-cafe-intel-lao-zhou-camera', '老周', '文件里提到，矿区附近的监控疑似拍到过陈副部长。不过没有照片，我也不能确定是不是真的。'],
       ['commercial-cafe-intel-xiujie-mine', '修杰', '矿区？'],
       ['commercial-cafe-intel-lao-zhou-mine', '老周', '对，按照陈副部长的生活工作范围来推测，不大可能会出现在那边。'],
-      ['commercial-cafe-intel-xiujie-destination', '修杰', '整个矿区很大，能知道他去哪里了吗？'],
-      ['commercial-cafe-intel-lao-zhou-eatery', '老周', '查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。'],
+      ['commercial-cafe-intel-xiujie-destination', '修杰', '那边范围不小，能查到他往哪儿去了吗？'],
+      ['commercial-cafe-intel-lao-zhou-eatery', '老周', '具体去向查不到。不过我在那边有个线人，听他说，有人似乎在永和小馆附近见过陈副部长。'],
       ['commercial-cafe-intel-xiujie-eatery', '修杰', '永和小馆？'],
       ['commercial-cafe-intel-lao-zhou-eatery-detail', '老周', '对，永和小馆，我也查过，一家苍蝇馆子，平常都是些工友在那里吃饭什么的，没什么很特别的地方。所以也只是有人貌似见过，并不能完全确定。'],
       ['commercial-cafe-resolution-xiujie', '修杰', '行，我知道了，有什么新信息再跟我说。'],
@@ -61,7 +63,7 @@ describe('commercial café story contract', () => {
 
   it('starts the narrative from a seat without requiring a coffee order', () => {
     const story = initialCommercialCafeStoryState()
-    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: null })).toMatchObject({ kind: 'dialogue', promptSeatId: commercialCafeLaoZhouConversationSeatId })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: null })).toEqual({ kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue })
     expect(story.coffeeStatus).toBe('none')
   })
 
@@ -71,11 +73,12 @@ describe('commercial café story contract', () => {
     expect(story.coffeeStatus).toBe('none')
   })
 
-  it('keeps the two staff actors canonically distinct while presenting both as 店员', () => {
+  it('keeps the two staff actors distinct and displays their source role labels', () => {
     const cafe = mainlineScenes['commercial-cafe']
     expect(commercialCafeCoffeeOwnerNpcId).not.toBe(commercialCafeFloorServerNpcId)
     expect(cafe.npcs.filter(({ id }) => [commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId].includes(id as never))).toHaveLength(2)
-    expect(cafe.npcs.filter(({ id }) => [commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId].includes(id as never)).map(({ label }) => label)).toEqual(['店员', '店员'])
+    expect(cafe.npcs.find(({ id }) => id === commercialCafeCoffeeOwnerNpcId)?.label).toBe(npcRoles.cafeCoffeeOwner.label)
+    expect(cafe.npcs.find(({ id }) => id === commercialCafeFloorServerNpcId)?.label).toBe(npcRoles.cafeFloorServer.label)
     expect(npcRoles.cafeCoffeeOwner.duties).toHaveProperty('prepare')
     expect(npcRoles.cafeCoffeeOwner.duties).toHaveProperty('deliverCoffee')
     expect(npcRoles.cafeCoffeeOwner.duties).not.toHaveProperty('tableService')
@@ -142,11 +145,13 @@ describe('commercial café story contract', () => {
     expect(restoredDeliveryLine).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-delivery' })
     expect(restoredDeliveryLine.narrativeCursor).toBe(1)
     const acknowledged = commercialCafeFinishDeliveryLine(restoredDeliveryLine)
-    expect(acknowledged).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 2, narrativePhase: 'dialogue' })
-    expect(acknowledged.narrativeCursor).toBe(2)
-    expect(acknowledged.narrativePhase).toBe('dialogue')
-    expect(commercialCafeStoryStatePatch(acknowledged)).toMatchObject({ commercialCafeCoffeeStatus: 'delivered', commercialCafeNarrativeCursor: 2 })
-    expect(commercialCafeFinishDeliveryLine(commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(acknowledged)))).toEqual(acknowledged)
+    expect(acknowledged).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 1, narrativePhase: 'coffee-returning' })
+    const returnSaved = commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(acknowledged))
+    expect(returnSaved).toEqual(acknowledged)
+    const resumed = commercialCafeFinishDeliveryReturn(returnSaved)
+    expect(resumed).toMatchObject({ coffeeStatus: 'delivered', narrativeCursor: 2, narrativePhase: 'dialogue' })
+    expect(commercialCafeStoryStatePatch(resumed)).toMatchObject({ commercialCafeCoffeeStatus: 'delivered', commercialCafeNarrativeCursor: 2 })
+    expect(commercialCafeFinishDeliveryLine(commercialCafeStoryStateFromSceneState(commercialCafeStoryStatePatch(resumed)))).toEqual(resumed)
   })
 
   it('does not ready or deliver coffee before prep arrival when cursor 1 opens the gate early', () => {
@@ -190,15 +195,89 @@ describe('commercial café story contract', () => {
     expect(cafe.objects.find(({ id }) => id === commercialCafeStoryTableId)?.label).toBe('桌子')
   })
 
-  it('completes only on public departure and starts Lao Zhou’s five-minute presence clock', () => {
+  it('completes on leaving the Cafe and keeps Lao Zhou until the world exit', () => {
     const base = initialCommercialCafeStoryState()
     expect(shouldCompleteCommercialCafeStoryOnTransition({ sceneId: 'commercial-cafe', story: base, targetSceneId: 'commercial-street' })).toBe(false)
     const ready = commercialCafeStoryReadyToLeave(base)
     expect(shouldCompleteCommercialCafeStoryOnTransition({ sceneId: 'commercial-cafe', story: ready, targetSceneId: 'commercial-street' })).toBe(true)
     const complete = commercialCafeStoryCompleted(ready, 1_000)
     expect(complete).toMatchObject({ status: 'complete', completedAt: 1_000, laoZhouDeparture: 'seated' })
-    expect(commercialCafeLaoZhouIsPresent(complete, 1_000 + commercialCafeCompletionPresenceMs)).toBe(true)
-    expect(commercialCafeLaoZhouDepartureDue(complete, 1_000 + commercialCafeCompletionPresenceMs - 1)).toBe(false)
-    expect(commercialCafeLaoZhouDepartureDue(complete, 1_000 + commercialCafeCompletionPresenceMs)).toBe(true)
+    expect(commercialCafeLaoZhouIsPresent(complete, Number.MAX_SAFE_INTEGER)).toBe(true)
+  })
+
+  it.each(['walking-out', 'departed'] as const)('migrates legacy %s saves without resetting progress', (departure) => {
+    const legacy = {
+      commercialCafeStoryStatus: 'complete',
+      commercialCafeNarrativeCursor: 14,
+      commercialCafeCoffeeStatus: 'delivered',
+      commercialCafeNarrativePhase: 'complete',
+      commercialCafeLaoZhouDeparture: departure,
+      commercialCafeCompletedAt: 123456,
+      commercialCafeCompletionPhonePending: true,
+      commercialCafeCompletionPhoneDisplayed: false,
+    }
+    const story = commercialCafeStoryStateFromSceneState(legacy)
+    expect(story).toMatchObject({
+      status: 'complete', narrativeCursor: 14, coffeeStatus: 'delivered',
+      narrativePhase: 'complete', laoZhouDeparture: departure === 'departed' ? 'departed' : 'seated', completedAt: 123456,
+    })
+    expect(commercialCafeStoryNeedsMigration(legacy)).toBe(true)
+    const patch = commercialCafeStoryStatePatch(story)
+    expect(patch).toMatchObject({
+      commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14,
+      commercialCafeLaoZhouDeparture: departure === 'departed' ? 'departed' : 'seated', commercialCafeCompletedAt: 123456,
+    })
+    expect(patch).not.toHaveProperty('commercialCafeCompletionPhonePending')
+    expect(patch).not.toHaveProperty('commercialCafeCompletionPhoneDisplayed')
+  })
+
+  it('keeps a missing completion time and preserves a departed legacy state', () => {
+    const story = commercialCafeStoryStateFromSceneState({
+      commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14,
+      commercialCafeLaoZhouDeparture: 'departed',
+    })
+    expect(story).toMatchObject({ status: 'complete', narrativeCursor: 14, laoZhouDeparture: 'departed', completedAt: null })
+  })
+
+  it('keeps a legacy available story interactable after restoring Lao Zhou', () => {
+    const story = commercialCafeStoryStateFromSceneState({
+      commercialCafeStoryStatus: 'available', commercialCafeNarrativeCursor: 3,
+      commercialCafeLaoZhouDeparture: 'seated',
+    })
+    expect(story).toMatchObject({ status: 'available', narrativeCursor: 3, laoZhouDeparture: 'seated' })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story })).toEqual({ kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({ kind: 'start-narrative' })
+  })
+
+  it('does not restart the story when a restored complete save interacts with Lao Zhou', () => {
+    const story = commercialCafeStoryStateFromSceneState({
+      commercialCafeStoryStatus: 'complete', commercialCafeNarrativeCursor: 14,
+      commercialCafeLaoZhouDeparture: 'departed', commercialCafeCompletedAt: 123456,
+    })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story })).toBeNull()
+  })
+
+  it('records departure only after the completed meeting and leaving the whole street', () => {
+    const ready = { commercialCafeStoryStatus: 'available', commercialCafeLaoZhouDeparture: 'seated' }
+    const complete = { commercialCafeStoryStatus: 'complete', commercialCafeLaoZhouDeparture: 'seated' }
+    expect(commercialCafeDepartureOnTransition(ready, 'commercial-street', 'yonghe-mining-perimeter')).toBeNull()
+    expect(commercialCafeDepartureOnTransition(complete, 'commercial-street', 'commercial-street')).toBeNull()
+    expect(commercialCafeDepartureOnTransition(complete, 'commercial-street', 'commercial-cafe')).toBeNull()
+    for (const target of ['yonghe-mining-perimeter', 'jijia-ancestral-interior']) {
+      const patch = commercialCafeDepartureOnTransition(complete, 'commercial-street', target)
+      expect(patch).toEqual({ commercialCafeLaoZhouDeparture: 'departed' })
+      const restored = commercialCafeStoryStateFromSceneState({ ...complete, ...patch })
+      expect(commercialCafeLaoZhouIsPresent(restored, 0)).toBe(false)
+      expect(commercialCafeDepartureOnTransition({ ...complete, ...patch }, 'commercial-street', target)).toBeNull()
+    }
+  })
+
+  it('migrates only reliable old progress and preserves an existing departure', () => {
+    const complete = { commercialCafeStoryStatus: 'complete', commercialCafeLaoZhouDeparture: 'seated' }
+    expect(commercialCafeLegacyDeparture(complete, 'commercial-street')).toBeNull()
+    expect(commercialCafeLegacyDeparture(complete, 'yonghe-mining-perimeter')).toEqual({ commercialCafeLaoZhouDeparture: 'departed' })
+    expect(commercialCafeLegacyDeparture({ ...complete, commercialCafeRuoyuUnlocked: true }, 'commercial-street')).toEqual({ commercialCafeLaoZhouDeparture: 'departed' })
+    expect(commercialCafeLegacyDeparture({ ...complete, commercialCafeLaoZhouDeparture: 'departed' }, 'commercial-street')).toBeNull()
+    expect(commercialCafeLegacyDeparture({ commercialCafeStoryStatus: 'available' }, 'yonghe-mining-perimeter')).toBeNull()
   })
 })

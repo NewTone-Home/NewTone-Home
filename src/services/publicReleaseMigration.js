@@ -57,20 +57,4 @@ function clearPrefixedKeys(storage) {
  * Analytics identity and pending analytics events intentionally remain intact.
  */
 /** @param {ReleaseStorage | null} [storage] */
-export function applyPublicReleaseCutover(storage = defaultStorage()) {
-  if (!storage) return { status: 'unavailable' }
-
-  try {
-    if (storage.getItem(PUBLIC_RELEASE_CUTOVER_STORAGE_KEY) === PUBLIC_RELEASE_CUTOVER_ID) {
-      return { status: 'already-applied' }
-    }
-
-    GAME_STATE_KEYS.forEach(key => storage.removeItem(key))
-    clearPrefixedKeys(storage)
-    storage.setItem(PUBLIC_RELEASE_CUTOVER_STORAGE_KEY, PUBLIC_RELEASE_CUTOVER_ID)
-    return { status: 'applied' }
-  } catch {
-    // Do not mark a partial cleanup as complete; the next load can retry it.
-    return { status: 'failed' }
-  }
-}
+export function applyPublicReleaseCutover(_storage) { return { status: 'save-entry-service-owns-migration' } }

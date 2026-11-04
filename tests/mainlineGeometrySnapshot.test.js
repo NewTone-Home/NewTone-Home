@@ -1,3 +1,5 @@
+import { sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
+import { mainlineVisibleWorldSpan } from '../src/center/runtime/mainlineViewport'
 import { describe, expect, it } from 'vitest'
 import { mainlineSceneGeometryUnits, mainlineScenes } from '../src/center/runtime/mainlineScenes'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
@@ -34,13 +36,13 @@ function assertValidBox(box, label) {
 }
 
 function renderedDoorLabel(cell) {
-  return cell.doorLabelPart ?? cell.displayLabel ?? cell.label ?? cell.glyph ?? '门'
+  return cell.doorLabelPart ?? cell.displayLabel ?? (cell.storefrontRole === 'door' ? cell.glyph : cell.label ?? cell.glyph) ?? '门'
 }
 
 function doorCells(scene, entityId) {
-  return mainlineSceneGeometryUnits(scene, scene.initialPlayerPosition)
+  return mainlineSceneGeometryUnits(scene, scene.initialPlayerPosition, sceneDesignReferenceMetrics, new Map(scene.storefronts.map(slot => [slot.id, 'revealed'])))
     .flatMap((unit) => unit.visual.cells.map((cell) => ({ ...cell, entityId: cell.entityId ?? unit.entityId })))
-    .filter((cell) => cell.kind === 'door' && cell.entityId === entityId)
+    .filter((cell) => (cell.kind === 'door' || cell.storefrontRole === 'door') && cell.entityId === entityId)
 }
 
 describe('mainline screen geometry snapshot', () => {
@@ -96,15 +98,15 @@ describe('mainline screen geometry snapshot', () => {
   it('keeps normal door text on portal entities while split and storefront labels retain their own roles', () => {
     const cafe = mainlineScenes['commercial-cafe']
     const cafeBackDoorOpening = cafe.structures
-      .find((structure) => structure.id === 'commercial-cafe-room')
-      ?.openings.find((opening) => opening.doorId === 'cafe-back-door')
-    const cafeBackDoor = cafe.portals.find((portal) => portal.id === 'cafe-back-door')
-    const cafeBackDoorCell = doorCells(cafe, 'cafe-back-door')[0]
+      .find((structure) => structure.id === 'commercial-north-cafe-interior-shell')
+      ?.openings.find((opening) => opening.doorId === 'commercial-north-cafe-interior-rear-door')
+    const cafeBackDoor = cafe.portals.find((portal) => portal.id === 'commercial-north-cafe-interior-rear-door')
+    const cafeBackDoorCell = doorCells(cafe, 'commercial-north-cafe-interior-rear-door')[0]
 
-    expect(cafeBackDoorOpening).toMatchObject({ doorId: 'cafe-back-door', labelLayout: 'center' })
+    expect(cafeBackDoorOpening).toMatchObject({ doorId: 'commercial-north-cafe-interior-rear-door', labelLayout: 'center' })
     expect(cafeBackDoorOpening?.label).toBeUndefined()
     expect(cafeBackDoorOpening?.displayLabel).toBeUndefined()
-    expect(cafeBackDoor?.entity).toMatchObject({ label: '后门', displayLabel: '门' })
+    expect(cafeBackDoor?.entity).toMatchObject({ label: '门', displayLabel: '门' })
     expect(renderedDoorLabel(cafeBackDoorCell)).toBe('门')
 
     const yard = mainlineScenes['jijia-ancestral-home']
@@ -125,19 +127,21 @@ describe('mainline screen geometry snapshot', () => {
     const insideDoorOpening = eatery.structures
       .find((structure) => structure.id === 'yonghe-room')
       ?.openings.find((opening) => opening.doorId === 'yonghe-street-entry')
-    const insideDoorCell = doorCells(eatery, 'yonghe-street-entry')[0]
+    const insideDoorCells = doorCells(eatery, 'yonghe-street-entry')
+    expect(insideDoorCells).toHaveLength(2)
     const outwardPassage = perimeter.passages.find((passage) => passage.id === 'yonghe-street-entry')
     const returnPassage = eatery.passages.find((passage) => passage.id === 'yonghe-street-entry')
 
     expect(storefront?.label).toBe('永和小馆')
     expect(insideDoor?.entity).toMatchObject({ label: '永和小馆', displayLabel: '门' })
     expect(insideDoorOpening?.label).toBeUndefined()
-    expect(renderedDoorLabel(insideDoorCell)).toBe('门')
-    expect(outwardPassage).toMatchObject({ entityId: 'yonghe-street-entry', targetSceneId: 'yonghe-eatery' })
-    expect(returnPassage).toMatchObject({ entityId: 'yonghe-street-entry', targetSceneId: 'yonghe-mining-perimeter' })
+    expect(insideDoorCells.map(renderedDoorLabel)).toEqual(['门', '门'])
+    expect(outwardPassage).toMatchObject({entityId:'yonghe-street-entry',routeThrough:true,fromRoomId:'mining-street-public-lane',toRoomId:'mining-shop-2-interior'})
+    expect(outwardPassage.targetSceneId).toBeUndefined()
+    expect(returnPassage).toEqual(outwardPassage)
   })
 
-  it('keeps Yonghe outdoor chairs physical while limiting interaction to their tables', () => {
+  it('keeps all four Yonghe outdoor chairs physical and usable beside their own tables', () => {
     const scene = mainlineScenes['yonghe-mining-perimeter']
     const tableIds = ['yonghe-outdoor-table-1', 'yonghe-outdoor-table-2']
     const chairIds = [
@@ -152,7 +156,8 @@ describe('mainline screen geometry snapshot', () => {
     })
     chairIds.forEach((id) => {
       const chair = scene.objects.find((entity) => entity.id === id)
-      expect(chair?.interactive).toBe(false)
+      expect(chair?.interactive).toBe(true)
+      expect(chair?.seat?.tableId).toBe(tableIds[Math.floor(chairIds.indexOf(id)/2)])
       expect(chair?.collision).toBeTruthy()
       expect(chair?.shape).toEqual(chair?.collision)
     })
@@ -162,7 +167,10 @@ describe('mainline screen geometry snapshot', () => {
     })
   })
 
-  it.each(viewports)('keeps one geometry source for $name', (screenMetrics) => {
+  it.each(viewports)('keeps one geometry source for $name', (viewportMetrics) => {
+    const screenMetrics=sceneDesignReferenceMetrics
+    const visible=mainlineVisibleWorldSpan(viewportMetrics)
+    expect(visible.x).toBeGreaterThan(0);expect(visible.y).toBeGreaterThan(0)
     playableScenes.forEach((scene) => {
       const snapshot = createMainlineSceneGeometrySnapshot(scene, scene.initialPlayerPosition, {}, screenMetrics)
       expect(snapshot.screenMetrics).toEqual(screenMetrics)

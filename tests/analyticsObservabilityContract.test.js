@@ -14,15 +14,12 @@ const dwellCheckpointMigration = read('../supabase/migrations/20260809202406_ana
 const frictionMigration = read('../supabase/migrations/20260816043502_analytics_friction_diagnostics.sql')
 
 describe('analytics observability v2 wiring', () => {
-  it('tracks the public funnel from Landing request through Reader structure and completion', () => {
-    expect(app).toContain("trackEvent('reader_entry_requested'")
-    expect(main).toContain("trackEvent('content_status'")
-    expect(reader).toContain("trackEvent('reading_started'")
-    expect(reader).toContain("trackEvent('page_entered'")
-    expect(reader).toContain("trackEvent('chapter_entered'")
-    expect(reader).toContain("trackEvent('beat_dwell'")
-    expect(reader).toContain("trackEvent('chapter_completed'")
-    expect(reader).toContain("trackEvent('reader_return'")
+  it('tracks the public Center request while retaining Reader module events for author previews', () => {
+    expect(app).toContain("trackEvent('center_entry_requested'")
+    expect(app).toContain('landingObserver.current.observe(')
+    expect(main).not.toContain('loadPublishedContent')
+    expect(app).not.toContain("import Reader from")
+    for (const name of ['reading_started', 'page_entered', 'chapter_entered', 'beat_dwell', 'chapter_completed', 'reader_return']) expect(reader).toContain(`trackEvent('${name}'`)
   })
 
   it('records Reader toolbar language/mode changes without tracking visual micro-interactions', () => {
@@ -34,17 +31,16 @@ describe('analytics observability v2 wiring', () => {
   })
 
   it('records the displayed Landing language source and viewport metadata without hardware identifiers', () => {
-    expect(app).toContain('trackLandingEntry(displayedPreferences, navigator.languages')
+    const observer = read('../src/services/landingEntryObserver.mjs')
+    expect(app).toContain('landingObserver.current.observe(')
+    expect(observer).toContain('trackLandingEntry')
     expect(landing).toContain('resolveDisplayedReaderLanguage({')
     expect(landingEntryAnalytics).toContain('resolveDisplayedReaderLanguage({')
-    expect(app).toContain("eventData: { languageSource: 'user_selected' }")
     expect(analytics).toContain('device_category: deviceCategory')
     expect(analytics).toContain('viewport_width: width')
     expect(analytics).toContain('viewport_height: height')
     expect(analytics).toContain("['user_selected', 'browser_default', 'product_default']")
-    expect(analytics).not.toContain('navigator.userAgent')
-    expect(analytics).not.toContain('screen.width')
-    expect(analytics).not.toContain('screen.height')
+    for (const forbidden of ['navigator.userAgent', 'screen.width', 'screen.height']) expect(analytics).not.toContain(forbidden)
   })
 
   it('keeps the staging database event dictionary aligned with the client dictionary', () => {
@@ -55,10 +51,13 @@ describe('analytics observability v2 wiring', () => {
       expect(analytics).toContain(`'${eventName}'`)
       expect(migration).toContain(`'${eventName}'`)
     }
-    expect(app).toContain("exitReason: 'browser_back'")
+    expect(migration).toContain('private.analytics_step_dwell')
+  })
+
+  it('retains the legacy Reader browser-back vocabulary independently of public Center routing', () => {
     expect(analytics).toContain("'browser_back'")
     expect(migration).toContain("'browser_back'")
-    expect(migration).toContain('private.analytics_step_dwell')
+    expect(app).not.toContain('reader_entry_requested')
   })
 
   it('keeps dwell cumulative across reload checkpoints inside one browser session', () => {

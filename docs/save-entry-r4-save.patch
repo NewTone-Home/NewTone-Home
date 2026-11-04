@@ -1,0 +1,116 @@
+--- a/src/center/runtime/shopOrderCompletion.test.ts
++++ b/src/center/runtime/shopOrderCompletion.test.ts
+@@ -1,7 +1,7 @@
+ import { describe, expect, it, vi } from 'vitest'
+ import { crossShopIds, type CrossShopOrder } from './crossShopOrders'
+ import { notifyDueShopOrders } from './shopOrderCompletion'
+-import { createInitialPlayerSave, createPositionSaveCoordinator, recordPlayerScenePosition, savePlayerSave, PLAYER_SAVE_STORAGE_KEY, type PlayerSave } from './playerSave'
++import { createInitialPlayerSave, createPositionSaveCoordinator, recordPlayerScenePosition, savePlayerSave, PLAYER_SAVE_STORAGE_KEY, type PlayerSave, type PlayerPoint } from './playerSave'
+ import { memoryStorage } from '../../save-session.mjs'
+ import type { PhoneNotification } from './phoneNotifications'
+ 
+@@ -54,6 +54,12 @@
+     phoneNotifications: [{ ...oldYongheNotice }, { ...unrelatedNotice }],
+   }
+ }
++// This completion-only coordinator records positions only for its active scene.
++// Validate the broad coordinator argument before passing the typed saved scene.
++function recordCompletionPosition(save: PlayerSave, sceneId: string, position: PlayerPoint): PlayerSave {
++  if (sceneId !== save.currentSceneId) throw new Error('completion-position-scene-mismatch')
++  return recordPlayerScenePosition(save, save.currentSceneId, position)
++}
+ function dueUpdate(current: PlayerSave): PlayerSave {
+   const completion = notifyDueShopOrders(current.shopOrders, current.phoneNotifications, 300)
+   return completion.changed ? { ...current, shopOrders: completion.orders, phoneNotifications: completion.notifications } : current
+@@ -105,7 +111,7 @@
+     const publish = vi.fn((next: PlayerSave) => { current = next })
+     const coordinator = createPositionSaveCoordinator({
+       getSave: () => current, setSave: publish, getCurrentSceneId: () => current.currentSceneId,
+-      recordPosition: recordPlayerScenePosition, persist: next => savePlayerSave(next, unavailable),
++      recordPosition: recordCompletionPosition, persist: next => savePlayerSave(next, unavailable),
+     })
+     expect(() => coordinator.commit(dueUpdate)).toThrow('player-save-write-failed')
+     expect(failure).toHaveBeenCalledTimes(1)
+@@ -133,7 +139,7 @@
+     })
+     const coordinator = createPositionSaveCoordinator({
+       getSave: () => current, setSave: publish, getCurrentSceneId: () => current.currentSceneId,
+-      recordPosition: recordPlayerScenePosition, persist,
++      recordPosition: recordCompletionPosition, persist,
+     })
+     coordinator.commit(dueUpdate)
+     expect(persist).toHaveBeenCalledTimes(1)
+--- a/src/save-session.mjs
++++ b/src/save-session.mjs
+@@ -78,7 +78,7 @@
+     transaction.changed=true;
+   });
+   check(); // Reject the verified-write -> facade-construction interleaving.
+-  return {
++  const facade = {
+     getItem(key){check();const values=transaction?.values??journal.values;return Object.hasOwn(values,key)?values[key]:null;},
+     setItem:(key,value)=>write(key,String(value)),removeItem:key=>write(key,null),clear:()=>stop('save-reset-requires-explicit-recovery'),
+     key(i){check();return Object.keys(transaction?.values??journal.values)[i]??null;},get length(){check();return Object.keys(transaction?.values??journal.values).length;},
+@@ -89,6 +89,10 @@
+     setValidator(validate){check();try{validate(journal.values);}catch(error){return stop('save-consistency-failed: '+error.message);}validateValues=validate;},
+     check,stop:(reason='save-session-closed')=>stop(reason),get isOpen(){return !stopped;},get stopReason(){return stopReason;},get revision(){return journal.revision;},
+   };
++  // React DEV inspects enumerable prop values after error-boundary teardown.
++  // Hide the protected accessor from that enumeration, not from explicit access.
++  Object.defineProperty(facade,'length',{enumerable:false});
++  return facade;
+ }
+ export function isWritableGameKey(key){return key===PUBLICATION_KEY||key==='newtone-player-save-v1'||/^newtone-(progress-v[1-4]|narrative-progress-v[12]|reader-exit-tutorial-v1|landing-intro-v1)$/.test(key)||key==='newtone-choice-wheel-hint-seen'||key==='newtone-scene-motion-enabled'||key.startsWith('newtone:center:scene-layout:')||key.startsWith('newtone-layout-');}
+ export async function acquireSaveSession(locks,run,onFailure){if(!locks?.request)return onFailure('locking-unavailable');try{return await locks.request(SESSION_LOCK,{mode:'exclusive',ifAvailable:true},async lock=>lock?await run():onFailure('another-tab-active'));}catch(error){return onFailure('locking-failed',String(error));}}
+--- a/tests/saveEntryService.test.mjs
++++ b/tests/saveEntryService.test.mjs
+@@ -277,3 +277,49 @@
+   expect(()=>committed.sessionHandle.check()).toThrow('save-session-stopped');
+   runtime.dispose();
+ });
++
++function reactDebugProperties(value, properties = []) {
++  if (!value || typeof value !== 'object') return properties;
++  // Same own-enumerable value access as React DEV addObjectToProperties.
++  for (const key in value) if (Object.prototype.hasOwnProperty.call(value,key)) {
++    const child=value[key];
++    properties.push([key,typeof child]);
++    if(child && typeof child==='object')reactDebugProperties(child,properties);
++  }
++  return properties;
++}
++test('real facade debug enumeration and descriptors never read protected data, including after revocation',async()=>{
++  const r=rig(memoryStorage({[PLAYER]:JSON.stringify(save())})),committed=await choose(r,'continue'),facade=committed.sessionHandle.storage;
++  const expectedLength=Object.keys(committed.snapshot.values).length;
++  expect(facade.length).toBe(expectedLength);
++  const originalRead=r.raw.getItem.bind(r.raw);
++  const before=Object.fromEntries(Array.from({length:r.raw.length},(_,i)=>[r.raw.key(i),originalRead(r.raw.key(i))]));
++  const read=vi.spyOn(r.raw,'getItem'),write=vi.spyOn(r.raw,'setItem');
++  expect(()=>reactDebugProperties({sessionHandle:committed.sessionHandle})).not.toThrow();
++  expect(read).not.toHaveBeenCalled();expect(write).not.toHaveBeenCalled();
++  await committed.sessionHandle.close();
++  read.mockClear();write.mockClear();
++  let descriptors;
++  expect(()=>{descriptors=Object.getOwnPropertyDescriptors(facade);reactDebugProperties({sessionHandle:committed.sessionHandle});Object.entries(facade);Object.assign({},facade);JSON.stringify({sessionHandle:committed.sessionHandle});}).not.toThrow();
++  expect(descriptors.length.enumerable).toBe(false);
++  expect(typeof descriptors.length.get).toBe('function');
++  expect(Object.keys(facade)).not.toContain('length');
++  expect(facade.isOpen).toBe(false);expect(facade.stopReason).toBe('session-closed');
++  expect(read).not.toHaveBeenCalled();expect(write).not.toHaveBeenCalled();
++  read.mockRestore();write.mockRestore();
++  expect(Object.fromEntries(Array.from({length:r.raw.length},(_,i)=>[r.raw.key(i),r.raw.getItem(r.raw.key(i))]))).toEqual(before);
++});
++test('revoked real facade still rejects explicit data reads, writes and commits without changing old raw or authority',async()=>{
++  const oldRaw=JSON.stringify(save()),r=rig(memoryStorage({[PLAYER]:oldRaw})),committed=await choose(r,'continue'),facade=committed.sessionHandle.storage;
++  const snapshot=()=>Object.fromEntries(Array.from({length:r.raw.length},(_,i)=>[r.raw.key(i),r.raw.getItem(r.raw.key(i))]));
++  const before=snapshot();
++  await committed.sessionHandle.close();
++  const callback=vi.fn();
++  for(const access of [()=>facade.length,()=>facade.getItem(PLAYER),()=>facade.getItem('missing'),()=>facade.key(0),()=>facade.key(999),()=>facade.setItem(PLAYER,oldRaw),()=>facade.removeItem('newtone-choice-wheel-hint-seen'),()=>facade.transaction(callback),()=>facade.afterCommit('late',callback),()=>facade.setValidator(callback),()=>facade.check()])expect(access).toThrow('save-session-stopped');
++  expect(()=>facade.clear()).toThrow('save-reset-requires-explicit-recovery');
++  expect(()=>Object.getOwnPropertyDescriptor(facade,'length').get.call(facade)).toThrow('save-session-stopped');
++  expect(callback).not.toHaveBeenCalled();
++  expect(facade.stopReason).toBe('session-closed');
++  expect(r.raw.getItem(PLAYER)).toBe(oldRaw);
++  expect(snapshot()).toEqual(before);
++});

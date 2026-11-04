@@ -4,7 +4,7 @@ import {mainlineScenes} from '../src/center/runtime/mainlineScenes'
 import {mainlineInteractionTarget} from '../src/center/runtime/mainlineNavigation'
 it('estimates a seated Café departure from the same legal stand-up contact without moving the player',()=>{
  const scene=mainlineScenes['commercial-cafe']
- const seats=scene.objects.filter(o=>o.kind==='seat')
+ const seats=scene.objects.filter(o=>o.kind==='seat'&&o.roomId==='commercial-north-cafe-interior')
  expect(seats.length).toBeGreaterThan(0)
  for(const seat of seats){const screenMetrics={width:390,height:844},position={...seat.position}
   const walkingStart=mainlineInteractionTarget(scene,seat.id,position,{},undefined,{screenMetrics,actorId:'protagonist'})

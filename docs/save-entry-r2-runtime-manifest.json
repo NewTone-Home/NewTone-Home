@@ -1,0 +1,109 @@
+{
+  "baseCommit": "a2ee2e8cd50a4c2299e2e17a19aa3a6b2527727a",
+  "scope": "save/runtime owner only; not a joint freeze",
+  "fileListHashAlgorithm": "sha256(path+NUL+rawBytes+NUL+rawSHA256+LF), sorted paths",
+  "ownerSnapshotSha256": "4505f61a31efb4dd3424a01e102e315a2dab586184514aeb2e0b1108d2551f73",
+  "files": [
+    {
+      "path": "src/center/CenterExperience.jsx",
+      "bytes": 69130,
+      "sha256": "a752adddb3082d4d096e96bab1a976e7299bcb0bbb6bf0705b95cc32ea91c6b0",
+      "lfSha256": "d9f4eaeb82146bcd63f6e969d4e1a1fabec91239afbe4653c13907bfa0425775"
+    },
+    {
+      "path": "src/center/runtime/cafeStoryOrderDelivery.test.ts",
+      "bytes": 10777,
+      "sha256": "022116ac2a83f5bae36e9655dcb5e2ed51d279ed76aa067786c0a4e74008092c",
+      "lfSha256": "dc7f0392e7dfe82b176ce53967c991e83d34123b13e42e55993743de0b5a4c20"
+    },
+    {
+      "path": "src/center/runtime/commercialStreetShopApps.test.ts",
+      "bytes": 4681,
+      "sha256": "0c24a02484c6b6e6b05787f873b56ff5bdbce28548822eb8476a76901b1f138e",
+      "lfSha256": "2cae24d994d51d43d0713422a56d163f53eec0373c3cf05960599899f4aec3ec"
+    },
+    {
+      "path": "src/center/runtime/miningStreetShell.ts",
+      "bytes": 17807,
+      "sha256": "dddaf554e628c2831d67b53d0a76c0696c535c646b8ab5dbddcfb98af606c605",
+      "lfSha256": "548e9e5b6ebe5618b772f2dff7be853782c9de33d1947cfac4134eb4ab0964b4"
+    },
+    {
+      "path": "src/center/runtime/playerSave.ts",
+      "bytes": 29724,
+      "sha256": "f81f2d835d625d6f730c38d6c0d8ad8caec54dec97591d9223743e20d2cd9200",
+      "lfSha256": "3bc562d684d5d8eaf41c3915fbcceba233a5c901c2123468ba21cebffc7bcc80"
+    },
+    {
+      "path": "src/center/runtime/runtimeSaveLifecycle.mjs",
+      "bytes": 1492,
+      "sha256": "27ae279824a8df33cf4ec2c2f765ce7b6db382ad6e1f70d1287510d747760bd0",
+      "lfSha256": "27ae279824a8df33cf4ec2c2f765ce7b6db382ad6e1f70d1287510d747760bd0"
+    },
+    {
+      "path": "src/save-session.mjs",
+      "bytes": 6966,
+      "sha256": "a8f0189561f6ec726d1bdc31325280001d63236c79a8d5351a8951e99b549938",
+      "lfSha256": "14dec6f5d7a47124a294e856e0c4722c5182ef1f77a6fcd40cfe7afc415633c0"
+    },
+    {
+      "path": "src/services/saveEntryService.mjs",
+      "bytes": 27771,
+      "sha256": "bd9eed416ac468e9013646e6e9018bc6b85ea3b4c942ee399f191584605b1ae4",
+      "lfSha256": "9787b995833d95c396489acd9bfa20a26224efe0b63bb97a561756683b1e4c7c"
+    },
+    {
+      "path": "src/stores/narrativeProgressStore.js",
+      "bytes": 2358,
+      "sha256": "3f6fb5022e42fcf62e6b0ce8a299ef8731a65d0185307f009b0edcabc706b792",
+      "lfSha256": "caa71289f4584360bb597abce5b880d0053a31c320096c458b7f2ea8c62cd505"
+    },
+    {
+      "path": "src/stores/progressStore.js",
+      "bytes": 6777,
+      "sha256": "4c114ff0d5d0066af82e62b9f67aa2a2266946702ba1b689812b3c09a1c92e46",
+      "lfSha256": "e5711ab2762e0d3874936ebaed8c938e655433e545bb72d6a2d0c5c213e5c01b"
+    },
+    {
+      "path": "src/stores/readerStoreScope.js",
+      "bytes": 545,
+      "sha256": "e81e5055a5ce2c40b3806a725aa2250775ea6c6b87eba39d24a0ea78b6a51afb",
+      "lfSha256": "94c7c43e1f2befbcd061e1a80d973d18930b8ad3e175552d4117dad8686250d3"
+    },
+    {
+      "path": "tests/playerSave.test.js",
+      "bytes": 18539,
+      "sha256": "43247784b8b4524b7ad1bfccf414b8b8e7d6d67d2cb9ce18abb996ccb4f3f605",
+      "lfSha256": "0ae06f20472a6148917b038e926fcdb9ef4bb58af0b0225686c8449777b4d94d"
+    },
+    {
+      "path": "tests/progressStorePreviewCompatibility.test.js",
+      "bytes": 4946,
+      "sha256": "1afdf7b105eabdda34495f6492bea1c5064ac8adf2f317d5caec23e07ac1f2e5",
+      "lfSha256": "7abd99c2e129d5670079147680dde0fadeffc29ef0adda5c630467ef3565aadc"
+    },
+    {
+      "path": "tests/publicReleaseMigration.test.js",
+      "bytes": 3391,
+      "sha256": "8717887f76633d14a5378ddcb26a832d7b0415aeb90ce86c09decfb2f8f87d81",
+      "lfSha256": "0df719939a7e0a468dc3c3b261886eb3c06c032a8ffc3c82b16cda149b252054"
+    },
+    {
+      "path": "tests/saveEntryService.test.mjs",
+      "bytes": 45198,
+      "sha256": "2cf68840420a063951b8b156e99c3605c5939d63d8f3f433a69f2a0159eb6596",
+      "lfSha256": "477531d7b03868c9e8986face32038c0b78c90c517bf4cc35ee60e3cf819b203"
+    },
+    {
+      "path": "tests/yongheInteriorTrial.test.ts",
+      "bytes": 26423,
+      "sha256": "65190cc34971555748ecf9a21347a33aa67485858b0debb6e480ec84df7eaa95",
+      "lfSha256": "49fa841772f4525d0ff04593282117efede7122e0d86a4b4f1265d957654fc7a"
+    }
+  ],
+  "verification": "16 owned files parsed with existing TypeScript createSourceFile; no parse diagnostics. No tests/typecheck/build/browser run.",
+  "newTargetedTests": 15,
+  "updatedContractTests": 9,
+  "previousOwnerSnapshotSha256": "fb1e29b94882d77ae215b165de7fbb0ff00fff672fbf6769529beef378de1c92",
+  "additionalScope": "warehouse door wiring only; ordinary table-delivery and shared three-shop app product logic unchanged"
+}

@@ -1,6 +1,6 @@
 export const commercialStreetStorefrontInteractionDebounceMs = 300
 
-export type CommercialStreetStorefrontAction = 'milk-tea-order'
+export type CommercialStreetStorefrontAction = 'milk-tea-order' | 'fruit-tea-order'
 
 type AmbientStorefrontInteraction = {
   kind: 'ambient'
@@ -22,12 +22,8 @@ export type CommercialStreetStorefrontInteraction = AmbientStorefrontInteraction
 
 export const commercialStreetStorefrontInteractions = {
   'commercial-north-slot-1': {
-    kind: 'coming-soon',
-    firstLine: 'Coming Soon',
-    lines: [
-      '门边的立牌上画着几种颜色很亮的果饮。',
-      '招牌上的布还没有揭开。',
-    ],
+    kind: 'action',
+    action: 'fruit-tea-order',
   },
   'commercial-north-slot-2': {
     kind: 'ambient',

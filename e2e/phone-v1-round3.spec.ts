@@ -16,7 +16,7 @@ async function capture(page:Page,name:string){await expect(page.locator('.world-
 for(const viewport of [{width:1440,height:900},{width:390,height:844}])test(`${viewport.width} Street to seated Cafe order persists and boards only at the official exit`,async({page})=>{
  test.setTimeout(120000);await page.setViewportSize(viewport);await seed(page)
  await walkStreet(page,185);await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
- await expect(page.locator('.scene-shell[data-mainline-scene=commercial-cafe]')).toBeVisible({timeout:20000})
+  await expect(page.locator('.scene-shell[data-mainline-scene=commercial-street]')).toBeVisible({timeout:20000});await expect(page.locator('.scene-shell[data-mainline-scene=commercial-cafe]')).toHaveCount(0);await expect(page.locator('[data-actor-id^=cafe-]')).toHaveCount(0);await page.goto('/?scene=commercial-cafe');await expect(page.locator('.scene-shell[data-mainline-scene=commercial-cafe]')).toBeVisible({timeout:20000})
  await reading(page);await page.locator('[data-object-id="commercial-cafe-bottom-right-group-chair-right"]').click()
  await expect(page.getByLabel('修杰，已坐下')).toBeVisible({timeout:15000})
  await page.getByLabel('打开手机').click();const phone=page.locator('.world-phone')

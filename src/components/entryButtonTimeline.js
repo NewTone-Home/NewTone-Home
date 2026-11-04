@@ -13,6 +13,14 @@ export function createEntryProgress(overrides = {}) {
   return { text: 0, frame: 0, fill: 0, ...overrides }
 }
 
+export function createEntryExitSteps() {
+  return [
+    { key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit },
+    { key: 'fill', to: 0, duration: ENTRY_BUTTON_TIMINGS.fillClose },
+    { key: 'frame', to: 0, duration: ENTRY_BUTTON_TIMINGS.frameExit },
+  ]
+}
+
 function clamp(value) {
   return Math.max(0, Math.min(1, value))
 }

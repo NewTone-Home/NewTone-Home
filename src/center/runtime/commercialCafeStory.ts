@@ -1,3 +1,4 @@
+import { hasContinuousCafe, isCafeWorldId } from './continuousCafe'
 import type { PlayerSceneState } from './playerSave'
 import type { MainlineSceneDialoguePresentation, MainlineSceneId } from './mainlineSceneModel'
 import type { MainlineSceneDefinition } from './mainlineScenes'
@@ -19,7 +20,6 @@ export const commercialCafeNarrativePhaseKey = 'commercialCafeNarrativePhase'
 export const commercialCafeLaoZhouDepartureKey = 'commercialCafeLaoZhouDeparture'
 export const commercialCafeCompletedAtKey = 'commercialCafeCompletedAt'
 export const commercialCafeAnalyticsMilestonesKey = 'commercialCafeAnalyticsMilestones'
-export const commercialCafeCompletionPresenceMs = 5 * 60 * 1000
 export const commercialCafeCoffeePreparationDurationMs = 6000
 
 // These keys are migration inputs only. Patches clear them after translating
@@ -29,8 +29,8 @@ const legacyCommercialCafeCoffeeDeliveredKey = 'commercialCafeCoffeeDelivered'
 
 export type CommercialCafeStoryStatus = 'available' | 'ready-to-leave' | 'complete'
 export type CommercialCafeCoffeeStatus = 'none' | 'ordered' | 'preparing' | 'ready' | 'delivered'
-export type CommercialCafeNarrativePhase = 'not-started' | 'dialogue' | 'coffee-delivery' | 'complete'
-export type CommercialCafeLaoZhouDeparture = 'seated' | 'walking-out' | 'departed'
+export type CommercialCafeNarrativePhase = 'not-started' | 'dialogue' | 'coffee-delivery' | 'coffee-returning' | 'complete'
+export type CommercialCafeLaoZhouDeparture = 'seated' | 'departed'
 export type CommercialCafeStoryState = {
   status: CommercialCafeStoryStatus
   narrativeCursor: number
@@ -49,6 +49,20 @@ export const commercialCafeStoryTableId = 'commercial-cafe-right-window-upper-gr
 export const commercialCafeCounterTargetId = 'commercial-cafe-counter-service'
 export const commercialCafePrepTargetId = 'commercial-cafe-prep-station'
 
+/** Resolve the active story table from Lao Zhou's live seat assignment. */
+export function commercialCafeStoryTableIdForScene(scene: MainlineSceneDefinition): string {
+  const laoZhouSeatId = scene.npcBehaviors?.find((behavior) =>
+    behavior.npcId === npcRoles.laoZhou.id
+      && behavior.dutyId === npcRoles.laoZhou.duties.seated.id
+      && behavior.targetKind === 'seat')?.targetId
+  const laoZhouSeat = scene.objects.find((entity) =>
+    entity.id === laoZhouSeatId && entity.kind === 'seat' && entity.seat)
+  const tableId = laoZhouSeat?.seat?.tableId
+  const table = tableId ? scene.objects.find((entity) =>
+    entity.id === tableId && entity.kind === 'table' && entity.roomId === laoZhouSeat.roomId) : undefined
+  return table?.id ?? commercialCafeStoryTableId
+}
+
 export function isCommercialCafeStoryStage(value: unknown): value is CommercialCafeStoryStage {
   return typeof value === 'string' && commercialCafeStoryStages.includes(value as CommercialCafeStoryStage)
 }
@@ -61,27 +75,28 @@ function legacyStoryStage(sceneState: PlayerSceneState | undefined): CommercialC
 export const commercialCafeNarrativeDialogue = {
   triggerEntityId: 'lao-zhou',
   lines: [
-    { id: 'commercial-cafe-lao-zhou-first-xiujie', speaker: '修杰', text: '陈副部长还是没有消息吗？' },
-    { id: 'commercial-cafe-lao-zhou-first-lao-zhou', speaker: '老周', text: '完全没有。' },
+    { id: 'commercial-cafe-lao-zhou-first-xiujie', speaker: '修杰', text: '陈副部长那边，还是没消息吗？' },
+    { id: 'commercial-cafe-lao-zhou-first-lao-zhou', speaker: '老周', speakerNpcId: 'lao-zhou', text: '还没有。' },
     { id: 'commercial-cafe-coffee-xiujie', speaker: '修杰', text: '你还是不爱喝咖啡。' },
-    { id: 'commercial-cafe-coffee-lao-zhou', speaker: '老周', text: '是啊，我真喝不惯那玩意儿，而且上次喝完失眠了，我这把年纪了还是不要折腾比较好。' },
-    { id: 'commercial-cafe-intel-lao-zhou-document', speaker: '老周', text: '我昨天无意间看到了一份文件，不过我权限不够，只能看到一部分。' },
-    { id: 'commercial-cafe-intel-lao-zhou-camera', speaker: '老周', text: '说是在矿区附近的监控疑似拍到过陈副部长。不过没有照片，我也不能确定是不是真的。' },
+    { id: 'commercial-cafe-coffee-lao-zhou', speaker: '老周', speakerNpcId: 'lao-zhou', text: '喝不惯。上次就因为喝了杯咖啡，折腾得半宿没睡好。年纪大了，经不起这个。' },
+    { id: 'commercial-cafe-intel-lao-zhou-document', speaker: '老周', speakerNpcId: 'lao-zhou', text: '说正事儿。昨天整理文件时，我无意中看到一份材料，不过权限不够，只看到了其中一部分。' },
+    { id: 'commercial-cafe-intel-lao-zhou-camera', speaker: '老周', speakerNpcId: 'lao-zhou', text: '文件里提到，矿区附近的监控疑似拍到过陈副部长。不过没有照片，我也不能确定是不是真的。' },
     { id: 'commercial-cafe-intel-xiujie-mine', speaker: '修杰', text: '矿区？' },
-    { id: 'commercial-cafe-intel-lao-zhou-mine', speaker: '老周', text: '对，按照陈副部长的生活工作范围来推测，不大可能会出现在那边。' },
-    { id: 'commercial-cafe-intel-xiujie-destination', speaker: '修杰', text: '整个矿区很大，能知道他去哪里了吗？' },
-    { id: 'commercial-cafe-intel-lao-zhou-eatery', speaker: '老周', text: '查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。' },
+    { id: 'commercial-cafe-intel-lao-zhou-mine', speaker: '老周', speakerNpcId: 'lao-zhou', text: '对，按照陈副部长的生活工作范围来推测，不大可能会出现在那边。' },
+    { id: 'commercial-cafe-intel-xiujie-destination', speaker: '修杰', text: '那边范围不小，能查到他往哪儿去了吗？' },
+    { id: 'commercial-cafe-intel-lao-zhou-eatery', speaker: '老周', speakerNpcId: 'lao-zhou', text: '具体去向查不到。不过我在那边有个线人，听他说，有人似乎在永和小馆附近见过陈副部长。' },
     { id: 'commercial-cafe-intel-xiujie-eatery', speaker: '修杰', text: '永和小馆？' },
-    { id: 'commercial-cafe-intel-lao-zhou-eatery-detail', speaker: '老周', text: '对，永和小馆，我也查过，一家苍蝇馆子，平常都是些工友在那里吃饭什么的，没什么很特别的地方。所以也只是有人貌似见过，并不能完全确定。' },
+    { id: 'commercial-cafe-intel-lao-zhou-eatery-detail', speaker: '老周', speakerNpcId: 'lao-zhou', text: '对，永和小馆，我也查过，一家苍蝇馆子，平常都是些工友在那里吃饭什么的，没什么很特别的地方。所以也只是有人貌似见过，并不能完全确定。' },
     { id: 'commercial-cafe-resolution-xiujie', speaker: '修杰', text: '行，我知道了，有什么新信息再跟我说。' },
-    { id: 'commercial-cafe-resolution-lao-zhou', speaker: '老周', text: '好。' },
+    { id: 'commercial-cafe-resolution-lao-zhou', speaker: '老周', speakerNpcId: 'lao-zhou', text: '好。' },
   ],
 } as const satisfies MainlineSceneDialoguePresentation
 
 export const commercialCafeDeliveryDialogueLine = {
   id: 'commercial-cafe-coffee-delivery',
+  speakerNpcId: commercialCafeCoffeeOwnerNpcId,
   speaker: '店员',
-  text: '您的咖啡。',
+  text: '咖啡好了，请慢用。',
 } as const
 
 /** Only durable story beats are analytics-worthy; punctuation segments are not. */
@@ -109,7 +124,7 @@ export function commercialCafeAnalyticsMilestonePatch(sceneState: PlayerSceneSta
 
 export const commercialCafeSeatGuideDialogue = {
   triggerEntityId: 'lao-zhou',
-  lines: [{ id: 'commercial-cafe-lao-zhou-seat-guide', speaker: '老周', text: '你来了，坐吧。' }],
+  lines: [{ id: 'commercial-cafe-lao-zhou-seat-guide', speaker: '老周', speakerNpcId: 'lao-zhou', text: '你来了，坐吧。' }],
 } as const satisfies MainlineSceneDialoguePresentation
 
 const legacyCursorByStage: Record<CommercialCafeStoryStage, number> = {
@@ -118,8 +133,7 @@ const legacyCursorByStage: Record<CommercialCafeStoryStage, number> = {
 }
 function isStoryStatus(value: unknown): value is CommercialCafeStoryStatus { return value === 'available' || value === 'ready-to-leave' || value === 'complete' }
 function isCoffeeStatus(value: unknown): value is CommercialCafeCoffeeStatus { return value === 'none' || value === 'ordered' || value === 'preparing' || value === 'ready' || value === 'delivered' }
-function isNarrativePhase(value: unknown): value is CommercialCafeNarrativePhase { return value === 'not-started' || value === 'dialogue' || value === 'coffee-delivery' || value === 'complete' }
-function isDeparture(value: unknown): value is CommercialCafeLaoZhouDeparture { return value === 'seated' || value === 'walking-out' || value === 'departed' }
+function isNarrativePhase(value: unknown): value is CommercialCafeNarrativePhase { return value === 'not-started' || value === 'dialogue' || value === 'coffee-delivery' || value === 'coffee-returning' || value === 'complete' }
 function validCursor(value: unknown): value is number { return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= commercialCafeNarrativeDialogue.lines.length }
 
 function legacyCoffeeStatus(sceneState: PlayerSceneState | undefined, stage: CommercialCafeStoryStage): CommercialCafeCoffeeStatus {
@@ -143,8 +157,8 @@ export function commercialCafeStoryStateFromSceneState(sceneState: PlayerSceneSt
   const narrativePhase = isNarrativePhase(sceneState?.[commercialCafeNarrativePhaseKey])
     ? sceneState[commercialCafeNarrativePhaseKey] as CommercialCafeNarrativePhase
     : status === 'complete' || status === 'ready-to-leave' ? 'complete' : validCursor(storedCursor) && narrativeCursor > 0 ? 'dialogue' : 'not-started'
-  const laoZhouDeparture = isDeparture(sceneState?.[commercialCafeLaoZhouDepartureKey]) ? sceneState[commercialCafeLaoZhouDepartureKey] as CommercialCafeLaoZhouDeparture : 'seated'
-  const completedAt = typeof sceneState?.[commercialCafeCompletedAtKey] === 'number' ? sceneState[commercialCafeCompletedAtKey] as number : status === 'complete' ? 0 : null
+  const laoZhouDeparture: CommercialCafeLaoZhouDeparture = sceneState?.[commercialCafeLaoZhouDepartureKey] === 'departed' ? 'departed' : 'seated'
+  const completedAt = typeof sceneState?.[commercialCafeCompletedAtKey] === 'number' ? sceneState[commercialCafeCompletedAtKey] as number : null
   const coffeePreparationStartedAt = typeof sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === 'number' ? sceneState[commercialCafeCoffeePreparationStartedAtKey] as number : null
   return {
     status,
@@ -178,7 +192,7 @@ export function commercialCafeStoryNeedsMigration(sceneState: PlayerSceneState |
     || !isCoffeeStatus(sceneState?.[commercialCafeCoffeeStatusKey])
     || !(typeof sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === 'number' || sceneState?.[commercialCafeCoffeePreparationStartedAtKey] === null)
     || !isNarrativePhase(sceneState?.[commercialCafeNarrativePhaseKey])
-    || !isDeparture(sceneState?.[commercialCafeLaoZhouDepartureKey])
+    || !['seated', 'departed'].includes(String(sceneState?.[commercialCafeLaoZhouDepartureKey]))
     || !(typeof sceneState?.[commercialCafeCompletedAtKey] === 'number' || sceneState?.[commercialCafeCompletedAtKey] === null)
     || sceneState?.[commercialCafeStoryStageKey] !== null
     || sceneState?.[legacyCommercialCafeCoffeeOrderedKey] !== null
@@ -224,6 +238,11 @@ export function commercialCafeFinishCursorOne(story: CommercialCafeStoryState) {
 }
 export function commercialCafeFinishDeliveryLine(story: CommercialCafeStoryState) {
   return story.coffeeStatus === 'delivered' && story.narrativeCursor === 1 && story.narrativePhase === 'coffee-delivery'
+    ? { ...story, narrativeCursor: 1, narrativePhase: 'coffee-returning' as const }
+    : story
+}
+export function commercialCafeFinishDeliveryReturn(story: CommercialCafeStoryState) {
+  return story.coffeeStatus === 'delivered' && story.narrativeCursor === 1 && story.narrativePhase === 'coffee-returning'
     ? { ...story, narrativeCursor: 2, narrativePhase: 'dialogue' as const }
     : story
 }
@@ -234,45 +253,59 @@ export function commercialCafeStoryReadyToLeave(story: CommercialCafeStoryState)
 export function commercialCafeStoryCompleted(story: CommercialCafeStoryState, now: number): CommercialCafeStoryState {
   return { ...story, status: 'complete', narrativeCursor: commercialCafeNarrativeDialogue.lines.length, narrativePhase: 'complete', completedAt: now, laoZhouDeparture: 'seated' }
 }
-export function commercialCafeLaoZhouDepartureDue(story: CommercialCafeStoryState, now: number) {
-  return story.status === 'complete' && story.completedAt !== null && now - story.completedAt >= commercialCafeCompletionPresenceMs
-}
 export function commercialCafeLaoZhouIsPresent(story: CommercialCafeStoryState, _now: number) {
-  return story.laoZhouDeparture === 'seated'
+  return story.laoZhouDeparture !== 'departed'
 }
-export function commercialCafeStoryWithLaoZhouDeparture(story: CommercialCafeStoryState, departure: CommercialCafeLaoZhouDeparture): CommercialCafeStoryState {
-  return { ...story, laoZhouDeparture: departure }
+
+/** Record departure only after the completed meeting and an actual world exit. */
+export function commercialCafeDepartureOnTransition(sceneState: PlayerSceneState | undefined, from: string, to: string): PlayerSceneState | null {
+  const story = commercialCafeStoryStateFromSceneState(sceneState)
+  if (from !== 'commercial-street' || to === 'commercial-street' || to === 'commercial-cafe' || story.status !== 'complete' || story.laoZhouDeparture === 'departed') return null
+  return { [commercialCafeLaoZhouDepartureKey]: 'departed' }
 }
-export function shouldCompleteCommercialCafeStoryOnTransition({ sceneId, story, targetSceneId }: { sceneId: string; story: CommercialCafeStoryState; targetSceneId?: string }) {
-  return sceneId === 'commercial-cafe' && story.status === 'ready-to-leave' && targetSceneId === 'commercial-street'
+
+/** Old saves need positive evidence that the player left after the meeting. */
+export function commercialCafeLegacyDeparture(sceneState: PlayerSceneState | undefined, currentSceneId: string): PlayerSceneState | null {
+  const story = commercialCafeStoryStateFromSceneState(sceneState)
+  if (story.laoZhouDeparture === 'departed') return null
+  const ruoyuUnlocked = sceneState?.commercialCafeRuoyuUnlocked === true
+  const inMine = currentSceneId === 'yonghe-mining-perimeter' || currentSceneId === 'yonghe-eatery'
+  if (!ruoyuUnlocked && !(story.status === 'complete' && inMine)) return null
+  return { [commercialCafeLaoZhouDepartureKey]: 'departed' }
+}
+export function shouldCompleteCommercialCafeStoryOnTransition({ sceneId, story, targetSceneId, passageId, leavingRoom }: { sceneId: string; story: CommercialCafeStoryState; targetSceneId?: string; passageId?: string; leavingRoom?: boolean }) {
+  return story.status === 'ready-to-leave' && targetSceneId === 'commercial-street'
+    && (sceneId === 'commercial-cafe' || sceneId === 'commercial-street' && passageId === 'street-cafe-entry' && leavingRoom === true)
 }
 
 export function resolveCommercialCafeCoffeePrepIntent(scene: MainlineSceneDefinition): NpcIntent | null {
-  if (scene.id !== 'commercial-cafe') return null
+  if (!hasContinuousCafe(scene)) return null
   const target = scene.npcBehaviorTargets?.find((candidate) => candidate.id === commercialCafePrepTargetId)
   return target ? { dutyId: npcRoles.cafeCoffeeOwner.duties.prepare.id, targetId: commercialCafePrepTargetId, target: { ...target.position } } : null
 }
 export function resolveCommercialCafeCoffeeDeliveryIntent({ scene, coffeeStatus, narrativePhase }: { scene: MainlineSceneDefinition; coffeeStatus: CommercialCafeCoffeeStatus; narrativePhase: CommercialCafeNarrativePhase }): NpcIntent | null {
-  if (scene.id !== 'commercial-cafe' || coffeeStatus !== 'ready' || narrativePhase !== 'coffee-delivery') return null
-  const table = scene.objects.find((entity) => entity.id === commercialCafeStoryTableId)
+  if (!hasContinuousCafe(scene) || coffeeStatus !== 'ready' || narrativePhase !== 'coffee-delivery') return null
+  const storyTableId = commercialCafeStoryTableIdForScene(scene)
+  const table = scene.objects.find((entity) => entity.id === storyTableId && entity.kind === 'table')
   return table ? { dutyId: npcRoles.cafeCoffeeOwner.duties.deliverCoffee.id, targetId: table.id, targetEntityId: table.id } : null
 }
 export function resolveCommercialCafeReturnToCounterIntent(scene: MainlineSceneDefinition): NpcIntent | null {
-  if (scene.id !== 'commercial-cafe') return null
+  if (!hasContinuousCafe(scene)) return null
   const target = mainlineNpcStagedPoint(scene, commercialCafeCoffeeOwnerNpcId)
   return target ? { dutyId: npcRoles.cafeCoffeeOwner.duties.returnToCounter.id, targetId: commercialCafeCounterTargetId, target: { ...target } } : null
 }
 export function resolveCommercialCafeFloorServiceIntent(scene: MainlineSceneDefinition, rotation = 0): NpcIntent | null {
-  if (scene.id !== 'commercial-cafe') return null
-  const publicTables = scene.objects.filter((entity) => entity.kind === 'table' && entity.id !== commercialCafeStoryTableId)
+  if (!hasContinuousCafe(scene)) return null
+  const storyTableId = commercialCafeStoryTableIdForScene(scene)
+  const publicTables = scene.objects.filter((entity) => entity.kind === 'table' && entity.roomId === 'commercial-north-cafe-interior' && entity.id !== storyTableId)
   const table = publicTables.length ? publicTables[rotation % publicTables.length] : undefined
   return table?.approach ? { dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: table.id, target: { ...table.approach } } : null
 }
 
 export type CommercialCafeNpcInteractionResolution = { kind: 'dialogue'; dialogue: MainlineSceneDialoguePresentation; promptSeatId?: string } | { kind: 'start-narrative' }
-export function resolveCommercialCafeNpcInteraction({ sceneId, npcId, story, playerSeatId }: { sceneId: MainlineSceneId; npcId: string; story: CommercialCafeStoryState; playerSeatId?: string | null }): CommercialCafeNpcInteractionResolution | null {
-  if (sceneId !== 'commercial-cafe' || npcId !== 'lao-zhou') return null
+export function resolveCommercialCafeNpcInteraction({ sceneId, npcId, story, playerSeatId, conversationSeatId = commercialCafeLaoZhouConversationSeatId }: { sceneId: MainlineSceneId; npcId: string; story: CommercialCafeStoryState; playerSeatId?: string | null; conversationSeatId?: string }): CommercialCafeNpcInteractionResolution | null {
+  if (!isCafeWorldId(sceneId) || npcId !== 'lao-zhou') return null
   if (story.status === 'complete' || story.status === 'ready-to-leave' || story.laoZhouDeparture !== 'seated') return null
-  if (playerSeatId !== commercialCafeLaoZhouConversationSeatId) return { kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue, promptSeatId: commercialCafeLaoZhouConversationSeatId }
+  if (playerSeatId !== conversationSeatId) return { kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue }
   return { kind: 'start-narrative' }
 }

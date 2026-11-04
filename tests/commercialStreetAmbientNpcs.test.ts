@@ -4,13 +4,15 @@ import { isWalkableMainlinePoint } from '../src/center/runtime/mainlineNavigatio
 import { mainlineScenes, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 
 const street = mainlineScenes['commercial-street']
-const ambientNpcs = street.npcs.filter((npc) => npc.roleId === 'pedestrian')
+const ambientNpcs = street.npcs.filter((npc) => street.ambientNpcRoutes.some(route => route.npcId === npc.id))
 
 describe('Commercial Street ambient pedestrians', () => {
   it('authors exactly six non-interactive people in the street only', () => {
     expect(ambientNpcs).toHaveLength(6)
     expect(ambientNpcs.every((npc) => npc.label === '人' && npc.interactive === false && npc.interactionTargetEntityId === undefined)).toBe(true)
-    expect(mainlineScenes['commercial-cafe'].npcs.some((npc) => npc.roleId === 'pedestrian')).toBe(false)
+    expect(street.ambientNpcRoutes.every(route => route.npcId.startsWith('commercial-street-pedestrian-'))).toBe(true)
+    const lane = street.rooms.find(room => room.id === 'commercial-street-public-lane')!.bounds
+    for (const npc of ambientNpcs) { const p = street.npcPlacements.find(p => p.npcId === npc.id)!.position; expect(p.x).toBeGreaterThan(lane.x); expect(p.x).toBeLessThan(lane.x+lane.width); expect(p.y).toBeGreaterThan(lane.y); expect(p.y).toBeLessThan(lane.y+lane.height) }
   })
 
   it('gives every pedestrian a distinct startup phase and a fixed legal route', () => {
@@ -25,6 +27,7 @@ describe('Commercial Street ambient pedestrians', () => {
         expect(target.x).toBeLessThanOrEqual(street.walkBounds.x + street.walkBounds.width)
         expect(target.y).toBeGreaterThanOrEqual(street.walkBounds.y)
         expect(target.y).toBeLessThanOrEqual(street.walkBounds.y + street.walkBounds.height)
+        expect(isWalkableMainlinePoint(target, street), `${route.npcId} target ${target.x},${target.y}`).toBe(true)
       })
     })
   })

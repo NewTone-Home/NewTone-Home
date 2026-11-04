@@ -1,0 +1,13 @@
+.dialogue-choice-selection-transfer {
+  position: fixed;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  color: inherit;
+  white-space: nowrap;
+  transform-origin: top left;
+  will-change: transform;
+}
+.dialogue-choice-selection-transfer > span { position: relative; z-index: 1; }

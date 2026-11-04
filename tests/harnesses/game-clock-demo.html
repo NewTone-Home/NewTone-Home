@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game Clock · Isolated Development Harness</title>
+    <style>
+      :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #111827; color: #e5e7eb; }
+      body { max-width: 760px; margin: 40px auto; padding: 0 20px; }
+      h1 { font-size: 1.6rem; }
+      .notice { border-left: 4px solid #f59e0b; background: #292524; padding: 12px 16px; line-height: 1.5; }
+      .panel { display: grid; gap: 16px; padding: 20px; margin-top: 20px; border: 1px solid #374151; border-radius: 12px; background: #1f2937; }
+      .readout { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .metric { padding: 12px; border-radius: 8px; background: #111827; }
+      .value { display: block; margin-top: 4px; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+      .controls { display: flex; flex-wrap: wrap; gap: 8px; }
+      button { border: 1px solid #4b5563; border-radius: 7px; padding: 9px 12px; color: inherit; background: #374151; cursor: pointer; }
+      button[aria-pressed="true"] { border-color: #60a5fa; background: #1d4ed8; }
+      .pulse { width: 12px; height: 12px; border-radius: 50%; background: #34d399; animation: pulse 1s ease-in-out infinite alternate; }
+      @keyframes pulse { to { transform: scale(1.8); opacity: .45; } }
+      small { color: #9ca3af; line-height: 1.5; }
+    </style>
+  </head>
+  <body>
+    <h1>纯游戏时钟：隔离开发演示</h1>
+    <p class="notice"><strong>仅限开发试验。</strong>此页面不接入正式游戏、真实存档、订单或账号；页面关闭后重新打开会从零开始。普通观察的 0.1× 只是显式测试输入，不是正式倍率。</p>
+    <section class="panel" aria-live="polite">
+      <div class="readout">
+        <div class="metric">游戏模拟时间 <span class="value" id="game-time">00:00:00</span></div>
+        <div class="metric">本次页面真实时间 <span class="value" id="real-time">00:00</span></div>
+        <div class="metric">模式倍率 <span class="value" id="multiplier">30×</span></div>
+        <div class="metric">当前场景 <span class="value" id="scene">街道</span></div>
+      </div>
+      <div class="controls" id="modes">
+        <button type="button" data-rate="30" aria-pressed="true">正常试用 30×</button>
+        <button type="button" data-rate="0" aria-pressed="false">免费正式对话 0×</button>
+        <button type="button" data-rate="0.1" aria-pressed="false">观察测试注入 0.1×</button>
+      </div>
+      <div class="controls">
+        <button type="button" id="pause" aria-pressed="false">暂停演示时钟</button>
+        <button type="button" id="scene-change">切换场景（不重置时钟）</button>
+        <button type="button" id="reopen">模拟关闭后重新打开</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="pulse" aria-hidden="true"></span>
+        <small>绿色动画使用浏览器/CSS 动画时间，不受游戏倍率和暂停影响。</small>
+      </div>
+      <small>本底座没有日期字段，不会因经过 24 小时自动增加剧情日期。此演示不监听页面隐藏事件；暂停是显式的开发演示冻结原因。</small>
+    </section>
+    <script type="module" src="./game-clock-demo.ts"></script>
+  </body>
+</html>
