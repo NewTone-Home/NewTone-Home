@@ -5,3 +5,7 @@
 
 .landing-entry-updates-link { margin-top:.6rem; border:0; background:none; color:inherit; font:inherit; font-size:.8rem; opacity:.65; cursor:pointer; }
 .landing-entry-updates-link:focus-visible { outline:1px solid currentColor; outline-offset:4px; }
+
+.save-entry-warning { font-size:.875rem; line-height:1.55; margin:0; color:var(--reader-ink); }
+.save-entry-warning-overlay { position:fixed; top:max(12px,env(safe-area-inset-top)); right:max(12px,env(safe-area-inset-right)); width:min(22rem,calc(100vw - 24px)); z-index:100; padding:10px 12px; box-sizing:border-box; background:var(--reader-paper); border:1px solid var(--reader-border); pointer-events:none; }
+.save-entry-warning-overlay * { pointer-events:none; }

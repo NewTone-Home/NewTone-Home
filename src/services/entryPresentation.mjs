@@ -27,3 +27,14 @@ export function landingIntroState(preview) {
   if (preview?.status === 'not-learned' && preview.learned === false) return 'not-learned'
   return 'unknown'
 }
+
+export function entryWarningMessages(codes, language) {
+  if (!codes?.includes('LAO_ZHOU_TRIGGER_UNKNOWN')) return []
+  return [language === 'en'
+    ? 'We couldn’t confirm whether you’ve already spoken with Lao Zhou, so the opening message won’t appear for now. You can continue playing.'
+    : '暂时无法确认你是否已经和老周聊过，开场短信暂不弹出。其他游戏进度可以正常继续。']
+}
+export function currentEntryWarnings(state) {
+  return state.warningSource === 'committed' ? state.committedWarnings
+    : state.warningSource === 'operation' ? state.operationWarnings : state.inspectionWarnings
+}
