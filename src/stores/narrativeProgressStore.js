@@ -1,58 +1,26 @@
-import { create } from 'zustand'
+import { getGameStorage, commitStoreState, runSaveTransaction } from '../save-session.mjs'
+import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
-import {
-  beginNarrativeEvent,
-  clearNarrativeProgressStorage,
-  completeNarrativeEvent,
-  completeSkippedNarrativeEvent,
-  createInitialNarrativeProgressState,
-  loadNarrativeProgressState,
-  saveNarrativeProgressState,
-} from './narrativeProgressStorage'
-
-const browserStorage = typeof localStorage === 'undefined' ? null : localStorage
-
-function narrativeProgressStateCreator(storage) {
-  return (set, get) => ({
-    ...createInitialNarrativeProgressState(),
-    initialized: false,
-
-    initialize: (readerProgress) => {
-      const loaded = loadNarrativeProgressState(storage, readerProgress)
-      set({ ...loaded, initialized: true })
-      return loaded
-    },
-
-    beginEvent: (eventId) => {
-      const next = beginNarrativeEvent(get(), eventId)
-      set(next)
-      saveNarrativeProgressState(storage, next)
-      return next
-    },
-
-    completeEvent: (eventId) => {
-      const next = completeNarrativeEvent(get(), eventId)
-      set(next)
-      saveNarrativeProgressState(storage, next)
-      return next
-    },
-
-    completeSkippedEvent: (eventId) => {
-      const next = completeSkippedNarrativeEvent(get(), eventId)
-      set(next)
-      saveNarrativeProgressState(storage, next)
-      return next
-    },
-
-    reset: () => {
-      set({ ...createInitialNarrativeProgressState(), initialized: true })
-      clearNarrativeProgressStorage(storage)
-    },
-  })
+import { beginNarrativeEvent, completeNarrativeEvent, completeSkippedNarrativeEvent, createInitialNarrativeProgressState, loadNarrativeProgressState, saveNarrativeProgressState } from './narrativeProgressStorage'
+function narrativeProgressStateCreator(storage){
+  return (publish,get)=>{
+    const owner={};
+    const current=()=>storage?.pendingState?.(owner)??get();
+    const set=update=>commitStoreState(storage,owner,get,publish,update,next=>saveNarrativeProgressState(storage,next));
+    return {
+      ...createInitialNarrativeProgressState(),initialized:false,
+      initialize:readerProgress=>runSaveTransaction(storage,()=>{const loaded=loadNarrativeProgressState(storage,readerProgress);set({...loaded,initialized:true});return loaded}),
+      beginEvent:id=>{const next=beginNarrativeEvent(current(),id);set(next);return next},
+      completeEvent:id=>{const next=completeNarrativeEvent(current(),id);set(next);return next},
+      completeSkippedEvent:id=>{const next=completeSkippedNarrativeEvent(current(),id);set(next);return next},
+      reset:()=>runSaveTransaction(storage,()=>{storage?.removeItem('newtone-narrative-progress-v1');set({...createInitialNarrativeProgressState(),initialized:true})}),
+    };
+  };
 }
-
-export function createNarrativeProgressStore(storage) {
-  return createStore(narrativeProgressStateCreator(storage))
-}
-
-export const useNarrativeProgressStore = create(narrativeProgressStateCreator(browserStorage))
+export function createNarrativeProgressStore(storage){return createStore(narrativeProgressStateCreator(storage))}
+const boundStores=new WeakMap();
+export function getSessionNarrativeStore(storage){let store=boundStores.get(storage);if(!store){store=createNarrativeProgressStore(storage);boundStores.set(storage,store);}return store;}
+function currentStore(){const storage=getGameStorage();if(!storage)throw Error('save-session-not-open');return getSessionNarrativeStore(storage);}
+export function useNarrativeProgressStore(selector){return useStore(currentStore(),selector)}
+useNarrativeProgressStore.getState=()=>currentStore().getState();
+useNarrativeProgressStore.subscribe=(...args)=>currentStore().subscribe(...args);

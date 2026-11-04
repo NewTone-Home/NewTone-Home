@@ -1,3 +1,4 @@
+import { getGameStorage, rethrowStoppedSession } from '../../save-session.mjs'
 'use client'
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -42,8 +43,8 @@ type PointerDrag = { pointerId: number; startY: number; startPosition: number; l
  */
 // Start the rows at least two steps away so the one-second roll is visible even with two options.
 const dialogueChoiceHintStorageKey = 'newtone-choice-wheel-hint-seen'
-const readChoiceHintSeen = () => { try { return window.localStorage.getItem(dialogueChoiceHintStorageKey) === '1' } catch { return false } }
-const writeChoiceHintSeen = () => { try { window.localStorage.setItem(dialogueChoiceHintStorageKey, '1') } catch { /* private mode */ } }
+const readChoiceHintSeen = () => { try { return getGameStorage().getItem(dialogueChoiceHintStorageKey) === '1' } catch { rethrowStoppedSession(); return false } }
+const writeChoiceHintSeen = () => { try { getGameStorage().setItem(dialogueChoiceHintStorageKey, '1') } catch { rethrowStoppedSession(); /* private mode */ } }
 const dialogueChoiceWheelEntryStart = (optionCount: number) => optionCount < 2 ? 0 : Math.min(3, Math.max(2, optionCount - 1))
 
 export function DialogueChoiceWheel({ sessionId, actionId, options, menu, softExit, phase, placement, wideLayout = 'overlay', entryDurationMs = 1000, promptAbove = false, onConfirm, onEntranceSettled, onSelectionLocked, onCancel, onExitComplete }: DialogueChoiceWheelProps) {

@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useProgressStore } from '../stores/progressStore'
-import { useTransitionStore } from '../stores/transitionStore'
 import { copy } from '../i18n/copy'
+import { landingIntroState } from '../services/entryPresentation.mjs'
 import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
-import { LANDING_LEAVE_FADE_DELAY_MS, LANDING_RETURN_RETRACT_MS, TITLE_PHASE, readIntroCompleted, writeIntroCompleted } from '../landing/landingIntro'
+import { LANDING_LEAVE_FADE_DELAY_MS, LANDING_RETURN_RETRACT_MS, TITLE_PHASE, writeIntroCompleted } from '../services/landingIntro'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { useSceneParallax } from '../hooks/useSceneParallax'
 import { useTitleRetrace } from '../hooks/useTitleRetrace'
@@ -32,15 +31,21 @@ function Landing({
   onWorldCoverComplete,
   updatesPhase,
   worldMode = false,
+  entryUI,
+  preferences = {},
+  landingIntroPreview,
+  inspectionSettled = false,
 }) {
-  const language = useProgressStore(s => s.language)
-  const hasInitializedLanguage = useProgressStore(s => s.hasInitializedLanguage)
-  const readerStarted = useProgressStore(s => s.readerStarted)
-  const readerCompleted = useProgressStore(s => s.readerCompleted)
-  const motionMode = useProgressStore(s => s.motionMode)
+  const { language = 'zh', hasInitializedLanguage = false, motionMode = 'full' } = preferences
+  const readerStarted = false
+  const readerCompleted = false
 
-  const [introCompleted, setIntroCompleted] = useState(() => readIntroCompleted())
-  const [returnArrival] = useState(() => useTransitionStore.getState().landingArrivalKind === 'return')
+  const introPreviewState = landingIntroState(landingIntroPreview)
+  const [introCompleted, setIntroCompleted] = useState(null)
+  useEffect(() => {
+    setIntroCompleted(introPreviewState === 'unknown' ? null : introPreviewState === 'learned')
+  }, [introPreviewState])
+  const [returnArrival] = useState(false)
   const [returnSequenceActive, setReturnSequenceActive] = useState(returnArrival)
   const [returnStatusVisible, setReturnStatusVisible] = useState(returnArrival)
   const [returnStatusFading, setReturnStatusFading] = useState(false)
@@ -52,9 +57,10 @@ function Landing({
   const [landingScene] = useState(() => resolveLandingScene(window.location.search))
 
   const handleIntroComplete = useCallback(() => {
+    if (introPreviewState !== 'not-learned') return
     writeIntroCompleted()
     setIntroCompleted(true)
-  }, [])
+  }, [introPreviewState])
 
   const { phase, phaseRef, sweepRef, begin, retract } = useTitleRetrace({
     introCompleted,
@@ -73,14 +79,14 @@ function Landing({
   })
 
   useEffect(() => {
-    if (returnArrival) useTransitionStore.getState().clearLandingArrival()
+    // Reader return state is retired; entry state is owned by the save entry controller.
   }, [returnArrival])
 
   useEffect(() => {
-    if (returnArrival || returnSequenceActive || phaseRef.current !== TITLE_PHASE.IDLE) return undefined
-    const frame = window.requestAnimationFrame(() => { begin() })
+    if (!inspectionSettled || returnArrival || returnSequenceActive || phaseRef.current !== TITLE_PHASE.IDLE) return undefined
+    const frame = window.requestAnimationFrame(() => { begin({ markIntroComplete: introPreviewState === 'not-learned' }) })
     return () => window.cancelAnimationFrame(frame)
-  }, [begin, phaseRef, returnArrival, returnSequenceActive])
+  }, [begin, phaseRef, returnArrival, returnSequenceActive, inspectionSettled, introPreviewState])
 
   useEffect(() => {
     if (!leaving) {
@@ -197,8 +203,7 @@ function Landing({
       onEnter?.()
       return
     }
-    const state = useProgressStore.getState()
-    onEnter?.(getReaderEntryIntent(state))
+    onEnter?.(getReaderEntryIntent({ readerStarted, readerCompleted }))
   }, [onEnter, onEnterUpdates, worldMode])
 
   return (
@@ -212,6 +217,7 @@ function Landing({
         '--landing-leave-delay-ms': `${LANDING_LEAVE_FADE_DELAY_MS}ms`,
         '--landing-return-blink-ms': `${RETURN_STATUS_BLINK_MS}ms`,
       }}
+      data-landing-intro-status={introPreviewState}
       data-reading-mode={readingMode}
       data-world-layer={environmentState.worldLayer}
       data-time-of-day={environmentState.time}
@@ -250,12 +256,13 @@ function Landing({
 
           {landingEntriesVisible && worldEntryPhase === 'idle' && (
             <>
-              <EntryButtonGroup
+              {entryUI ?? <EntryButtonGroup
                 groupId="landing-entries"
                 entries={landingEntries}
                 onNavigate={handleEntryNavigate}
                 className="landing-entry-button-group"
-              />
+              />}
+              {entryUI && <button type="button" className="landing-entry-updates-link" onClick={onEnterUpdates}>{copy[landingLanguage]?.updates || copy.zh.updates}</button>}
               {worldMode && (
                 <p className="landing-device-hint" data-world-mode="true" role="note">
                   当前仍处于开发阶段，电脑或 iPad 体验更佳

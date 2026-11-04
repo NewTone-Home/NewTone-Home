@@ -1,3 +1,5 @@
+import { rethrowStoppedSession } from '../../save-session.mjs'
+import { getGameStorage } from '../../save-session.mjs'
 import type { Point } from './sceneGeometry'
 import { snapLayoutAnchor, type SceneLayout } from './sceneLayout'
 
@@ -38,7 +40,7 @@ function decodeDocument(sceneId: string, encoded: string | null): SceneLayout | 
     const parsed = JSON.parse(window.atob(encoded)) as Partial<StoredSceneLayout>
     if (parsed.version !== STORAGE_VERSION || parsed.sceneId !== sceneId || !parsed.items || typeof parsed.items !== 'object') return null
     return normalizeLayout(parsed.items)
-  } catch {
+  } catch { rethrowStoppedSession();
     return null
   }
 }
@@ -72,13 +74,13 @@ export function loadSceneLayout(sceneId: string): SceneLayout {
   if (typeof window === 'undefined') return {}
 
   try {
-    const raw = window.localStorage.getItem(storageKey(sceneId))
+    const raw = getGameStorage().getItem(storageKey(sceneId))
     if (!raw) return {}
     const parsed = JSON.parse(raw) as Partial<StoredSceneLayout>
     if (parsed.version !== STORAGE_VERSION || parsed.sceneId !== sceneId || !parsed.items || typeof parsed.items !== 'object') return {}
 
     return normalizeLayout(parsed.items)
-  } catch {
+  } catch { rethrowStoppedSession();
     return {}
   }
 }
@@ -96,8 +98,8 @@ export function persistSceneLayout(sceneId: string, layout: SceneLayout) {
 
   try {
     if (typeof window === 'undefined') return
-    window.localStorage.setItem(storageKey(sceneId), JSON.stringify(document))
-  } catch {
+    getGameStorage().setItem(storageKey(sceneId), JSON.stringify(document))
+  } catch { rethrowStoppedSession();
     // Private browsing or a blocked storage policy should not stop editing.
   }
 }
@@ -106,8 +108,8 @@ export function clearSceneLayout(sceneId: string) {
   writeUrlLayout(sceneId, null)
   if (typeof window === 'undefined') return
   try {
-    window.localStorage.removeItem(storageKey(sceneId))
-  } catch {
+    getGameStorage().removeItem(storageKey(sceneId))
+  } catch { rethrowStoppedSession();
     // Treat storage cleanup as best-effort; the in-memory reset still works.
   }
 }

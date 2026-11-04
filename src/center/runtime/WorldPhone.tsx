@@ -721,6 +721,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   }, [availableShopIds, onAppOpen, onRequestedAppHandled, open, requestedShopId, requestedShopProductId])
 
   useLayoutEffect(() => {
+    if (renderedPhase !== 'open') return
     const messageThread = phoneRef.current?.querySelector('.world-phone__message-thread')
     if (!commercialCafeCompletionPhoneMessageReadyForAck({
       requested: laoZhouMessageHandoffPendingRef.current,
@@ -732,7 +733,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
     })) return
     laoZhouMessageHandoffPendingRef.current = false
     onLaoZhouMessagesDisplayed?.()
-  }, [activeApp, contactView, onLaoZhouMessagesDisplayed, open, selectedContactId])
+  }, [activeApp, contactView, onLaoZhouMessagesDisplayed, open, renderedPhase, selectedContactId])
 
   useEffect(() => {
     if (activeApp !== 'milk-tea') milkTeaOrderStartedRef.current = false

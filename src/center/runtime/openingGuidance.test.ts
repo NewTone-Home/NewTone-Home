@@ -7,10 +7,11 @@ import { getPhoneMapRegions } from './phoneMapModel'
 
 describe('opening guidance', () => {
   it('delivers Lao Zhou arrival once, only on a fresh game', () => {
-    expect(laoZhouArrivalShouldDeliver(undefined, undefined)).toBe(true)
+    expect(laoZhouArrivalShouldDeliver(undefined, undefined)).toBe(false)
     expect(laoZhouArrivalShouldDeliver({ [laoZhouArrivalTimeKey]: '10:00' }, undefined)).toBe(false)
     const fresh = { [commercialCafeStoryStatusKey]: 'available', [commercialCafeNarrativePhaseKey]: 'not-started', [commercialCafeNarrativeCursorKey]: 0 }
-    expect(laoZhouArrivalShouldDeliver(undefined, fresh)).toBe(true)
+    expect(laoZhouArrivalShouldDeliver(undefined, fresh)).toBe(false)
+    expect(laoZhouArrivalShouldDeliver({laoZhouOpeningPromptStatus:'pending',laoZhouConversationTriggered:false,laoZhouTriggerEvidenceVersion:1}, fresh)).toBe(true)
     expect(laoZhouArrivalShouldDeliver(undefined, { ...fresh, [commercialCafeNarrativePhaseKey]: 'dialogue' })).toBe(false)
     expect(laoZhouArrivalShouldDeliver(undefined, { ...fresh, [commercialCafeStoryStatusKey]: 'complete' })).toBe(false)
     expect(laoZhouArrivalLabel({ [laoZhouArrivalTimeKey]: '10:03' })).toBe('10:03')

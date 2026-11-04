@@ -1,0 +1,7 @@
+.save-entry { display:flex; flex-direction:column; align-items:center; gap:.75rem; max-width:min(90vw,34rem); color:var(--reader-ink,var(--ink-dark)); }
+.save-entry p { min-height:1.5em; margin:0; text-align:center; white-space:normal; }
+.save-entry small { max-width:100%; overflow-wrap:anywhere; text-align:center; opacity:.65; }
+.save-entry .entry-button-group.save-entry-confirm { flex-direction:row; flex-wrap:nowrap; gap:clamp(1.5rem,7vw,3rem); }
+
+.landing-entry-updates-link { margin-top:.6rem; border:0; background:none; color:inherit; font:inherit; font-size:.8rem; opacity:.65; cursor:pointer; }
+.landing-entry-updates-link:focus-visible { outline:1px solid currentColor; outline-offset:4px; }

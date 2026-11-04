@@ -6,20 +6,14 @@ import { ruoyuCafeDepartedKey, ruoyuCafeMeetingCompleted, ruoyuCafeUnlockedKey }
 export const laoZhouArrivalTimeKey = 'laoZhouArrivalMessageTime'
 export const laoZhouArrivalText = '我到咖啡馆了。'
 
-/** Fresh games only: the cafe story has not started (a new save already reads 'available') and the text was not yet delivered. */
+/** Unknown historical evidence never becomes an assumed fresh game. */
 export function laoZhouArrivalShouldDeliver(streetState: PlayerSceneState | undefined, cafeState: PlayerSceneState | undefined): boolean {
-  if (typeof streetState?.[laoZhouArrivalTimeKey] === 'string') return false
-  const status = cafeState?.[commercialCafeStoryStatusKey]
-  const phase = cafeState?.[commercialCafeNarrativePhaseKey]
-  const cursor = cafeState?.[commercialCafeNarrativeCursorKey]
-  // A new game starts as 'available' / 'not-started' / cursor 0; anything further means the story has begun.
-  return (status === undefined || status === 'available')
-    && (phase === undefined || phase === 'not-started')
-    && (cursor === undefined || cursor === 0)
+  if (classifyLaoZhouConversation({'commercial-street':streetState,'commercial-cafe':cafeState}).state === 'triggered') return false
+  return streetState?.laoZhouOpeningPromptStatus === 'pending'
 }
 
 export function laoZhouArrivalLabel(streetState: PlayerSceneState | undefined): string | null {
-  const value = streetState?.[laoZhouArrivalTimeKey]
+  const value = streetState?.[laoZhouArrivalTimeKey] ?? streetState?.laoZhouOpeningPromptTime
   return typeof value === 'string' && value ? value : null
 }
 
@@ -33,4 +27,31 @@ export function commercialStreetMapGuideActive(sceneId: string, cafeState: Playe
   return cafeState[ruoyuCafeUnlockedKey] === true
     && cafeState[ruoyuCafeDepartedKey] !== true
     && !ruoyuCafeMeetingCompleted(cafeState)
+}
+
+export type LaoZhouTriggerEvidence = { state: 'triggered' | 'not-triggered' | 'unknown'; evidence: string[] }
+/** Raw persisted evidence only. Never call a default-producing story sanitizer here. */
+export function classifyLaoZhouConversation(scenes: Partial<Record<string, PlayerSceneState>> | undefined): LaoZhouTriggerEvidence {
+  const positive: string[] = [], negative: string[] = []
+  for (const id of ['commercial-cafe', 'commercial-street']) {
+    const s = scenes?.[id]; if (!s) continue
+    if (s.laoZhouConversationTriggered === true) positive.push(`${id}:explicit-trigger`)
+    if (s.laoZhouTriggerEvidenceVersion === 1 && s.laoZhouConversationTriggered === false) negative.push(`${id}:explicit-not-triggered`)
+    const phase = s[commercialCafeNarrativePhaseKey], cursor = s[commercialCafeNarrativeCursorKey], status = s[commercialCafeStoryStatusKey]
+    if (['dialogue', 'coffee-delivery', 'coffee-returning', 'complete'].includes(String(phase))) positive.push(`${id}:phase:${phase}`)
+    if (typeof cursor === 'number' && cursor > 0) positive.push(`${id}:cursor:${cursor}`)
+    if (status === 'ready-to-leave' || status === 'complete') positive.push(`${id}:status:${status}`)
+    if (['met-lao-zhou', 'coffee-delivered', 'intel-received', 'ready-to-leave', 'complete'].includes(String(s.commercialCafeStoryStage))) positive.push(`${id}:legacy-stage:${s.commercialCafeStoryStage}`)
+    if (typeof s.commercialCafeAnalyticsMilestones === 'string' && s.commercialCafeAnalyticsMilestones.split('|').includes('meeting-started')) positive.push(`${id}:meeting-started`)
+    // Old main-story defaults cannot disprove an unrecorded seat-guide dialogue.
+  }
+  // A durable positive event dominates an older initialized scene copy. An
+  // explicit new trigger flag contradicting it is malformed evidence instead.
+  if (positive.length) return negative.some(x => x.endsWith(':explicit-not-triggered')) ? { state: 'unknown', evidence: [...positive, ...negative] } : { state: 'triggered', evidence: positive }
+  if (negative.length) return { state: 'not-triggered', evidence: negative }
+  return { state: 'unknown', evidence: ['no-reliable-persisted-trigger-fact'] }
+}
+export function openingGuidancePatch<T extends { sceneState: Partial<Record<string, PlayerSceneState>> }>(save: T, evidence: LaoZhouTriggerEvidence, fresh = false): T {
+  const status = fresh || evidence.state === 'not-triggered' ? 'pending' : evidence.state === 'triggered' ? 'suppressed' : 'unknown'
+  return { ...save, sceneState: { ...save.sceneState, 'commercial-street': { ...save.sceneState['commercial-street'], laoZhouOpeningPromptStatus: status, laoZhouOpeningPromptEvidence: JSON.stringify(evidence), ...(fresh ? { laoZhouConversationTriggered: false, laoZhouTriggerEvidenceVersion: 1 } : {}) } } }
 }

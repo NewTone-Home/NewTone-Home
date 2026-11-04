@@ -1,3 +1,4 @@
+import { assertGameSession, getGameStorage } from '../save-session.mjs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { attachSessionGameClockVisibilityLifecycle, createSessionGameClock } from './runtime/sessionGameClock'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
@@ -236,6 +237,7 @@ export default function CenterExperience({
 
 
   const commitPlayerSave = useCallback((update) => {
+    assertGameSession()
     const previous = playerSaveRef.current
     const next = positionSaveCoordinatorRef.current.commit(update)
     if (next !== previous) setPlayerSave(next)
@@ -717,6 +719,10 @@ export default function CenterExperience({
 
   const recordSceneStatePatch = useCallback((sceneId, patch) => {
     commitPlayerSave((current) => {
+      if (patch.laoZhouConversationTriggered === true) {
+        const next = recordPlayerSceneStatePatch(current, sceneId, patch)
+        return recordPlayerSceneStatePatch(next, 'commercial-street', { laoZhouConversationTriggered: true, laoZhouTriggerEvidenceVersion: 1, laoZhouOpeningPromptStatus: 'suppressed' })
+      }
       if (sceneId !== 'commercial-cafe' || patch[commercialCafeStoryStatusKey] !== 'complete') {
         return recordPlayerSceneStatePatch(current, sceneId, patch)
       }
@@ -727,10 +733,13 @@ export default function CenterExperience({
 
   const acknowledgeCafeStoryMessagesDisplayed = useCallback(() => {
     commitPlayerSave(current => {
-      const patch = commercialCafeCompletionPhoneDisplayedPatch(current.sceneState['commercial-cafe'])
-      return patch
-        ? recordPlayerSceneStatePatch(current, 'commercial-cafe', patch)
-        : current
+      const street = current.sceneState['commercial-street'] ?? {}
+      let next = current
+      if (street.laoZhouOpeningPromptStatus === 'pending' && typeof street.laoZhouOpeningPromptTime === 'string') {
+        next = recordPlayerSceneStatePatch(next, 'commercial-street', { laoZhouOpeningPromptStatus: 'displayed', [laoZhouArrivalTimeKey]: street.laoZhouOpeningPromptTime })
+      }
+      const patch = commercialCafeCompletionPhoneDisplayedPatch(next.sceneState['commercial-cafe'])
+      return patch ? recordPlayerSceneStatePatch(next, 'commercial-cafe', patch) : next
     })
   }, [commitPlayerSave])
 
@@ -941,7 +950,7 @@ export default function CenterExperience({
     if (!sceneReadingActiveRef.current && rideOrder && Date.now() >= rideOrder.driverArrivesAt && mainlineRideAtPickup(rideOrder, sceneId, position)) boardRide(rideOrder)
   }
   useEffect(() => {
-    if (!rideOrder) return
+    if (!rideOrder || route.sceneId !== rideOrder.sourceSceneId) return
     const arrived = () => {
       notifyPhone({ id: 'ride:' + rideOrder.sourceSceneId + ':' + rideOrder.targetSceneId + ':' + rideOrder.driverArrivesAt, app: 'ride', title: '司机已到达', body: '请前往上车点' })
       const current = latestWorldPositionRef.current
@@ -949,7 +958,7 @@ export default function CenterExperience({
     }
     const timer = window.setTimeout(arrived, Math.max(0, rideOrder.driverArrivesAt - Date.now()))
     return () => window.clearTimeout(timer)
-  }, [notifyPhone, rideOrder])
+  }, [notifyPhone, rideOrder, route.sceneId])
   const handleRideRequest = useCallback((device, destinationSceneId, presentation) => {
     if (rideOrder) return { ok: false, reason: '已有进行中的订单' }
     if (phoneRideAvailability(device, worldLayerForScene(route.sceneId)) !== 'available') return { ok: false, reason: '当前手机无法使用叫车服务' }
@@ -1041,7 +1050,7 @@ export default function CenterExperience({
     if (entryPhase !== 'active' || route.sceneId !== 'commercial-street') return
     if (phoneDevice !== 'inner' || sceneReadingActive || phoneOpen || longDistanceTravel !== null) return
     if (!laoZhouArrivalShouldDeliver(playerSave.sceneState['commercial-street'], playerSave.sceneState['commercial-cafe'])) return
-    commitPlayerSave(current => recordPlayerSceneStatePatch(current, 'commercial-street', { [laoZhouArrivalTimeKey]: formatTrialGameTime(trialClockSnapshot.gameTimeMs) }))
+    commitPlayerSave(current => recordPlayerSceneStatePatch(current, 'commercial-street', { laoZhouOpeningPromptTime: current.sceneState['commercial-street']?.laoZhouOpeningPromptTime ?? current.sceneState['commercial-street']?.[laoZhouArrivalTimeKey] ?? formatTrialGameTime(trialClockSnapshot.gameTimeMs) }))
     setPhoneNotificationScreen(false)
     setRequestedPhoneApp('lao-zhou-messages')
     setPhoneOpen(true)

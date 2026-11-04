@@ -1,3 +1,4 @@
+import { getGameStorage, rethrowStoppedSession } from '../../save-session.mjs'
 import { currentCommercialDepthVersion, migrateCommercialDepthPoint, type CommercialDepthBackup } from './commercialDepthMigration'
 import type { MainlineSceneId } from './mainlineSceneModel'
 import { migratePreGridPosition } from './sceneGridRollout'
@@ -71,13 +72,7 @@ export type PlayerSave = {
 
 export type PlayerSaveStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
-function defaultStorage(): PlayerSaveStorage | null {
-  try {
-    return typeof localStorage === 'undefined' ? null : localStorage
-  } catch {
-    return null
-  }
-}
+function defaultStorage(): PlayerSaveStorage | null { return getGameStorage() }
 
 function isPoint(value: unknown): value is PlayerPoint {
   if (!value || typeof value !== 'object') return false
@@ -374,6 +369,11 @@ export function loadPlayerSave(
   random: () => number = Math.random,
 ): PlayerSave {
   applyPublicReleaseCutover(storage)
+  if (storage && 'check' in storage) {
+    const raw = storage.getItem(PLAYER_SAVE_STORAGE_KEY)
+    if (!raw) throw new Error('missing-session-player-save')
+    return sanitizePlayerSave(JSON.parse(raw), fallbackSceneId)
+  }
   try {
     const raw = storage?.getItem(PLAYER_SAVE_STORAGE_KEY)
     if (raw) return sanitizePlayerSave(JSON.parse(raw), fallbackSceneId)
@@ -429,7 +429,8 @@ export function savePlayerSave(
   try {
     storage?.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(clean))
   } catch {
-    // Private browsing or blocked storage should not stop the current session.
+    rethrowStoppedSession(storage)
+    throw new Error('player-save-write-failed')
   }
   return clean
 }
@@ -441,7 +442,8 @@ export function clearPlayerSave(storage = defaultStorage()) {
     LEGACY_PHONE_STORAGE_KEYS.forEach(key => storage?.removeItem(key))
     storage?.removeItem(LEGACY_POSITION_STORAGE_KEY)
   } catch {
-    // Clearing is best-effort; the in-memory runtime can still restart cleanly.
+    rethrowStoppedSession(storage)
+    throw new Error('player-save-reset-requires-entry-service')
   }
 }
 

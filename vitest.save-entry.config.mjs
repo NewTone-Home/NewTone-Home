@@ -1,0 +1,1 @@
+export default {test:{include:['tests/saveEntryService.test.mjs','src/center/runtime/openingGuidance.test.ts','src/services/entryController.test.mjs','tests/shopOrderHistory.test.ts','tests/commercialCafeStory.test.ts'],environment:'node',maxWorkers:1,fileParallelism:false,globals:true}};
