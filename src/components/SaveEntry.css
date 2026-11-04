@@ -9,3 +9,10 @@
 .save-entry-warning { font-size:.875rem; line-height:1.55; margin:0; color:var(--reader-ink); }
 .save-entry-warning-overlay { position:fixed; top:max(12px,env(safe-area-inset-top)); right:max(12px,env(safe-area-inset-right)); width:min(22rem,calc(100vw - 24px)); z-index:100; padding:10px 12px; box-sizing:border-box; background:var(--reader-paper); border:1px solid var(--reader-border); pointer-events:none; }
 .save-entry-warning-overlay * { pointer-events:none; }
+
+.save-runtime-recovery { position:fixed; inset:0; z-index:200; display:grid; place-items:center; padding:max(20px,env(safe-area-inset-top)) 20px max(20px,env(safe-area-inset-bottom)); box-sizing:border-box; background:var(--reader-paper); color:var(--reader-ink); }
+.save-runtime-recovery section { width:min(100%,32rem); line-height:1.6; }
+.save-runtime-recovery nav { display:flex; gap:1rem; flex-wrap:wrap; }
+.save-runtime-recovery button { min-height:44px; padding:8px 18px; font:inherit; color:inherit; border:1px solid var(--reader-border); background:transparent; cursor:pointer; }
+.save-runtime-recovery button:disabled { opacity:.55; cursor:wait; }
+.save-runtime-recovery button:focus-visible { outline:2px solid var(--reader-ink); outline-offset:3px; }

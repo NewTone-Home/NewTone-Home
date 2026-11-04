@@ -96,6 +96,7 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       expect(passage.targetSceneId).toBeUndefined()
       expect(passage.toRoomId).toBeUndefined()
       expect(passage.lockedText).toBe('\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002')
+      expect(warehouse.interactive).toBe(true)
       expect(warehouse.interactionBehavior).toBe('yonghe-warehouse')
     })
 
@@ -116,6 +117,7 @@ for (const sceneId of ['yonghe-mining-perimeter', 'yonghe-eatery'] as const) {
       }
       const safePath = findMainlinePath(start, safeTarget, scene, {}, options)
 
+      expect(warehouse.interactive).toBe(true)
       expect(warehouse.interactionBehavior).toBe('yonghe-warehouse')
       expect(passage.access).toBe('locked')
       expect(contact.path).not.toBeNull()

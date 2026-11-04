@@ -78,18 +78,20 @@ function guidanceWarnings(player){return player?.sceneState?.['commercial-street
 function inspectionWarnings(i){return i.authority?guidanceWarnings(parse(i.authority.values[PLAYER])):i.old&&classifyLaoZhouConversation(i.old.source.sceneState).state==='unknown'?['LAO_ZHOU_TRIGGER_UNKNOWN']:[];}
 function ticketEqual(a,b){return a&&b&&a.operationId===b.operationId&&a.requestHash===b.requestHash&&a.baseSnapshotHash===b.baseSnapshotHash;}
 export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID(),digest=async text=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}}={}){
-  let activeLease=null,activeHandle=null,preparing=false;
+  let activeLease=null,activeHandle=null,preparing=false,releasing=Promise.resolve();
   const raw=()=>storage??globalThis.localStorage;
   const failure=(status,e)=>({status,reasonCodes:[e instanceof Error?e.message:String(e)]});
   async function acquire(){
+    // Resolving the lock callback is not the native request completion barrier.
+    await releasing;
     if(activeLease)return activeLease;
     const manager=locks??globalThis.navigator?.locks;if(!manager?.request)throw Error('LOCKING_UNAVAILABLE');
-    return new Promise((resolve,reject)=>{let settled=false;Promise.resolve().then(()=>manager.request(LOCK,{mode:'exclusive',ifAvailable:true},lock=>{
+    return new Promise((resolve,reject)=>{let settled=false;const finished=Promise.resolve().then(()=>manager.request(LOCK,{mode:'exclusive',ifAvailable:true},lock=>{
       if(!lock){settled=true;resolve(null);return;}
-      return new Promise(release=>{const lease={release(){if(activeLease===lease)activeLease=null;release();}};activeLease=lease;settled=true;resolve(lease);});
-    })).catch(error=>{if(!settled)reject(error);});});
+      return new Promise(release=>{const lease={release(){if(activeLease===lease)activeLease=null;releasing=finished;release();return finished;}};activeLease=lease;settled=true;resolve(lease);});
+    })).then(()=>undefined,error=>{if(!settled)reject(error);});});
   }
-  const release=()=>{stop('lease-released');installGameStorage(null);activeLease?.release();};
+  const release=()=>{stop('lease-released');installGameStorage(null);return activeLease?.release()??releasing;};
   function stop(reason){const h=activeHandle;activeHandle=null;if(h)h.revoke(reason);}
   async function inspectInternal(){
     const r=raw(),physical=sources(r),authorityRaw=r.getItem(AUTHORITY);let authority=null,old=null;
@@ -141,12 +143,12 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
       const record={schema:2,ticket,intent,backupRequired:!i.authority||intent==='replace',candidateSHA256:await digest(JSON.stringify(candidate)),candidateRaw:JSON.stringify(candidate),backup:{operationId,authorityRaw:i.authorityRaw,sourceRaw:i.authority?.sources??i.physical},backupKey:BACKUP_PREFIX+operationId};
       ticketForRecovery=ticket;prepareWriteAttempted=true;raw().setItem(PENDING,JSON.stringify(record));requireThat(raw().getItem(PENDING)===JSON.stringify(record),'PREPARE_OUTCOME_UNCERTAIN');
       return {status:'prepared',ticket,warnings:warningsForRecovery};
-    }catch(e){release();return {...failure(prepareWriteAttempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'blocked',e),...(ticketForRecovery?{ticket:ticketForRecovery,warnings:warningsForRecovery}:{})};}finally{preparing=false;}
+    }catch(e){await release();return {...failure(prepareWriteAttempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'blocked',e),...(ticketForRecovery?{ticket:ticketForRecovery,warnings:warningsForRecovery}:{})};}finally{preparing=false;}
   }
   function openHandle(j){
-    stop('session-replaced');const listeners=new Set();let stopped=false,cleanup=()=>{};
+    stop('session-replaced');const listeners=new Set();let stopped=false,stopReason=null,cleanup=()=>{};
     const r=raw(),baseline=canonical(protectedSources(j.sources));
-    const handle={generation:j.generation.id,storage:null,check(){handle.storage.check();},onStop(fn){if(stopped){fn('save-session-stopped');return()=>{};}listeners.add(fn);return()=>listeners.delete(fn);},revoke(reason){if(stopped)return;stopped=true;try{cleanup();}catch{}try{handle.storage?.stop(reason);}catch{}for(const fn of listeners){try{fn(reason);}catch{}}},close(){handle.revoke('session-closed');if(activeHandle===handle){activeHandle=null;installGameStorage(null);release();}}};
+    const handle={generation:j.generation.id,storage:null,get isOpen(){return !stopped;},get stopReason(){return stopReason;},check(){handle.storage.check();},onStop(fn){if(stopped){fn(stopReason);return()=>{};}listeners.add(fn);return()=>listeners.delete(fn);},revoke(reason){if(stopped)return;stopped=true;stopReason=reason;try{cleanup();}catch{}try{handle.storage?.stop(reason);}catch{}for(const fn of listeners){try{fn(reason);}catch{}}},close(){handle.revoke('session-closed');if(activeHandle===handle){activeHandle=null;installGameStorage(null);return release();}return releasing;}};
     handle.storage=createJournalStorage(r,j,baseline,store=>canonical(protectedSources(sources(store))),reason=>{handle.revoke(reason);if(activeHandle===handle){activeHandle=null;installGameStorage(null);release();}});
     handle.storage.setValidator(validateValues);installGameStorage(handle.storage);activeHandle=handle;
     if(globalThis.window){const target=globalThis.window;const check=()=>{try{handle.check();}catch{}};const timer=target.setInterval(check,250);target.addEventListener('storage',check);target.document?.addEventListener('visibilitychange',check);cleanup=()=>{target.clearInterval(timer);target.removeEventListener('storage',check);target.document?.removeEventListener('visibilitychange',check);};}
@@ -163,7 +165,7 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
         raw().setItem(p.backupKey,JSON.stringify(p.backup));requireThat(raw().getItem(p.backupKey)===JSON.stringify(p.backup),'BACKUP_FAILED');}
       const final=await inspectInternal();requireThat(final.baseSnapshotHash===ticket.baseSnapshotHash,'SNAPSHOT_STALE');
       attempted=true;raw().setItem(AUTHORITY,p.candidateRaw);requireThat(raw().getItem(AUTHORITY)===p.candidateRaw,'COMMIT_OUTCOME_UNCERTAIN');return await committed(p);
-    }catch(e){release();return {...failure(attempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'not-committed',e),ticket};}finally{preparing=false;}
+    }catch(e){await release();return {...failure(attempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'not-committed',e),ticket};}finally{preparing=false;}
   }
   async function acknowledgeEntry({ticket,sessionHandle}){
     const ownedAtStart=Boolean(sessionHandle&&activeHandle===sessionHandle);let attempted=false;try{
@@ -178,7 +180,7 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     }catch(e){
       // UI is about to abandon this runtime. Revoke before returning; retain all
       // durable operation/ack evidence, including a write that actually landed.
-      if(ownedAtStart){try{sessionHandle.close();}catch{release();}}
+      if(ownedAtStart){try{await sessionHandle.close();}catch{await release();}}
       return {...failure(attempted?'outcome-uncertain':'blocked',e),ticket};
     }
   }
@@ -192,10 +194,10 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
 
   async function resolveOperation({ticket}){
     if(preparing)return failure('busy','OPERATION_ACTIVE');preparing=true;
-    try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');const p=pending();if(!p||!ticketEqual(p.ticket,ticket)){release();return {status:'superseded',ticket};}
+    try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');const p=pending();if(!p||!ticketEqual(p.ticket,ticket)){await release();return {status:'superseded',ticket};}
       await verifyPending(p);const a=raw().getItem(AUTHORITY);if(a!==null&&ticketEqual(parse(a).operationReceipt,ticket))return await committed(p);
-      const i=await inspectInternal();release();const same=i.baseSnapshotHash===ticket.baseSnapshotHash;return {status:same?'not-committed':'superseded',ticket,resumeAllowed:same,warnings:same?guidanceWarnings(parse(parse(p.candidateRaw).values[PLAYER])):[]};
-    }catch(e){release();return {...failure('unresolved',e),ticket};}finally{preparing=false;}
+      const i=await inspectInternal();await release();const same=i.baseSnapshotHash===ticket.baseSnapshotHash;return {status:same?'not-committed':'superseded',ticket,resumeAllowed:same,warnings:same?guidanceWarnings(parse(parse(p.candidateRaw).values[PLAYER])):[]};
+    }catch(e){await release();return {...failure('unresolved',e),ticket};}finally{preparing=false;}
   }
   return {inspectSave,prepareEntry,commitEntry,getRecoveryState,resolveOperation,acknowledgeEntry};
 }

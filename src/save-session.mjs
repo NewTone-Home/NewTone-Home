@@ -5,7 +5,7 @@ let activeStorage=null;
 export function getGameStorage(){if(activeStorage)return activeStorage;if(typeof window==='undefined')return null;throw Error('save-session-not-open');}
 export function installGameStorage(storage){activeStorage=storage;}
 export function assertGameSession(){const storage=getGameStorage();storage?.check?.();return storage;}
-export function rethrowStoppedSession(storage=activeStorage){storage?.check?.();}
+export function rethrowStoppedSession(storage=activeStorage){if(storage?.isOpen===false)throw Error(storage.stopReason??'save-session-stopped');storage?.check?.();}
 export function runSaveTransaction(storage,callback){return storage?.transaction?storage.transaction(callback):callback();}
 export function runGameTransaction(callback){return runSaveTransaction(assertGameSession(),callback);}
 export function afterSaveCommit(callback,key=callback){const storage=assertGameSession();return storage?.afterCommit?storage.afterCommit(key,callback):callback();}
@@ -29,8 +29,8 @@ export function createJournalStorage(raw,initial,sourceSnapshot,readSources,onSt
   let expected=JSON.stringify(initial);
   let journal=structuredClone(initial);
   const sources=structuredClone(sourceSnapshot);
-  let stopped=false,transaction=null,validateValues=()=>{};
-  const stop=reason=>{if(!stopped){stopped=true;onStop(reason);}throw Error(reason);};
+  let stopped=false,stopReason=null,transaction=null,validateValues=()=>{};
+  const stop=reason=>{if(!stopped){stopped=true;stopReason=reason;onStop(reason);}throw Error(reason);};
   const check=()=>{
     if(stopped)throw Error('save-session-stopped');
     try{
@@ -87,7 +87,7 @@ export function createJournalStorage(raw,initial,sourceSnapshot,readSources,onSt
     pendingState(key){return transaction?.states.get(key);},
     stageState(key,state,publish){if(!transaction)throw Error('state-publication-outside-transaction');transaction.states.set(key,state);transaction.publish.set(key,publish);},
     setValidator(validate){check();try{validate(journal.values);}catch(error){return stop('save-consistency-failed: '+error.message);}validateValues=validate;},
-    check,stop:(reason='save-session-closed')=>stop(reason),get revision(){return journal.revision;},
+    check,stop:(reason='save-session-closed')=>stop(reason),get isOpen(){return !stopped;},get stopReason(){return stopReason;},get revision(){return journal.revision;},
   };
 }
 export function isWritableGameKey(key){return key===PUBLICATION_KEY||key==='newtone-player-save-v1'||/^newtone-(progress-v[1-4]|narrative-progress-v[12]|reader-exit-tutorial-v1|landing-intro-v1)$/.test(key)||key==='newtone-choice-wheel-hint-seen'||key==='newtone-scene-motion-enabled'||key.startsWith('newtone:center:scene-layout:')||key.startsWith('newtone-layout-');}

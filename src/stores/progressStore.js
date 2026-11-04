@@ -1,16 +1,27 @@
-import { getGameStorage, commitStoreState, runSaveTransaction } from '../save-session.mjs'
+import { getGameStorage, commitStoreState, runSaveTransaction, memoryStorage } from '../save-session.mjs'
 import { useStore } from 'zustand'
+import { useReaderStoreScope } from './readerStoreScope'
+export { ReaderPreviewStoreProvider } from './readerStoreScope'
 import { createStore } from 'zustand/vanilla'
 import { readerContent } from '../data/readerContent'
 import { getNextReaderLanguage, READER_LANGUAGE_CODES } from '../i18n/languages'
-import { comparePosition, resolvePosition } from '../reader/readerPosition'
+import { resolvePosition } from '../reader/readerPosition'
 import { clampThemePosition, migrateThemePosition, legacyThemeName } from '../reader/readerTheme'
-import { useNarrativeProgressStore, getSessionNarrativeStore } from './narrativeProgressStore'
+import { useNarrativeProgressStore, getSessionNarrativeStore, createNarrativeProgressStore } from './narrativeProgressStore'
 import { createInitialProgressState, loadProgressState, saveProgressState, PROGRESS_STORAGE_KEYS } from './progressMigration'
 
 function storedLocation(value){const item=resolvePosition(value);return {phaseId:item.phaseId,pageId:item.pageId,beatIndex:item.beatIndex}}
 function chapterAt(value){return readerContent.find(phase=>phase.id===value.phaseId)?.pages.find(page=>page.id===value.pageId)?.chapterId??readerContent[0]?.pages?.[0]?.chapterId??null}
-export function chooseFurthestLocation(committed,previous){return comparePosition(committed,previous)>0?{...committed}:previous}
+export function chooseFurthestLocation(committed,previous){
+  // A stale previous publication may fall back only after current is verified.
+  const current=resolvePosition(committed);
+  if(!previous||typeof previous!=='object')resolvePosition(previous);
+  const address={phaseId:previous.phaseId,pageId:previous.pageId,beatIndex:previous.beatIndex};
+  if(typeof address.phaseId!=='string'||typeof address.pageId!=='string'||!Number.isInteger(address.beatIndex)||address.beatIndex<0)resolvePosition(address);
+  let old;
+  try{old=resolvePosition(address);}catch(error){if(!(error instanceof RangeError))throw error;return {...committed};}
+  return current.linearIndex>old.linearIndex?{...committed}:previous;
+}
 function progressStateCreator(storage,narrative=useNarrativeProgressStore){
   return (publish,get)=>{
     const owner={};
@@ -49,6 +60,23 @@ function progressStateCreator(storage,narrative=useNarrativeProgressStore){
 export function createProgressStore(storage,narrative){return createStore(progressStateCreator(storage,narrative))}
 const boundStores=new WeakMap();
 function currentStore(){const storage=getGameStorage();if(!storage)throw Error('save-session-not-open');let store=boundStores.get(storage);if(!store){store=createProgressStore(storage,getSessionNarrativeStore(storage));boundStores.set(storage,store);runSaveTransaction(storage,()=>getSessionNarrativeStore(storage).getState().initialize({furthestLocation:store.getState().furthestLocation}));}return store;}
-export function useProgressStore(selector){return useStore(currentStore(),selector)}
+export function useProgressStoreApi(){const preview=useReaderStoreScope();return preview?.progressStore??currentStore()}
+export function useProgressStore(selector){return useStore(useProgressStoreApi(),selector)}
+// Must be called after the owner has validated/installed its preview content.
+// Only fresh private memory is read or written; no player key or lock is touched.
+export function createReaderPreviewStores({language='zh',themePosition=.5,motionMode='full'}={}){
+  const first=readerContent[0],page=first?.pages?.[0];
+  const start={phaseId:first?.id,pageId:page?.id,beatIndex:0};
+  resolvePosition(start);
+  const storage=memoryStorage({[PROGRESS_STORAGE_KEYS.V4]:JSON.stringify({
+    _version:4,committedLocation:start,furthestLocation:start,currentView:'reader',
+    readerStarted:true,resumeRequested:false,hasInitializedLanguage:true,
+    hasInitializedReadingMode:true,readingMode:'standard',language,themePosition,motionMode,
+  })});
+  const narrativeStore=createNarrativeProgressStore(storage);
+  const progressStore=createProgressStore(storage,narrativeStore);
+  narrativeStore.getState().initialize({furthestLocation:start});
+  return {progressStore,narrativeStore};
+}
 useProgressStore.getState=()=>currentStore().getState();
 useProgressStore.subscribe=(...args)=>currentStore().subscribe(...args);

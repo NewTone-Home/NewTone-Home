@@ -195,7 +195,7 @@ describe('player local save contract', () => {
     expect(hasResumablePlayerSave(storage)).toBe(true)
   })
 
-  it('keeps the in-memory game time when checkpoint storage is unavailable', () => {
+  it('reports unavailable checkpoint storage without publishing unsaved game time', () => {
     const unavailable = {
       getItem: () => null,
       setItem: () => { throw new Error('storage denied') },
@@ -208,9 +208,12 @@ describe('player local save contract', () => {
       getGameTimeMs: () => 48_000_000,
       persist: next => savePlayerSave(next, unavailable, 200),
     })
-    expect(() => checkpoint()).not.toThrow()
-    expect(save.gameTimeMs).toBe(48_000_000)
-    expect(() => loadPlayerSave(unavailable)).not.toThrow()
+    const before = save
+    expect(() => checkpoint()).toThrow('player-save-write-failed')
+    expect(save).toBe(before)
+    expect(save.gameTimeMs).toBe(before.gameTimeMs)
+    expect(save.gameTimeMs).not.toBe(48_000_000)
+    expect(save.storyClock).toEqual(before.storyClock)
   })
 
   it('keeps the version-one phone migration while adding the clock fallback', () => {

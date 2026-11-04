@@ -1,4 +1,9 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
+import RuntimeRecoveryBoundary from './components/RuntimeRecoveryBoundary'
+import RuntimeRecoveryPanel from './components/RuntimeRecoveryPanel'
+import { trackEvent } from './services/analytics'
+import { createLandingEntryObserver } from './services/landingEntryObserver.mjs'
+import { createRuntimeRecovery } from './services/runtimeRecovery.mjs'
 import EntrySurface from './components/EntrySurface'
 import EntryButtonGroup from './components/EntryButtonGroup'
 import { observeRuntimeEntry, closeRuntimeEntryHandle } from './services/runtimeEntryLifecycle.mjs'
@@ -18,8 +23,22 @@ export default function App() {
   const [world, dispatch] = useReducer(worldEntryReducer, WORLD_ENTRY_INITIAL_STATE)
   const [runtime, setRuntime] = useState(null)
   const [preferences, setPreferences] = useState({ language: 'zh', motionMode: 'full' })
+  const landingObserver = useRef(null)
+  if (!landingObserver.current) landingObserver.current = createLandingEntryObserver()
   const adopted = useRef(null)
   const runtimeObserver = useRef(null)
+  const [recoveringRuntime, setRecoveringRuntime] = useState(false)
+  const runtimeRecovery = useRef(null)
+  if (!runtimeRecovery.current) runtimeRecovery.current = createRuntimeRecovery(evidence => {
+    setRecoveringRuntime(true)
+    setRuntime(null); setLandingIntroSession(null); dispatch({ type: 'reset' })
+    controller.runtimeFailed(evidence)
+  })
+  const reportRuntimeFailure = (error, info = {}, handle = adopted.current) => {
+    // Retain the real exception as console evidence as well as the first-cause record.
+    console.error('NewTone runtime stopped', error, info)
+    runtimeRecovery.current.report(error, info, handle, runtimeObserver.current)
+  }
   useEffect(() => {
     const unsubscribe = controller.subscribe(setEntry)
     setEntry(controller.getState())
@@ -35,19 +54,20 @@ export default function App() {
     if (entry.phase !== 'entering' || !result) return
     let live = true
     const handle = result.sessionHandle
+    runtimeRecovery.current.reset(handle)
+    setRecoveringRuntime(false)
     const lifecycle = observeRuntimeEntry(handle, reason => {
-      setRuntime(null); setLandingIntroSession(null); dispatch({ type: 'reset' })
-      controller.stopped(reason)
+      reportRuntimeFailure(reason, { stage: 'session-stop' }, handle)
     })
     runtimeObserver.current = { handle, lifecycle }
-    try { handle.check() } catch { lifecycle.abandon('SESSION_STOPPED'); return lifecycle.dispose }
+    try { handle.check() } catch (error) { reportRuntimeFailure(error, { stage: 'session-check' }, handle); return lifecycle.dispose }
     if (adopted.current !== handle) {
       adopted.current = handle
       try {
         setLandingIntroSession(handle.storage)
         const raw = result.snapshot.values?.['newtone-progress-v4']
         if (raw) { const prefs = JSON.parse(raw); setPreferences(entryPreferences(prefs)) }
-      } catch { lifecycle.abandon('SESSION_INITIALIZATION_FAILED'); return lifecycle.dispose }
+      } catch (error) { reportRuntimeFailure(error, { stage: 'runtime-initialization' }, handle); return lifecycle.dispose }
     }
     import('./center/CenterExperience.jsx').then(module => {
       if (!live) return
@@ -55,8 +75,8 @@ export default function App() {
         handle.check()
         setRuntime({ Component: module.default, snapshot: result.snapshot, sessionHandle: handle })
         dispatch({ type: 'start' })
-      } catch { lifecycle.abandon('SESSION_STOPPED') }
-    }).catch(() => { if (live) lifecycle.abandon('RUNTIME_LOAD_FAILED') })
+      } catch (error) { reportRuntimeFailure(error, { stage: 'runtime-mount-check' }, handle) }
+    }).catch(error => { if (live) reportRuntimeFailure(error, { stage: 'runtime-import' }, handle) })
     return () => {
       live = false; lifecycle.dispose()
       if (runtimeObserver.current?.lifecycle === lifecycle) runtimeObserver.current = null
@@ -71,9 +91,13 @@ export default function App() {
     }
   }, [entry.phase])
 
-  const { language, text } = entryPresentation(preferences, navigator.languages || [navigator.language])
+  const displayedPreferences = entryPreferences(entry.phase !== 'entering' ? entry.inspection?.preview?.preferences ?? preferences : preferences)
+  useEffect(() => {
+    landingObserver.current.observe({ visible: !recoveringRuntime && world.phase !== 'active', previewReady: Boolean(entry.inspection?.preview), preferences: displayedPreferences, browserLanguages: navigator.languages || [navigator.language] })
+  }, [entry.inspection, entry.phase, recoveringRuntime, world.phase, preferences])
+  const { language, text } = entryPresentation(displayedPreferences, navigator.languages || [navigator.language])
   const warningMessages = entryWarningMessages(currentEntryWarnings(entry), language)
-  const warningStyle = getReaderThemeVariables(migrateThemePosition(preferences.themePosition, preferences.standardTheme))
+  const warningStyle = getReaderThemeVariables(migrateThemePosition(displayedPreferences.themePosition, displayedPreferences.standardTheme))
   const entries = entry.phase === 'start-ready' ? [{ id: 'create', label: text.create }]
     : entry.phase === 'choice-ready' ? [{ id: 'continue', label: text.continue }, { id: 'request-replace', label: text.replaceRequest }]
     : entry.phase === 'overwrite-confirm' ? [{ id: 'replace', label: text.confirm }, { id: 'cancel', label: text.cancel }]
@@ -85,7 +109,11 @@ export default function App() {
     else if (id === 'cancel') controller.cancelReplace()
     else if (id === 'back') controller.back()
     else if (id === 'reinspect') controller.recheck()
-    else controller.submit(id)
+    else {
+      const previous = controller.getState().phase
+      controller.submit(id)
+      if (previous !== 'committing' && controller.getState().phase === 'committing') trackEvent('center_entry_requested', { stepId: 'entry:center' })
+    }
   }
   const message = entry.phase === 'overwrite-confirm' ? text.overwrite : text[entry.phase] ?? ''
   const ui = <section className="save-entry" lang={language} data-save-entry-phase={entry.phase} data-save-entry-classification={entry.inspection?.classification ?? ''}>
@@ -96,7 +124,14 @@ export default function App() {
       entries={entries.map(item => ({ ...item, disabled: ['create', 'continue'].includes(item.id) ? !entry.inspection?.allowedActions?.includes(item.id) : item.id === 'request-replace' ? !entry.inspection?.allowedActions?.includes('request-replace') : false }))} initialFocusId={entry.phase === 'overwrite-confirm' ? 'cancel' : entry.focusTarget ?? null} materialMode="background" className={entry.phase === 'overwrite-confirm' ? 'save-entry-confirm' : ''} onNavigate={onAction} />}
   </section>
   const Runtime = runtime?.Component
+  const recoveryPanel = <RuntimeRecoveryPanel language={language} text={text} phase={entry.phase}
+    evidence={entry.runtimeEvidence} style={warningStyle} warnings={warningMessages}
+    onBack={() => { controller.back(); setRecoveringRuntime(false) }}
+    onRecheck={() => { controller.recheck().then(() => {
+      if (!['failed', 'uncertain', 'probing'].includes(controller.getState().phase)) setRecoveringRuntime(false)
+    }) }} />
   return <>
+    <RuntimeRecoveryBoundary resetKey={entry.committed?.sessionHandle ?? adopted.current} onError={reportRuntimeFailure}>
     {Runtime && <Runtime key={runtime.sessionHandle.generation} initialSnapshot={runtime.snapshot} sessionHandle={runtime.sessionHandle}
       entryPhase={world.phase} onSceneReady={() => {
         const handle = runtime.sessionHandle
@@ -109,10 +144,12 @@ export default function App() {
           if (ok && controller.getState().committed?.sessionHandle === handle) dispatch({ type: 'scene-ready' })
         })
       }} onRevealComplete={() => dispatch({ type: 'reveal-complete' })} />}
+    </RuntimeRecoveryBoundary>
+    {recoveringRuntime && recoveryPanel}
     {world.phase === 'active' && warningMessages.length > 0 && <aside className="save-entry-warning-overlay" style={warningStyle} lang={language}>
       {warningMessages.map(message => <p key={message} role="status" className="save-entry-warning" data-save-entry-warning>{message}</p>)}
     </aside>}
-    {world.phase !== 'active' && <EntrySurface preferences={preferences} landingIntroPreview={entry.inspection?.preview?.landingIntro} inspectionSettled={entry.phase !== 'probing'} entryUI={ui} worldEntryPhase={world.phase}
+    {!recoveringRuntime && world.phase !== 'active' && <EntrySurface preferences={displayedPreferences} landingIntroPreview={entry.inspection?.preview?.landingIntro} inspectionSettled={entry.phase !== 'probing'} entryUI={ui} worldEntryPhase={world.phase}
       onWorldCoverComplete={() => dispatch({ type: 'cover-complete' })} />}
   </>
 }

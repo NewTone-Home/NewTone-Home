@@ -18,7 +18,7 @@ const messages = {
 }
 export function entryPresentation(preferences, browserLanguages = []) {
   const { language } = resolveDisplayedReaderLanguage({ ...preferences, browserLanguages })
-  return { language, text: { ...messages[language], updates: copy[language].updates } }
+  return { language, text: { ...messages[language], updates: copy[language].updates, runtimeStopped: language === 'en' ? 'The game was stopped to protect your save. You can go back or check the save state again.' : '为保护存档，游戏已停止。你可以返回，或重新检查存档状态。', recoveryActions: language === 'en' ? 'Save recovery actions' : '存档恢复操作' } }
 }
 
 // Unknown/invalid is not the same as a valid first-use record.

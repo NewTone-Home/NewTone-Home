@@ -249,7 +249,7 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
   const warehouseDoorY = backAlleyUpperWallY + 2 * warehouseDoorCellHeight
   portals.push({
     id: 'yonghe-warehouse-door',
-    entity: { id: 'yonghe-warehouse-door', label: '\u95e8', displayLabel: '\u95e8', spaceId: backAlleyRoom.id, kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+    entity: { id: 'yonghe-warehouse-door', label: '\u95e8', displayLabel: '\u95e8', spaceId: backAlleyRoom.id, kind: 'door', weight: 'gateway', surface: 'wall', interactive: true, interactionBehavior: 'yonghe-warehouse', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
     endpoint: {
       doorPosition: { x: rowRight, y: warehouseDoorY },
       threshold: { x: rowRight - 1.5 * horizontal, y: warehouseDoorY },

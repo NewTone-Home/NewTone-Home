@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { crossShopIds } from './crossShopOrders'
+import { crossShopIds, claimCrossShopOrder } from './crossShopOrders'
 import {
   beginCafeStoryOrderDelivery, cafeStoryOrderStatus, completeCafeStoryOrderDeliveryPresentation,
   beginCafeTableOrderDelivery, completeCafeTableOrderDelivery, retargetCafeTableOrderDelivery,
+  completeCafeTableOrderDeliveryReturn, cafeTableOrderDeliveryAfterRefresh, completeCafeTableOrderDeliveryResult,
   sanitizeCafeStoryDeliveries, type CafeStoryDeliveryRecord, type CafeStoryOrderState,
 } from './cafeStoryOrderDelivery'
 
@@ -55,7 +56,7 @@ describe('Café story delivery bridge', () => {
     expect(state.shopOrders[crossShopIds.cafeTakeaway]).toBeDefined()
   })
 
-  it('reserves a ready ordinary Cafe order for the current seat without claiming it, and restores/retargets it safely', () => {
+  it('reserves without claiming, then atomically completes ordinary table delivery into the hand exactly once', () => {
     const initial: CafeStoryOrderState = { shopOrders: { [crossShopIds.cafeTakeaway]: { ...cafeOrder, readyAtGameTimeMs: 300 } }, heldConsumable: null, cafeStoryDeliveries: {}, phoneNotifications: [{ id: `shop-order-ready:${cafeOrder.id}`, app: 'cafe-takeaway', shopId: crossShopIds.cafeTakeaway, title: 'ready', body: 'pickup', unread: true, presented: true }] }
     expect(beginCafeTableOrderDelivery({ shopOrders: {}, heldConsumable: null, cafeStoryDeliveries: {} }, 'seat-a', 300)).toMatchObject({ ok: false, reason: 'no-order' })
     expect(beginCafeTableOrderDelivery(initial, 'seat-a', 299)).toMatchObject({ ok: false, reason: 'not-ready' })
@@ -73,20 +74,54 @@ describe('Café story delivery bridge', () => {
     expect(Object.values(moved)[0]).toMatchObject({ seatId: 'seat-b' })
     const completed = completeCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: moved }, cafeOrder.id, 'seat-b')
     expect(completed.shopOrders[crossShopIds.cafeTakeaway]).toBeUndefined()
-    expect(completed.heldConsumable).toBeNull()
+    expect(completed.heldConsumable).toEqual({ id: `held-${cafeOrder.id}`, shopId: crossShopIds.cafeTakeaway, productId: cafeOrder.productId, kind: 'drink', sourceOrderId: cafeOrder.id })
     expect(completed.phoneNotifications).toEqual([])
     expect(Object.values(completed.cafeStoryDeliveries)[0]).toMatchObject({ presentation: 'complete', deliveryKind: 'table' })
     expect(completeCafeTableOrderDelivery(completed, cafeOrder.id, 'seat-b')).toBe(completed)
+    const durable = { ...completed, cafeStoryDeliveries: sanitizeCafeStoryDeliveries(JSON.parse(JSON.stringify(completed.cafeStoryDeliveries))) }
+    expect(completeCafeTableOrderDelivery(durable, cafeOrder.id, 'seat-b')).toBe(durable)
+    // Even after consuming the delivered item, no counter order remains to claim again.
+    expect(claimCrossShopOrder({ ordersByShop: durable.shopOrders, heldConsumable: null }, crossShopIds.cafeTakeaway, 500)).toMatchObject({ ok: false, reason: 'no-order' })
+    // This is ordinary table service, not Lao Zhou's story delivery/presentation.
+    expect(beginCafeStoryOrderDelivery(durable, 'lao-zhou-meeting-v1', 500)).toMatchObject({ ok: false, reason: 'claimed' })
   })
 
-  it('releases a table reservation on leaving and preserves a separately held/full-hand state', () => {
+  it('persists an interrupted table return until counter arrival and preserves the other held item', () => {
     const pending = beginCafeTableOrderDelivery({ shopOrders: { [crossShopIds.cafeTakeaway]: { ...cafeOrder, readyAtGameTimeMs: 300 } }, heldConsumable: { shopId: crossShopIds.yonghe, sourceOrderId: 'meal-1' }, cafeStoryDeliveries: {} }, 'seat-a', 300)
     expect(pending.ok).toBe(true)
     if (!pending.ok) return
-    const released = retargetCafeTableOrderDelivery(pending.state.cafeStoryDeliveries, null)
-    expect(Object.keys(released)).toHaveLength(0)
-    expect(pending.state.shopOrders[crossShopIds.cafeTakeaway]?.id).toBe(cafeOrder.id)
-    expect(pending.state.heldConsumable?.shopId).toBe(crossShopIds.yonghe)
-    expect(beginCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: released }, 'seat-b', 400)).toMatchObject({ ok: true, replayed: false })
+    const returning = retargetCafeTableOrderDelivery(pending.state.cafeStoryDeliveries, null)
+    expect(Object.values(returning)).toHaveLength(1)
+    expect(Object.values(returning)[0]).toMatchObject({ deliveryKind: 'table', presentation: 'pending', deliveryPhase: 'returning-to-counter', seatId: 'seat-a' })
+    const restored = { ...pending.state, cafeStoryDeliveries: sanitizeCafeStoryDeliveries(JSON.parse(JSON.stringify(returning))) }
+    expect(cafeTableOrderDeliveryAfterRefresh(restored)).toEqual({ orderId: cafeOrder.id, seatId: 'seat-a', phase: 'returning-to-counter' })
+    expect(restored.shopOrders[crossShopIds.cafeTakeaway]?.id).toBe(cafeOrder.id)
+    expect(restored.heldConsumable).toBe(pending.state.heldConsumable)
+    expect(beginCafeTableOrderDelivery(restored, 'seat-b', 400)).toMatchObject({ ok: false, reason: 'returning-to-counter' })
+    expect(completeCafeTableOrderDelivery(restored, cafeOrder.id, 'seat-a')).toBe(restored)
+    const released = completeCafeTableOrderDeliveryReturn(restored, cafeOrder.id)
+    expect(Object.keys(released.cafeStoryDeliveries)).toHaveLength(0)
+    expect(released.shopOrders[crossShopIds.cafeTakeaway]?.id).toBe(cafeOrder.id)
+    expect(released.heldConsumable?.shopId).toBe(crossShopIds.yonghe)
+    expect(completeCafeTableOrderDeliveryReturn(released, cafeOrder.id)).toBe(released)
+    const retry = beginCafeTableOrderDelivery(released, 'seat-b', 400)
+    expect(retry).toMatchObject({ ok: true, replayed: false })
+    if (!retry.ok) return
+    expect(completeCafeTableOrderDeliveryResult(retry.state, cafeOrder.id, 'seat-b')).toMatchObject({ ok: false, reason: 'hand-full', state: retry.state })
   })
+})
+
+it('counter pickup before a delayed table callback cannot deliver the same ordinary order twice', () => {
+  const initial: CafeStoryOrderState = { shopOrders: { [crossShopIds.cafeTakeaway]: { ...cafeOrder, readyAtGameTimeMs: 300 } }, heldConsumable: null, cafeStoryDeliveries: {} }
+  const pending = beginCafeTableOrderDelivery(initial, 'seat-a', 300)
+  expect(pending.ok).toBe(true)
+  if (!pending.ok) return
+  const counter = claimCrossShopOrder({ ordersByShop: pending.state.shopOrders, heldConsumable: null }, crossShopIds.cafeTakeaway, 300)
+  expect(counter.ok).toBe(true)
+  if (!counter.ok) return
+  const current: CafeStoryOrderState = { ...pending.state, shopOrders: counter.state.ordersByShop, heldConsumable: counter.value }
+  expect(completeCafeTableOrderDelivery(current, cafeOrder.id, 'seat-a')).toBe(current)
+  expect(completeCafeTableOrderDeliveryResult(current, cafeOrder.id, 'seat-a')).toMatchObject({ ok: false, reason: 'order-changed', state: current })
+  expect(current.heldConsumable?.sourceOrderId).toBe(cafeOrder.id)
+  expect(current.shopOrders[crossShopIds.cafeTakeaway]).toBeUndefined()
 })

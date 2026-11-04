@@ -453,15 +453,17 @@ export function createGameTimeSaveCheckpoint({
   setSave,
   getGameTimeMs,
   persist,
+  canPersist = () => true,
 }: {
   getSave: () => PlayerSave
   setSave: (save: PlayerSave) => void
   getGameTimeMs: () => number
+  canPersist?: () => boolean
   persist: (save: PlayerSave) => PlayerSave
 }) {
   const generation = playerSaveResetGeneration
   return () => {
-    if (generation !== playerSaveResetGeneration) return getSave()
+    if (generation !== playerSaveResetGeneration || !canPersist()) return getSave()
     const current = getSave()
     const gameTimeMs = getGameTimeMs()
     if (!Number.isFinite(gameTimeMs) || gameTimeMs < 0 || current.gameTimeMs === gameTimeMs) return current
@@ -523,11 +525,13 @@ export function createPositionSaveCoordinator<TPosition, TSave>({
   getCurrentSceneId,
   recordPosition,
   persist,
+  canPersist = () => true,
 }: {
   getSave: () => TSave
   setSave: (save: TSave) => void
   getCurrentSceneId: () => string
   recordPosition: (save: TSave, sceneId: string, position: TPosition) => TSave
+  canPersist?: () => boolean
   persist: (save: TSave) => TSave
 }) {
   const buffer = createPositionSaveBuffer<TPosition>()
@@ -540,16 +544,19 @@ export function createPositionSaveCoordinator<TPosition, TSave>({
     return persisted
   }
   return {
-    queue: buffer.queue,
+    queue(sceneId: string, position: TPosition) {
+      if (generation !== playerSaveResetGeneration || !canPersist()) { buffer.clear(); return }
+      buffer.queue(sceneId, position)
+    },
     flush(sceneId: string) {
-      if (generation !== playerSaveResetGeneration) { buffer.clear(); return getSave() }
+      if (generation !== playerSaveResetGeneration || !canPersist()) { buffer.clear(); return getSave() }
       const pending = buffer.take(sceneId)
       if (!pending) return getSave()
       const current = getSave()
       return publish(apply(current, pending), current)
     },
     commit(update: (save: TSave) => TSave) {
-      if (generation !== playerSaveResetGeneration) { buffer.clear(); return getSave() }
+      if (generation !== playerSaveResetGeneration || !canPersist()) { buffer.clear(); return getSave() }
       const current = getSave()
       const pending = buffer.take(getCurrentSceneId())
       const positioned = pending ? apply(current, pending) : current
@@ -565,14 +572,18 @@ export function attachPositionSaveLifecycle(
   windowTarget: Pick<Window, 'addEventListener' | 'removeEventListener'> = window,
   documentTarget: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'> = document,
   checkpoint?: () => void,
+  canPersist: () => boolean = () => true,
 ) {
-  const flushCurrent = () => { flush(getSceneId()); checkpoint?.() }
+  const flushCurrent = () => { if (canPersist()) { flush(getSceneId()); checkpoint?.() } }
   const flushWhenHidden = () => {
     if (documentTarget.visibilityState === 'hidden') flushCurrent()
   }
   windowTarget.addEventListener('pagehide', flushCurrent)
   documentTarget.addEventListener('visibilitychange', flushWhenHidden)
+  let detached = false
   return () => {
+    if (detached) return
+    detached = true
     windowTarget.removeEventListener('pagehide', flushCurrent)
     documentTarget.removeEventListener('visibilitychange', flushWhenHidden)
     flushCurrent()

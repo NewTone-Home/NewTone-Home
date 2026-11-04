@@ -97,7 +97,7 @@ describe('Reader shell contract boundaries', () => {
     expect(transition).toContain('}, [currentStage.id])')
     expect(transition).not.toContain('}, [currentStage.id, leaving, modeStage])')
     expect(languageWheel).toContain("openSelector('hover')")
-    expect(app).toContain("recordRuntimeAudit('language-confirmed'")
+    expect(read('../src/admin/OwnerReaderPreviewHost.jsx')).toContain('<Reader')
     expect(transition).toContain("id: 'mode-immersive'")
     expect(transition).toContain("id: 'mode-standard'")
     expect(transition).not.toContain('RitualHandAffordance')
@@ -188,18 +188,16 @@ describe('Reader shell contract boundaries', () => {
     expect(returnCss).toContain('bottom: max(68px, calc(env(safe-area-inset-bottom) + 48px))')
   })
 
-  it('keeps Reader return handoff in the live Landing surface', () => {
+  it('keeps Reader return semantics inside its isolated owner-preview host', () => {
     expect(transitionStore).toContain("targetView === 'landing' && preset === 'reader-to-surface'")
     expect(transitionStore).toContain("landingArrivalKind: 'return'")
     expect(transitionStore).toContain('const committed = commitTargetView(targetView, preset, payload)')
-    expect(landing).toContain("landingArrivalKind === 'return'")
-    expect(landing).toContain('setReturnStatusFading(true)')
-    expect(landing).toContain('setReturnStatusVisible(false)')
-    expect(landing).toContain('LANDING_RETURN_RETRACT_MS')
-    expect(landing).toContain('await Promise.all([')
-    expect(landing).not.toContain('RETURN_STATUS_TOTAL_MS')
+    const host = read('../src/admin/OwnerReaderPreviewHost.jsx')
+    expect(host).toContain("currentView === 'reader'")
+    expect(host).toContain('<Reader')
+    expect(host).toContain('progress.getState().commitLocation(session.initialLocation)')
+    expect(app).not.toContain("import Reader from")
     expect(landingIntro).toContain('LANDING_RETURN_RETRACT_MS = 640')
-    expect(app).toContain('landingHandoff={showLandingHandoffSurface}')
   })
 
   it('keeps Updates as a page phase with a bottom-left click entry', () => {

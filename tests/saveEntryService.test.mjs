@@ -1,7 +1,9 @@
 import {test,expect,afterEach,vi} from 'vitest';
 import {createHash} from 'node:crypto';
 import {createSaveEntryService,AUTHORITY,PENDING,PLAYER,ACKNOWLEDGED} from '../src/services/saveEntryService.mjs';
-import {memoryStorage} from '../src/save-session.mjs';
+import {memoryStorage,installGameStorage} from '../src/save-session.mjs';
+import {createRuntimeSaveLifecycle} from '../src/center/runtime/runtimeSaveLifecycle.mjs';
+import {createGameTimeSaveCheckpoint,createPositionSaveCoordinator,recordPlayerScenePosition,attachPositionSaveLifecycle} from '../src/center/runtime/playerSave.ts';
 import {createInitialPlayerSave,savePlayerSave,sanitizePlayerSave} from '../src/center/runtime/playerSave.ts';
 import {mainlineScenes} from '../src/center/runtime/mainlineScenes.ts';
 import {commercialCafeStoryStatePatch,initialCommercialCafeStoryState,commercialCafeNarrativeDialogue} from '../src/center/runtime/commercialCafeStory.ts';
@@ -108,4 +110,170 @@ test('ack failure clears mounted monitor and listeners before returning',async()
   const timers=new Set(),events=new Set(),docEvents=new Set();vi.stubGlobal('window',{setInterval:()=>{timers.add(1);return 1},clearInterval:id=>timers.delete(id),addEventListener:type=>events.add(type),removeEventListener:type=>events.delete(type),document:{addEventListener:type=>docEvents.add(type),removeEventListener:type=>docEvents.delete(type)}});
   const r=rig(),c=await choose(r,'create'),set=r.raw.setItem.bind(r.raw);expect(timers.size).toBe(1);r.raw.setItem=(k,v)=>{if(k===ACKNOWLEDGED)throw Error('quota');set(k,v)};
   expect((await r.service.acknowledgeEntry({ticket:c.ticket,sessionHandle:c.sessionHandle})).status).toBe('outcome-uncertain');expect(timers.size).toBe(0);expect(events.size).toBe(0);expect(docEvents.size).toBe(0);expect(()=>c.sessionHandle.check()).toThrow();
+});
+
+// A native request may finish after its callback's promise is resolved. The old
+// synchronous-ish mock never held the lock through this handoff window.
+function delayedReleaseLocks(){
+  let occupied=false,nextDelay=null;
+  return {
+    delayNextRelease(){
+      let entered,finish;
+      const started=new Promise(resolve=>{entered=resolve;});
+      const gate=new Promise(resolve=>{finish=resolve;});
+      nextDelay={entered,gate};
+      return {started,finish};
+    },
+    async request(_key,_options,callback){
+      if(occupied)return callback(null);
+      occupied=true;
+      try{return await callback({name:'native-shaped-lock'});}
+      finally{const delay=nextDelay;nextDelay=null;if(delay){delay.entered();await delay.gate;}occupied=false;}
+    },
+  };
+}
+test('prepared recovery waits for native request release before same-ticket commit',async()=>{
+  const locks=delayedReleaseLocks(),r=rig(memoryStorage(),locks),inspection=await r.service.inspectSave();
+  const prepared=await r.service.prepareEntry({intent:'create',snapshotToken:inspection.snapshotToken});
+  expect(prepared.status).toBe('prepared');
+  const originalPending=r.raw.getItem(PENDING),gate=locks.delayNextRelease();
+  let returned=false;
+  const resolving=r.service.resolveOperation({ticket:prepared.ticket}).then(result=>{returned=true;return result;});
+  await gate.started;
+  await Promise.resolve();
+  const premature=returned;
+  // This is genuinely still another owner's lock, not permission to bypass it.
+  const other=rig(r.raw,locks),blocked=await other.service.resolveOperation({ticket:prepared.ticket});
+  gate.finish();
+  const resolved=await resolving;
+  expect(premature).toBe(false);
+  expect(blocked).toMatchObject({status:'busy',reasonCodes:['ANOTHER_SESSION_ACTIVE']});
+  expect(resolved).toMatchObject({status:'not-committed',resumeAllowed:true,ticket:prepared.ticket});
+  const committed=await r.service.commitEntry({ticket:resolved.ticket});
+  expect(committed.status).toBe('committed');handles.push(committed.sessionHandle);
+  expect(committed.receipt.operationId).toBe(prepared.ticket.operationId);
+  expect(r.raw.getItem(PENDING)).toBe(originalPending);
+  expect(JSON.parse(committed.sessionHandle.storage.getItem(PLAYER)).walletBalance).toBe(800);
+  const updated=JSON.parse(committed.sessionHandle.storage.getItem(PLAYER));
+  savePlayerSave({...updated,walletBalance:750},committed.sessionHandle.storage);
+  await committed.sessionHandle.close();
+  const recovered=await other.service.resolveOperation({ticket:prepared.ticket});
+  expect(recovered.status).toBe('committed');handles.push(recovered.sessionHandle);
+  expect(recovered.snapshot.generation).toEqual(committed.snapshot.generation);
+  expect(JSON.parse(recovered.sessionHandle.storage.getItem(PLAYER)).walletBalance).toBe(750);
+});
+test('prepare write landed but threw: release completes before uncertain result permits recovery',async()=>{
+  const locks=delayedReleaseLocks(),r=rig(memoryStorage(),locks),inspection=await r.service.inspectSave();
+  const set=r.raw.setItem.bind(r.raw);let inject=true;
+  r.raw.setItem=(key,value)=>{set(key,value);if(key===PENDING&&inject){inject=false;throw Error('prepare response lost');}};
+  const gate=locks.delayNextRelease();let returned=false;
+  const preparing=r.service.prepareEntry({intent:'create',snapshotToken:inspection.snapshotToken}).then(result=>{returned=true;return result;});
+  await gate.started;await Promise.resolve();const premature=returned;
+  gate.finish();const uncertain=await preparing;
+  expect(premature).toBe(false);
+  expect(uncertain).toMatchObject({status:'outcome-uncertain',reasonCodes:['prepare response lost']});
+  expect(r.raw.getItem(AUTHORITY)).toBeNull();
+  const next=rig(r.raw,locks),pending=await next.service.getRecoveryState();
+  expect(pending.ticket).toEqual(uncertain.ticket);
+  const resolved=await next.service.resolveOperation({ticket:pending.ticket});
+  expect(resolved).toMatchObject({status:'not-committed',resumeAllowed:true});
+  const committed=await next.service.commitEntry({ticket:resolved.ticket});
+  expect(committed.status).toBe('committed');handles.push(committed.sessionHandle);
+  expect(JSON.parse(committed.sessionHandle.storage.getItem(PLAYER)).walletBalance).toBe(800);
+  expect(Array.from({length:r.raw.length},(_,i)=>r.raw.key(i)).filter(key=>key.startsWith('newtone-save-entry-backup-v2:'))).toHaveLength(1);
+});
+function boundRuntime(committed){
+  let saved=JSON.parse(committed.sessionHandle.storage.getItem(PLAYER)),publications=0;
+  const lifecycle=createRuntimeSaveLifecycle(committed.sessionHandle.storage,committed.sessionHandle);
+  const disconnect=lifecycle.connect();
+  const publish=next=>{publications++;saved=next;};
+  const coordinator=createPositionSaveCoordinator({getSave:()=>saved,setSave:publish,getCurrentSceneId:()=>saved.currentSceneId,recordPosition:recordPlayerScenePosition,canPersist:lifecycle.canPersist,persist:next=>savePlayerSave(next,committed.sessionHandle.storage)});
+  const checkpoint=createGameTimeSaveCheckpoint({getSave:()=>saved,setSave:publish,getGameTimeMs:()=>saved.gameTimeMs+60_000,canPersist:lifecycle.canPersist,persist:next=>savePlayerSave(next,committed.sessionHandle.storage)});
+  const clear=lifecycle.onStop(()=>coordinator.clear());
+  return {lifecycle,coordinator,checkpoint,read:()=>saved,publications:()=>publications,dispose:()=>{clear();disconnect();}};
+}
+test('valid runtime unmount flushes position and clock once, using the captured storage',async()=>{
+  const r=rig(),committed=await choose(r,'create'),runtime=boundRuntime(committed);
+  const revision=JSON.parse(r.raw.getItem(AUTHORITY)).revision;
+  runtime.coordinator.queue('commercial-street',{x:42,y:37});
+  // Ambient lookup is gone during a transition; this runtime still owns its lease.
+  installGameStorage(null);
+  const win=new EventTarget(),doc=new EventTarget();doc.visibilityState='visible';
+  const detach=attachPositionSaveLifecycle(id=>runtime.coordinator.flush(id),()=>runtime.read().currentSceneId,win,doc,runtime.checkpoint,runtime.lifecycle.canPersist);
+  detach();detach();
+  expect(JSON.parse(r.raw.getItem(AUTHORITY)).revision).toBe(revision+2);
+  expect(JSON.parse(committed.sessionHandle.storage.getItem(PLAYER))).toMatchObject({currentPosition:{x:42,y:37},walletBalance:800,gameTimeMs:runtime.read().gameTimeMs});
+  expect(runtime.publications()).toBe(2);
+  runtime.dispose();
+});
+test('source conflict cancels runtime work; stopped unmount never checkpoints or flushes',async()=>{
+  const original=JSON.stringify(save()),r=rig(memoryStorage({[PLAYER]:original})),committed=await choose(r,'continue'),runtime=boundRuntime(committed);
+  let cancelled=0,lateBusiness=0;
+  runtime.lifecycle.onStop(()=>{cancelled++;});
+  runtime.coordinator.queue('commercial-street',{x:42,y:37});
+  const win=new EventTarget(),doc=new EventTarget();doc.visibilityState='hidden';
+  const detach=attachPositionSaveLifecycle(id=>runtime.coordinator.flush(id),()=>runtime.read().currentSceneId,win,doc,runtime.checkpoint,runtime.lifecycle.canPersist);
+  const authority=r.raw.getItem(AUTHORITY);
+  r.raw.setItem(PLAYER,original+' ');
+  expect(()=>committed.sessionHandle.check()).toThrow('legacy-or-bootstrap-slot-changed');
+  expect(runtime.lifecycle.stopReason).toBe('legacy-or-bootstrap-slot-changed');
+  expect(cancelled).toBe(1);
+  expect(()=>{detach();detach();win.dispatchEvent(new Event('pagehide'));runtime.checkpoint();runtime.coordinator.flush('commercial-street');runtime.lifecycle.run(()=>{lateBusiness++;});}).not.toThrow();
+  expect(r.raw.getItem(AUTHORITY)).toBe(authority);
+  expect(r.raw.getItem(PLAYER)).toBe(original+' ');
+  expect(runtime.publications()).toBe(0);expect(lateBusiness).toBe(0);
+  expect(()=>committed.sessionHandle.storage.setItem(PLAYER,original)).toThrow('save-session-stopped');
+  await committed.sessionHandle.close();await committed.sessionHandle.close();
+  expect(cancelled).toBe(1);runtime.dispose();
+});
+test('first failed business commit retains its reason, money and receipts; cleanup cannot publish it',async()=>{
+  const r=rig(),committed=await choose(r,'create'),runtime=boundRuntime(committed),before=r.raw.getItem(AUTHORITY);
+  const set=r.raw.setItem.bind(r.raw);let faults=0;
+  r.raw.setItem=(key,value)=>{if(key===AUTHORITY){faults++;throw Error('synthetic purchase write failure');}return set(key,value);};
+  expect(()=>runtime.coordinator.commit(current=>({...current,walletBalance:current.walletBalance-50}))).toThrow('storage-write-failed');
+  expect(committed.sessionHandle.stopReason).toBe('storage-write-failed');
+  expect(runtime.lifecycle.stopReason).toBe('storage-write-failed');
+  expect(()=>{runtime.checkpoint();runtime.coordinator.flush('commercial-street');}).not.toThrow();
+  expect(faults).toBe(1);expect(runtime.publications()).toBe(0);
+  expect(r.raw.getItem(AUTHORITY)).toBe(before);
+  const preserved=JSON.parse(JSON.parse(before).values[PLAYER]);
+  expect(preserved.walletBalance).toBe(800);expect(preserved.shopOrderPaymentReceipts).toEqual({});
+  await committed.sessionHandle.close();await committed.sessionHandle.close();
+  runtime.dispose();
+});
+test('revoked runtime never adopts a replacement global session or writes its generation',async()=>{
+  const r=rig(),first=await choose(r,'create'),runtime=boundRuntime(first);
+  runtime.coordinator.queue('commercial-street',{x:42,y:37});
+  await first.sessionHandle.close();
+  const next=await choose(r,'replace',true),authority=r.raw.getItem(AUTHORITY);
+  expect(next.sessionHandle.generation).not.toBe(first.sessionHandle.generation);
+  expect(()=>{runtime.checkpoint();runtime.coordinator.queue('commercial-street',{x:1,y:2});runtime.coordinator.flush('commercial-street');}).not.toThrow();
+  expect(r.raw.getItem(AUTHORITY)).toBe(authority);expect(runtime.publications()).toBe(0);
+  expect(()=>runtime.lifecycle.assertActive()).toThrow('session-closed');
+  runtime.dispose();
+});
+test('lifecycle does not hide an unrelated storage check failure',()=>{
+  const failure=Error('unexpected validator failure');
+  const lifecycle=createRuntimeSaveLifecycle({check(){throw failure;}});
+  expect(()=>lifecycle.canPersist()).toThrow(failure);
+});
+
+test('ACK failure revokes bound cleanup before returning, and another service recovers the same save',async()=>{
+  const locks=delayedReleaseLocks(),r=rig(memoryStorage({[PLAYER]:JSON.stringify(save())}),locks);
+  const committed=await choose(r,'continue'),runtime=boundRuntime(committed),before=r.raw.getItem(AUTHORITY);
+  runtime.coordinator.queue('commercial-street',{x:42,y:37});
+  const set=r.raw.setItem.bind(r.raw);
+  r.raw.setItem=(key,value)=>{if(key===ACKNOWLEDGED)throw Error('ack storage failure');return set(key,value);};
+  const result=await r.service.acknowledgeEntry({ticket:committed.ticket,sessionHandle:committed.sessionHandle});
+  expect(result).toMatchObject({status:'outcome-uncertain',ticket:committed.ticket});
+  expect(committed.sessionHandle.isOpen).toBe(false);
+  expect(()=>{runtime.checkpoint();runtime.coordinator.flush('commercial-street');}).not.toThrow();
+  expect(r.raw.getItem(AUTHORITY)).toBe(before);expect(runtime.publications()).toBe(0);
+  const next=rig(r.raw,locks),recovered=await next.service.resolveOperation({ticket:committed.ticket});
+  expect(recovered.status).toBe('committed');handles.push(recovered.sessionHandle);
+  expect(recovered.sessionHandle).not.toBe(committed.sessionHandle);
+  expect(recovered.snapshot.generation).toEqual(committed.snapshot.generation);
+  expect(JSON.parse(recovered.sessionHandle.storage.getItem(PLAYER)).walletBalance).toBe(650);
+  expect(()=>committed.sessionHandle.check()).toThrow('save-session-stopped');
+  runtime.dispose();
 });

@@ -1,4 +1,5 @@
-import { assertGameSession, getGameStorage } from '../save-session.mjs'
+import { getGameStorage } from '../save-session.mjs'
+import { createRuntimeSaveLifecycle } from './runtime/runtimeSaveLifecycle.mjs'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { attachSessionGameClockVisibilityLifecycle, createSessionGameClock } from './runtime/sessionGameClock'
 import { MainlineScenePage } from './runtime/MainlineScenePage'
@@ -122,15 +123,19 @@ export default function CenterExperience({
   entryPhase = 'active',
   onSceneReady,
   onRevealComplete,
+  sessionHandle,
 }) {
   const reducedMotion = useReducedMotion()
   const fixtureStorage = syntheticShopOrderStorage()
+  const [runtimeStorage] = useState(() => sessionHandle?.storage ?? fixtureStorage ?? getGameStorage())
+  const [saveLifecycle] = useState(() => createRuntimeSaveLifecycle(runtimeStorage, sessionHandle))
+  useEffect(() => saveLifecycle.connect(), [saveLifecycle])
   const [debugClockTrial] = useState(() => {
     if (!hasSyntheticClockTrialStorage()) return null
     const mode = new URLSearchParams(window.location.search).get('debugClockTrial')
     return mode === 'formal-dialogue' || mode === 'inner-monologue' ? mode : null
   })
-  const [playerSave, setPlayerSave] = useState(() => loadPlayerSave(fixtureStorage ?? undefined))
+  const [playerSave, setPlayerSave] = useState(() => loadPlayerSave(runtimeStorage))
   const sessionGameClockRef = useRef(null)
   if (!sessionGameClockRef.current) {
     sessionGameClockRef.current = createSessionGameClock({
@@ -141,7 +146,7 @@ export default function CenterExperience({
   }
   const [trialClockSnapshot, setTrialClockSnapshot] = useState(() => sessionGameClockRef.current.read())
   const playerSaveRef = useRef(playerSave)
-  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave(fixtureStorage ?? undefined).currentSceneId ?? initialSceneId, resolveLegacyCafeEntryPosition()))
+  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave(runtimeStorage).currentSceneId ?? initialSceneId, resolveLegacyCafeEntryPosition()))
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('scene') === 'commercial-cafe') {
       window.history.replaceState({ newtoneCenterScene: 'commercial-street' }, '', mainlineSceneRoute('commercial-street', route.entryPosition ?? legacyCafeEntryPosition()))
@@ -171,10 +176,11 @@ export default function CenterExperience({
       setSave: next => { playerSaveRef.current = next },
       getCurrentSceneId: () => currentSceneIdRef.current,
       recordPosition: recordPlayerScenePosition,
-        persist: next => persistPlayerSave({
+      canPersist: saveLifecycle.canPersist,
+      persist: next => persistPlayerSave({
         ...next,
         gameTimeMs: sessionGameClockRef.current.read().gameTimeMs,
-      }, fixtureStorage ?? undefined),
+      }, runtimeStorage),
     })
   }
   const gameTimeSaveCheckpointRef = useRef(null)
@@ -183,9 +189,11 @@ export default function CenterExperience({
       getSave: () => playerSaveRef.current,
       setSave: next => { playerSaveRef.current = next; setPlayerSave(next) },
       getGameTimeMs: () => sessionGameClockRef.current.read().gameTimeMs,
-      persist: next => persistPlayerSave(next, fixtureStorage ?? undefined, undefined, { preserveFreshSeatOnly: true }),
+      canPersist: saveLifecycle.canPersist,
+      persist: next => persistPlayerSave(next, runtimeStorage, undefined, { preserveFreshSeatOnly: true }),
     })
   }
+  useEffect(() => saveLifecycle.onStop(() => positionSaveCoordinatorRef.current.clear()), [saveLifecycle])
   const getRideMapSnapshot = useCallback(() => {
     const current = latestWorldPositionRef.current
     if (!current || current.sceneId !== route.sceneId) return null
@@ -202,17 +210,17 @@ export default function CenterExperience({
         sceneId,
         positionX,
         positionY,
-      }, { deferred: true }).then(() => checkpointSessionActivityIfDue()),
+      }, { deferred: true }).then(() => saveLifecycle.run(() => checkpointSessionActivityIfDue())),
     })
   }
-  const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave(fixtureStorage ?? undefined).phoneDevice)
+  const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave(runtimeStorage).phoneDevice)
   const [requestedPhoneApp, setRequestedPhoneApp] = useState(null)
   const [resumeSceneId, setResumeSceneId] = useState(null)
   const [resumePosition, setResumePosition] = useState(undefined)
   const [localSlideHandoffRoute, setLocalSlideHandoffRoute] = useState(null)
   const [sceneSlot, setSceneSlot] = useState(0)
   const [boundaryNotice, setBoundaryNotice] = useState('')
-  const [rideOrder, setRideOrder] = useState(() => mainlineRideOrderFromState(loadPlayerSave(fixtureStorage ?? undefined).sceneState))
+  const [rideOrder, setRideOrder] = useState(() => mainlineRideOrderFromState(loadPlayerSave(runtimeStorage).sceneState))
   const rideBoardingRef = useRef(() => {})
   const phoneRetractedRef = useRef(true)
   useEffect(() => {
@@ -237,7 +245,7 @@ export default function CenterExperience({
 
 
   const commitPlayerSave = useCallback((update) => {
-    assertGameSession()
+    saveLifecycle.assertActive()
     const previous = playerSaveRef.current
     const next = positionSaveCoordinatorRef.current.commit(update)
     if (next !== previous) setPlayerSave(next)
@@ -385,6 +393,7 @@ export default function CenterExperience({
     const productName = yongheTakeawayCatalog.find(product => product.id === order.productId)?.name ?? order.productId
     let timer = null
     const checkGameClock = () => {
+      if (!saveLifecycle.canPersist()) return true
       const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
       if (nowGameTimeMs >= order.readyAtGameTimeMs) {
         if (timer !== null) window.clearInterval(timer)
@@ -395,7 +404,9 @@ export default function CenterExperience({
     }
     if (checkGameClock()) return
     timer = window.setInterval(checkGameClock, 250)
-    return () => { if (timer !== null) window.clearInterval(timer) }
+    const cancel = () => { if (timer !== null) window.clearInterval(timer) }
+    const unsubscribe = saveLifecycle.onStop(cancel)
+    return () => { unsubscribe(); cancel() }
   }, [handleYongheOrderReady, playerSave.shopOrders?.[crossShopIds.yonghe]?.id, playerSave.shopOrders?.[crossShopIds.yonghe]?.productId, playerSave.shopOrders?.[crossShopIds.yonghe]?.readyAtGameTimeMs, playerSave.shopOrders?.[crossShopIds.yonghe]?.status])
 
   useEffect(() => {
@@ -611,8 +622,9 @@ export default function CenterExperience({
     const remaining = milkTeaOrder.readyAt - Date.now()
     if (remaining <= 0) { handleMilkTeaOrderReady(milkTeaOrder); return }
     // The order deadline owns readiness even when its app and Phone are closed.
-    const timer = window.setTimeout(() => handleMilkTeaOrderReady(milkTeaOrder), remaining)
-    return () => window.clearTimeout(timer)
+    const timer = window.setTimeout(() => saveLifecycle.run(() => handleMilkTeaOrderReady(milkTeaOrder)), remaining)
+    const unsubscribe = saveLifecycle.onStop(() => window.clearTimeout(timer))
+    return () => { unsubscribe(); window.clearTimeout(timer) }
   }, [handleMilkTeaOrderReady, milkTeaOrder?.number, milkTeaOrder?.readyAt, playerSave.shopOrders])
 
   const handleFeedbackModeChange = useCallback((mode) => {
@@ -668,14 +680,15 @@ export default function CenterExperience({
 
   useEffect(() => {
     const sessionClock = sessionGameClockRef.current
-    const detachVisibilityLifecycle = attachSessionGameClockVisibilityLifecycle(sessionClock, setTrialClockSnapshot)
+    const detachVisibilityLifecycle = attachSessionGameClockVisibilityLifecycle(sessionClock, snapshot => saveLifecycle.run(() => setTrialClockSnapshot(snapshot)))
     const recordTrustedInput = (event) => {
-      if (!event.isTrusted) return
+      if (!event.isTrusted || !saveLifecycle.canPersist()) return
       setTrialClockSnapshot(sessionClock.markInput())
     }
     const inputEvents = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'click']
     inputEvents.forEach((name) => window.addEventListener(name, recordTrustedInput, true))
     const timer = window.setInterval(() => {
+      if (!saveLifecycle.canPersist()) return
       const next = sessionClock.read()
       setTrialClockSnapshot((current) => {
         const minuteChanged = Math.floor(current.gameTimeMs / 60_000) !== Math.floor(next.gameTimeMs / 60_000)
@@ -685,14 +698,18 @@ export default function CenterExperience({
       })
     }, 250)
     const saveTimer = window.setInterval(() => gameTimeSaveCheckpointRef.current(), 10_000)
-    return () => {
+    const cancel = () => {
       inputEvents.forEach((name) => window.removeEventListener(name, recordTrustedInput, true))
       window.clearInterval(timer)
       window.clearInterval(saveTimer)
       detachVisibilityLifecycle()
+    }
+    const unsubscribe = saveLifecycle.onStop(cancel)
+    return () => {
+      unsubscribe(); cancel()
       gameTimeSaveCheckpointRef.current()
     }
-  }, [])
+  }, [saveLifecycle])
 
   const handleMeaningfulActivity = useCallback(() => {
     markSessionActivity()
@@ -703,7 +720,7 @@ export default function CenterExperience({
     setResumeSceneId(null)
     setResumePosition(undefined)
     if (route.spawnMode === 'ride' || route.entryPosition) return
-    setResumePosition(loadPlayerSave(fixtureStorage ?? undefined, route.sceneId).scenePositions[route.sceneId])
+    setResumePosition(loadPlayerSave(runtimeStorage, route.sceneId).scenePositions[route.sceneId])
     setResumeSceneId(route.sceneId)
   }, [route.sceneId, route.entryPosition?.x, route.entryPosition?.y, route.spawnMode])
 
@@ -952,12 +969,14 @@ export default function CenterExperience({
   useEffect(() => {
     if (!rideOrder || route.sceneId !== rideOrder.sourceSceneId) return
     const arrived = () => {
+      if (!saveLifecycle.canPersist()) return
       notifyPhone({ id: 'ride:' + rideOrder.sourceSceneId + ':' + rideOrder.targetSceneId + ':' + rideOrder.driverArrivesAt, app: 'ride', title: '司机已到达', body: '请前往上车点' })
       const current = latestWorldPositionRef.current
       if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
     }
     const timer = window.setTimeout(arrived, Math.max(0, rideOrder.driverArrivesAt - Date.now()))
-    return () => window.clearTimeout(timer)
+    const unsubscribe = saveLifecycle.onStop(() => window.clearTimeout(timer))
+    return () => { unsubscribe(); window.clearTimeout(timer) }
   }, [notifyPhone, rideOrder, route.sceneId])
   const handleRideRequest = useCallback((device, destinationSceneId, presentation) => {
     if (rideOrder) return { ok: false, reason: '已有进行中的订单' }
@@ -995,14 +1014,17 @@ export default function CenterExperience({
   }, [])
 
   useEffect(() => {
-    return attachPositionSaveLifecycle(
+    const detach = attachPositionSaveLifecycle(
       flushPositionSave,
       () => route.sceneId,
       undefined,
       undefined,
       () => gameTimeSaveCheckpointRef.current(),
+      saveLifecycle.canPersist,
     )
-  }, [flushPositionSave, route.sceneId])
+    const unsubscribe = saveLifecycle.onStop(detach)
+    return () => { unsubscribe(); detach() }
+  }, [flushPositionSave, route.sceneId, saveLifecycle])
 
   const cafeClockInsideRef = useRef(false)
   const handleRuntimePositionChange = useCallback((sceneId, position, context) => {

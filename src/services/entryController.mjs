@@ -22,7 +22,7 @@ export function createEntryController(service) {
     if (!result.snapshot || !result.receipt || !result.sessionHandle) throw Error('INCOMPLETE_COMMITTED_RESULT')
     result.sessionHandle.check()
     acknowledgement = null
-    publish({ phase: 'entering', committed: result, reasons: [], committedWarnings: warnings(result), warningSource: 'committed' })
+    publish({ phase: 'entering', committed: result, reasons: [], committedWarnings: warnings(result), warningSource: 'committed', runtimeEvidence: null })
   }
   async function recover() {
     const recovery = await service.getRecoveryState()
@@ -101,11 +101,13 @@ export function createEntryController(service) {
       const current = state.committed
       acknowledgingHandle = current.sessionHandle
       acknowledgementStopped = false
-      const pause = codes => {
+      const pause = (codes, error = null) => {
+        const detail = { message: error instanceof Error ? error.message : codes[0] ?? 'ACKNOWLEDGEMENT_FAILED', stack: error instanceof Error ? error.stack ?? '' : '', stage: 'acknowledgement', componentStack: '' }
+        const runtimeEvidence = state.runtimeEvidence ?? { first: detail, events: [detail] }
         // The UI closes through its observer, detaching onStop before close.
         // Do not clear the service ticket/receipt or restore any previous handle.
         try { abandon?.('ACKNOWLEDGEMENT_FAILED') } catch { codes = [...codes, 'SESSION_CLOSE_FAILED'] }
-        if (state.committed === current) publish({ phase: 'uncertain', committed: null, reasons: codes })
+        if (state.committed === current) publish({ phase: 'uncertain', committed: null, reasons: codes, runtimeEvidence })
         return false
       }
       acknowledgement = (async () => {
@@ -115,10 +117,19 @@ export function createEntryController(service) {
           if (result.status !== 'acknowledged' || acknowledgementStopped) return pause(reason(result))
           current.sessionHandle.check()
           return true
-        } catch { return pause(['ACK_RESPONSE_LOST']) }
+        } catch (error) { return pause(['ACK_RESPONSE_LOST'], error) }
         finally { acknowledgingHandle = null }
       })()
       return acknowledgement
+    },
+    runtimeFailed(evidence) {
+      const firstEvidence = state.runtimeEvidence ?? evidence
+      if (acknowledgingHandle && state.committed?.sessionHandle === acknowledgingHandle) {
+        acknowledgementStopped = true
+        publish({ runtimeEvidence: firstEvidence }); return
+      }
+      publish({ phase: state.phase === 'uncertain' ? 'uncertain' : 'failed', committed: null,
+        runtimeEvidence: { ...evidence, first: firstEvidence.first }, reasons: [firstEvidence.first.message] })
     },
     stopped(reasonCode) {
       // A service-side ACK failure may stop the handle synchronously before its

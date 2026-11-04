@@ -1,5 +1,6 @@
 import { getGameStorage, commitStoreState, runSaveTransaction } from '../save-session.mjs'
 import { useStore } from 'zustand'
+import { useReaderStoreScope } from './readerStoreScope'
 import { createStore } from 'zustand/vanilla'
 import { beginNarrativeEvent, completeNarrativeEvent, completeSkippedNarrativeEvent, createInitialNarrativeProgressState, loadNarrativeProgressState, saveNarrativeProgressState } from './narrativeProgressStorage'
 function narrativeProgressStateCreator(storage){
@@ -21,6 +22,7 @@ export function createNarrativeProgressStore(storage){return createStore(narrati
 const boundStores=new WeakMap();
 export function getSessionNarrativeStore(storage){let store=boundStores.get(storage);if(!store){store=createNarrativeProgressStore(storage);boundStores.set(storage,store);}return store;}
 function currentStore(){const storage=getGameStorage();if(!storage)throw Error('save-session-not-open');return getSessionNarrativeStore(storage);}
-export function useNarrativeProgressStore(selector){return useStore(currentStore(),selector)}
+export function useNarrativeProgressStoreApi(){const preview=useReaderStoreScope();return preview?.narrativeStore??currentStore()}
+export function useNarrativeProgressStore(selector){return useStore(useNarrativeProgressStoreApi(),selector)}
 useNarrativeProgressStore.getState=()=>currentStore().getState();
 useNarrativeProgressStore.subscribe=(...args)=>currentStore().subscribe(...args);

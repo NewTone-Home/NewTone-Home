@@ -19,7 +19,7 @@ import {
 import { canCompleteReader } from '../reader/readerCompletion'
 import { trackEvent, trackReaderProgress } from '../services/analytics'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
-import { useProgressStore } from '../stores/progressStore'
+import { useProgressStore, useProgressStoreApi } from '../stores/progressStore'
 import { useTransitionStore } from '../stores/transitionStore'
 import ReaderStage from './ReaderStage'
 
@@ -37,12 +37,13 @@ function getPage(location, content = readerContent) {
 
 function resolveLocationForContent(location) { return resolveReaderDisplayLocation(location) }
 
-function currentAnalyticsContext() {
-  const state = useProgressStore.getState()
+function currentAnalyticsContext(progressApi) {
+  const state = progressApi.getState()
   return { language: state.language, readingMode: state.readingMode }
 }
 
 function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 'idle' }) {
+  const progressApi = useProgressStoreApi()
   const language = useProgressStore(state => state.language)
   const setLanguage = useProgressStore(state => state.setLanguage)
   const committedLocation = useProgressStore(state => state.committedLocation)
@@ -75,7 +76,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const contentLanguageRef = useRef(language)
   const languageTransitionRef = useRef(null)
   const languageTimerRefs = useRef([])
-  const readerScrollOffsetRef = useRef(useProgressStore.getState().readerScrollOffset)
+  const readerScrollOffsetRef = useRef(progressApi.getState().readerScrollOffset)
   const pendingReaderScrollOffsetRef = useRef(readerScrollOffsetRef.current)
   const scrollPersistTimerRef = useRef(null)
   const activeReaderContent = readerContent
@@ -141,14 +142,14 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
 
   useEffect(() => {
     trackEvent('reading_started', {
-      ...currentAnalyticsContext(),
+      ...currentAnalyticsContext(progressApi),
       stepId: `${activeLocation.pageId}:${activeLocation.beatIndex}`,
     })
   }, [])
 
   useEffect(() => {
     trackEvent('page_entered', {
-      ...currentAnalyticsContext(),
+      ...currentAnalyticsContext(progressApi),
       stepId: `page:${page.id}`,
       progressRatio: getOverallProgress(activeLocation, activeReaderContent),
     })
@@ -156,7 +157,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
 
   useEffect(() => {
     trackEvent('chapter_entered', {
-      ...currentAnalyticsContext(),
+      ...currentAnalyticsContext(progressApi),
       stepId: `chapter:${page.chapterId}`,
       progressRatio: getOverallProgress(activeLocation, activeReaderContent),
     })
@@ -164,7 +165,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
 
   useEffect(() => {
     const stepId = `${activeLocation.pageId}:${activeLocation.beatIndex}`
-    trackReaderProgress(stepId, getOverallProgress(activeLocation, activeReaderContent), currentAnalyticsContext())
+    trackReaderProgress(stepId, getOverallProgress(activeLocation, activeReaderContent), currentAnalyticsContext(progressApi))
   }, [activeLocation, activeReaderContent])
 
   useEffect(() => {
@@ -190,7 +191,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       closeVisibleSegment()
       if (dwellMs >= 250) {
         trackEvent('beat_dwell', {
-          ...currentAnalyticsContext(),
+          ...currentAnalyticsContext(progressApi),
           stepId,
           progressRatio,
           dwellMs,
@@ -214,7 +215,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
       visibleStartedAt = now
       if (dwellMs < READER_CHECKPOINT_MIN_DWELL_MS) return
       trackEvent('reader_checkpoint', {
-        ...currentAnalyticsContext(),
+        ...currentAnalyticsContext(progressApi),
         stepId,
         progressRatio,
         dwellMs,
@@ -292,7 +293,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
     })) return
 
     const progressRatio = getOverallProgress(activeLocation, activeReaderContent)
-    const analyticsContext = currentAnalyticsContext()
+    const analyticsContext = currentAnalyticsContext(progressApi)
     endChapterTrial()
     trackEvent('chapter_completed', {
       ...analyticsContext,
@@ -386,7 +387,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
     }
 
     trackEvent('language_selected', {
-      ...currentAnalyticsContext(),
+      ...currentAnalyticsContext(progressApi),
       stepId: 'reader-tools',
       language: nextLanguage,
       eventData: { languageSource: 'user_selected' },
@@ -396,7 +397,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
   const handleReaderMode = useCallback((nextMode) => {
     selectReadingMode(nextMode)
     trackEvent('mode_selected', {
-      ...currentAnalyticsContext(),
+      ...currentAnalyticsContext(progressApi),
       stepId: 'reader-tools',
       readingMode: nextMode,
     })
@@ -406,7 +407,7 @@ function PopulatedReaderOrchestrator({ onReaderReady, readerEntryHandoffPhase = 
     clearInputAccumulator()
     setReaderExitGestureLearned()
     trackEvent('reader_return', {
-      ...currentAnalyticsContext(),
+      ...currentAnalyticsContext(progressApi),
       stepId: `${activeLocation.pageId}:${activeLocation.beatIndex}`,
       exitReason: 'return',
       progressRatio: getOverallProgress(activeLocation, activeReaderContent),
