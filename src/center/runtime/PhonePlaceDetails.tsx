@@ -30,7 +30,7 @@ export function PhonePlaceDetails({ id, title, onRide, onCall, onHeight }: {
     {hours && <div className="world-phone__business-hours" data-hours-expanded={expanded}>
       <strong>营业时间</strong>
       {!expanded
-        ? <><span>{hours}</span><button onClick={() => setExpanded(true)} aria-expanded={false}>查看全部营业时间</button></>
+        ? <><span>{hours}</span><button onClick={() => setExpanded(true)} aria-expanded={false}>全部营业时间</button></>
         : <dl className="world-phone__weekly-hours">{weekdays.map(day => <div key={day}><dt>{day}</dt><dd>{hours}</dd></div>)}</dl>}
     </div>}
     <div className="world-phone__detail-actions"><button onClick={onRide}>叫车前往</button>{place?.phone && <button onClick={onCall}>电话 {place.phone}</button>}</div>

@@ -1216,7 +1216,8 @@ export function canActorReachPassageApproach(
   const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
   const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
   const doorCenter = { x: doorway.x + doorway.width / 2, y: doorway.y + doorway.height / 2 }
-  if (scene.accessRegions.some(region => !actorCanEnterRegion(scene, options.actorId, region) && (containsPoint(region, doorCenter) || passage.crossingTargets.some(point => containsPoint(region, point))))) return null
+  // A locked door is only approached, never crossed, so the denied room behind it must not make its approach unreachable.
+  if (passage.access !== 'locked' && scene.accessRegions.some(region => !actorCanEnterRegion(scene, options.actorId, region) && (containsPoint(region, doorCenter) || passage.crossingTargets.some(point => containsPoint(region, point))))) return null
   const side = passageSide(passage, from, collision, doorway)
   const footprint = mainlineActorFootprint(scene, options, from)
   const boundary = passageBoundaryPoint(passage, from, passage.crossingTargets[side], footprint, collision, doorway)

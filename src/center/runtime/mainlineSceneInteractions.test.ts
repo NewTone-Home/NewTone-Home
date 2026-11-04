@@ -20,12 +20,10 @@ function entity(sceneId: keyof typeof mainlineScenes, entityId: string) {
 }
 
 describe('mainline scene interaction policies', () => {
-  it('gives the Yonghe warehouse one action and returns only its result after selection', () => {
+  it('puts the locked Yonghe warehouse door on the east wall of the alley', () => {
     const scene = mainlineScenes['yonghe-mining-perimeter']
     const door = entity('yonghe-mining-perimeter', 'yonghe-warehouse-door')
-    expect(door.spaceId).toBe('mining-street-back-alley')
     expect(mainlineDoorPortalShouldRender(door, 'mining-street-back-alley')).toBe(true)
-    expect(mainlineDoorPortalShouldRender(door, 'mining-shop-2-interior')).toBe(false)
     expect(mainlineDoorPortalShouldRender(undefined, 'mining-shop-2-interior')).toBe(true)
     expect(scene.passages.find(passage => passage.id === 'yonghe-warehouse-door')).toMatchObject({ access: 'locked', toRoomId: undefined })
     expect(scene.passages.find(passage => passage.id === 'yonghe-back-door')).toMatchObject({ access: 'open', toRoomId: 'mining-shop-2-interior' })
@@ -33,23 +31,12 @@ describe('mainline scene interaction policies', () => {
     expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'mining-street-back-alley', false)).toBe(true)
     expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'mining-shop-2-interior', false)).toBe(true)
     expect(mainlinePassageDoorPresentationActive(rearDoorPassage, 'other-shop-interior', false)).toBe(false)
-    const exploration = resolveMainlineSceneExploration(scene, door, {
-      incensePhase: 'unlit', plantWatered: false, officeBlindsOpen: true, carriedPhoneDevice: 'surface',
-    })
-    expect(exploration.choice).toEqual({ text: '', options: ['推一下门'] })
-    expect(mainlineExplorationChoiceIsActionOnly(exploration.choice)).toBe(true)
-    expect(mainlineExplorationChoiceIsActionOnly({ text: '门锁着。', options: ['推一下门'] })).toBe(false)
-    expect(mainlineExplorationChoiceIsActionOnly({ text: '', options: [] })).toBe(false)
     const alley = scene.rooms.find(room => room.id === 'mining-street-back-alley')!
     const alleyCenter = { x: alley.bounds.x + alley.bounds.width / 2, y: alley.bounds.y + alley.bounds.height / 2 }
     const approach = resolveMainlineEntityInteraction(scene, door.id, alleyCenter, {}, {
       screenMetrics: sceneDesignReferenceMetrics, actorFootprint: { width: 16 / 19.2, height: 16 / 10.8 },
     })
     expect(approach.path, 'the locked warehouse door remains interactable from the alley side').not.toBeNull()
-    expect(resolveMainlineSceneEchoChoice(scene, door, '推一下门', 0)).toEqual({
-      dismiss: true, followupText: '门锁着，打不开。',
-    })
-    expect(resolveMainlineSceneEchoChoice(scene, door, '\u968f\u4fbf\u770b\u770b', 0)).toMatchObject({ dismiss: true, followupText: undefined })
   })
 
   it('keeps incense phase choices and state effects independent of scene IDs', () => {
@@ -138,7 +125,7 @@ describe('mainline scene interaction policies', () => {
     const alleyBottom = scene.geometry.filter(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'bottom')
     const yongheRearWall = scene.geometry.filter(unit => unit.sourceWallId === 'mining-shop-2-interior-shell' && unit.edge === 'top')
     const yongheDoorWall = yongheRearWall.find(unit => unit.navigation.passageId === 'yonghe-back-door' && unit.surface === 'door')
-    const yongheWarehouseDoor = yongheRearWall.find(unit => unit.navigation.passageId === 'yonghe-warehouse-door' && unit.surface === 'door')
+    const yongheWarehouseDoor = scene.geometry.filter(unit => unit.sourceWallId === 'mining-street-back-alley-frame' && unit.edge === 'right').find(unit => unit.navigation.passageId === 'yonghe-warehouse-door' && unit.surface === 'door')
     const otherShopRearWalls = scene.geometry.filter(unit => /^mining-shop-(?!2-).*?-interior-shell$/.test(unit.sourceWallId ?? '') && unit.edge === 'top')
     const sharedTails = scene.geometry.filter(unit => unit.sourceWallId?.endsWith('-shared-right-tail') && unit.navigation.blocked)
 

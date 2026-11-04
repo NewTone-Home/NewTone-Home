@@ -7,9 +7,9 @@ import { sceneTextPresentationPosition } from './sceneTextPresentation'
 export const commercialStreetQuestionNarrativeCompletedKey = 'commercialStreetQuestionNarrativeCompleted'
 
 export const commercialStreetQuestionNarrativeLines = [
-  '难道刚刚是幻觉吗？',
-  '不，不会认错的。',
-  '那张脸修杰太过于熟悉。',
+  '难道刚才是幻觉？',
+  '不，不可能认错。',
+  '那张脸，我太熟悉了。',
 ] as const
 
 /** Keep this short inner monologue in the currently visible street page. The

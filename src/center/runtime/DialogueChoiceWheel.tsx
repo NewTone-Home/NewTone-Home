@@ -16,6 +16,8 @@ export type DialogueChoiceWheelProps = {
   sessionId: string
   actionId: number
   options: readonly string[]
+  /** Desktop priced menu: the first `menu.length` options are shown as menu rows. */
+  menu?: readonly { name: string; price: number; description: string | null }[]
   phase: 'active' | 'committing' | 'exiting'
   placement: 'wide-right' | 'narrow-bottom'
   /** Use normal document flow when the wide wheel is placed below its prompt. */
@@ -26,6 +28,8 @@ export type DialogueChoiceWheelProps = {
   onConfirm: (actionId: number, optionIndex: number) => void
   onEntranceSettled?: (actionId: number, optionIndex: number) => void
   onSelectionLocked?: (actionId: number, optionIndex: number) => void
+  /** Locked choices fade out in place instead of disappearing. */
+  softExit?: boolean
   onCancel?: (actionId: number) => void
   onExitComplete?: (actionId: number, optionIndex: number) => void
 }
@@ -36,9 +40,13 @@ type PointerDrag = { pointerId: number; startY: number; startPosition: number; l
  * Focus-only wheel: movement never invokes business callbacks. A settled
  * center click is the sole confirmation path.
  */
-const dialogueChoiceWheelEntryStart = (optionCount: number) => Math.min(2, Math.max(0, optionCount - 1))
+// Start the rows at least two steps away so the one-second roll is visible even with two options.
+const dialogueChoiceHintStorageKey = 'newtone-choice-wheel-hint-seen'
+const readChoiceHintSeen = () => { try { return window.localStorage.getItem(dialogueChoiceHintStorageKey) === '1' } catch { return false } }
+const writeChoiceHintSeen = () => { try { window.localStorage.setItem(dialogueChoiceHintStorageKey, '1') } catch { /* private mode */ } }
+const dialogueChoiceWheelEntryStart = (optionCount: number) => optionCount < 2 ? 0 : Math.min(3, Math.max(2, optionCount - 1))
 
-export function DialogueChoiceWheel({ sessionId, actionId, options, phase, placement, wideLayout = 'overlay', entryDurationMs = 1000, promptAbove = false, onConfirm, onEntranceSettled, onSelectionLocked, onCancel, onExitComplete }: DialogueChoiceWheelProps) {
+export function DialogueChoiceWheel({ sessionId, actionId, options, menu, softExit, phase, placement, wideLayout = 'overlay', entryDurationMs = 1000, promptAbove = false, onConfirm, onEntranceSettled, onSelectionLocked, onCancel, onExitComplete }: DialogueChoiceWheelProps) {
   const [position, setPosition] = useState(0)
   const [entryVisualPosition, setEntryVisualPosition] = useState<number | null>(() => dialogueChoiceWheelEntryStart(options.length))
   const [entryProgress, setEntryProgress] = useState(0)
@@ -49,6 +57,24 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   const [confirmed, setConfirmed] = useState(false)
   const [narrowItemGapsPx, setNarrowItemGapsPx] = useState({ above: dialogueChoiceWheelItemGapPx, below: dialogueChoiceWheelItemGapPx })
   const wheelRef = useRef<HTMLDivElement>(null)
+  const desktopBubble = placement === 'wide-right' && wideLayout === 'inline'
+  const [typedCount, setTypedCount] = useState(0)
+  const [showHint] = useState(false)
+  useEffect(() => {
+    if (!desktopBubble) return
+    setTypedCount(0)
+    let count = 0
+    let interval: number | null = null
+    const start = window.setTimeout(() => {
+      interval = window.setInterval(() => {
+        count += 1
+        setTypedCount(count)
+        if (count >= 60 && interval !== null) window.clearInterval(interval)
+      }, 40)
+    }, 320)
+    return () => { window.clearTimeout(start); if (interval !== null) window.clearInterval(interval) }
+  }, [actionId, desktopBubble, sessionId])
+  useEffect(() => () => { if (showHint) writeChoiceHintSeen() }, [showHint])
   const idleTimerRef = useRef<number | null>(null)
   const entryFrameRef = useRef<number | null>(null)
   const settleTimerRef = useRef<number | null>(null)
@@ -60,8 +86,11 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   const onCancelRef = useRef(onCancel)
   const onExitCompleteRef = useRef(onExitComplete)
   const exitedActionRef = useRef<number | null>(null)
+  const confirmedStateRef = useRef(false)
+  const hasEnteredBeforeRef = useRef(false)
   const confirmedActionKeyRef = useRef<string | null>(null)
   onConfirmRef.current = onConfirm
+  confirmedStateRef.current = confirmed
   onEntranceSettledRef.current = onEntranceSettled
   onSelectionLockedRef.current = onSelectionLocked
   onCancelRef.current = onCancel
@@ -106,6 +135,30 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     observer.observe(element)
     return () => observer.disconnect()
   }, [options, placement, position, promptAbove])
+
+  useLayoutEffect(() => {
+    if (placement !== 'wide-right') return
+    const element = wheelRef.current
+    if (!element) return
+    const updateWideClip = () => {
+      const center = element.querySelector<HTMLElement>('.dialogue-choice-wheel__option--center')
+      const centerHeight = center?.getBoundingClientRect().height ?? 0
+      if (centerHeight <= 0) return
+      const neighborHeights = Array.from(element.querySelectorAll<HTMLElement>('.dialogue-choice-wheel__option--neighbor'))
+        .map(node => node.getBoundingClientRect().height)
+        .filter(height => height > 0)
+      const neighborHeight = neighborHeights.length ? Math.max(...neighborHeights) : centerHeight
+      // Rows sit one fixed step apart: keep the whole focused row plus only a thin edge of each neighbour.
+      const sliver = Math.max(10, Math.round(Math.min(centerHeight, neighborHeight) * .25))
+      const nearEdge = Math.max(centerHeight / 2, dialogueChoiceWheelItemGapPx - neighborHeight / 2)
+      const clip = `${Math.round((nearEdge + sliver) * 2)}px`
+      if (element.style.getPropertyValue('--wide-wheel-clip-height') !== clip) element.style.setProperty('--wide-wheel-clip-height', clip)
+    }
+    updateWideClip()
+    const observer = new ResizeObserver(updateWideClip)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [options, placement, position])
 
   useEffect(() => {
     if (phase !== 'exiting' || exitedActionRef.current === actionId) return
@@ -159,6 +212,9 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   }, [finishSettle])
 
   useLayoutEffect(() => {
+    // Another set of options replacing one that was just answered keeps the same box: swap the rows in place, no entrance.
+    const swapInPlace = hasEnteredBeforeRef.current && confirmedStateRef.current
+    hasEnteredBeforeRef.current = true
     clearTimers()
     const initial = dialogueChoiceWheelClampPosition(0, options.length)
     const entryStart = dialogueChoiceWheelEntryStart(options.length)
@@ -183,11 +239,12 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       setSettled(true)
       onEntranceSettledRef.current?.(actionId, initial)
     }
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || options.length < 2) {
+    if (swapInPlace || window.matchMedia('(prefers-reduced-motion: reduce)').matches || options.length < 2) {
       settleEntry()
       return clearTimers
     }
-    const duration = Math.max(0, entryDurationMs)
+    // Desktop (inline) choices appear without the slot-machine roll; the frame fades in.
+    const duration = placement === 'wide-right' && wideLayout === 'inline' ? 0 : Math.max(0, entryDurationMs)
     if (duration <= 0) {
       settleEntry()
       return clearTimers
@@ -199,7 +256,8 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       // A single decelerating pass brings the initially displaced rows to the
       // default choice. This is only the group entrance; manual wheel motion
       // continues to use the existing focus/inertia path below.
-      const eased = 1 - Math.pow(1 - progress, 3)
+      // Quadratic ease-out: still decelerating into place, but not front-loaded the way a cubic is.
+      const eased = 1 - Math.pow(1 - progress, 2)
       setEntryVisualPosition(entryStart + (initial - entryStart) * eased)
       setEntryProgress(eased)
       if (progress >= 1) {
@@ -305,6 +363,23 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
     onConfirmRef.current(actionId, selectedIndex)
   }
 
+  const [pickedIndex, setPickedIndex] = useState<number | null>(null)
+  useEffect(() => { setPickedIndex(null) }, [actionId, sessionId])
+  const pickTimerRef = useRef<number | null>(null)
+  useEffect(() => () => { if (pickTimerRef.current !== null) window.clearTimeout(pickTimerRef.current) }, [])
+  const pickOption = (index: number) => {
+    if (phase !== 'active' || confirmedActionKeyRef.current === `${sessionId}:${actionId}`) return
+    confirmedActionKeyRef.current = `${sessionId}:${actionId}`
+    setConfirmed(true)
+    setPickedIndex(index)
+    // Let the highlight register for a beat before the label moves into the conversation.
+    pickTimerRef.current = window.setTimeout(() => {
+      pickTimerRef.current = null
+      onSelectionLockedRef.current?.(actionId, index)
+      onConfirmRef.current(actionId, index)
+    }, 220)
+  }
+
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape' && phase === 'active') {
       event.preventDefault()
@@ -314,6 +389,74 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   }
 
   if (!options.length) return null
+  if (desktopBubble) {
+    const menuRows = menu?.length ? menu : null
+    const stateClass = `${phase !== 'active' ? ' is-locked' : ''}${confirmed ? ' is-confirmed' : ''}${phase === 'exiting' ? ' is-exiting' : ''}${softExit ? ' is-soft' : ''}`
+    const common = {
+      ref: wheelRef,
+      role: 'group',
+      'aria-label': '对话选项',
+      'data-dialogue-choice-wheel': 'true',
+      'data-dialogue-choice-session': sessionId,
+      'data-dialogue-choice-action': actionId,
+      'data-dialogue-choice-phase': phase,
+      'data-dialogue-choice-entering': false,
+      'data-dialogue-choice-settled': true,
+      'data-dialogue-choice-confirmed': confirmed,
+      onKeyDown: handleKeyDown,
+      onClick: (event: React.MouseEvent) => { event.stopPropagation() },
+      onPointerDown: (event: React.PointerEvent) => { event.stopPropagation() },
+    } as const
+    if (menuRows) {
+      const extra = options.slice(menuRows.length).map((label, offset) => ({ label, index: menuRows.length + offset }))
+      return (
+        <div {...common} className={`dialogue-choice-menu${stateClass}`}>
+          <div className="dialogue-choice-menu__panel">
+            {menuRows.map((row, index) => (
+              <button
+                key={`${sessionId}:${index}`}
+                type="button"
+                className={`dialogue-choice-menu__row${pickedIndex === index ? ' is-picked' : ''}`}
+                aria-label={`${row.name} ${row.price}`}
+                disabled={phase !== 'active' || confirmed}
+                onClick={event => { event.preventDefault(); event.stopPropagation(); pickOption(index) }}
+              >
+                <span className="dialogue-choice-menu__line">
+                  <span className="dialogue-choice-menu__name" data-dialogue-choice-index={index}>{row.name}</span>
+                  <span className="dialogue-choice-menu__price">{row.price}</span>
+                </span>
+                {row.description && <span className="dialogue-choice-menu__desc">{row.description}</span>}
+              </button>
+            ))}
+            {extra.map(({ label, index }) => (
+              <button
+                key={`${sessionId}:${index}`}
+                type="button"
+                className={`dialogue-choice-menu__extra${pickedIndex === index ? ' is-picked' : ''}`}
+                disabled={phase !== 'active' || confirmed}
+                data-dialogue-choice-index={index}
+                onClick={event => { event.preventDefault(); event.stopPropagation(); pickOption(index) }}
+              >{label}</button>
+            ))}
+          </div>
+        </div>
+      )
+    }
+    return (
+      <div {...common} className={`dialogue-choice-bubbles${stateClass}`}>
+        {options.map((label, index) => (
+          <button
+            key={`${sessionId}:${actionId}:${index}`}
+            type="button"
+            className={`dialogue-choice-bubbles__item${pickedIndex === index ? ' is-picked' : ''}`}
+            disabled={phase !== 'active' || confirmed}
+            data-dialogue-choice-index={index}
+            onClick={event => { event.preventDefault(); event.stopPropagation(); pickOption(index) }}
+          >{label}</button>
+        ))}
+      </div>
+    )
+  }
   const centerIndex = dialogueChoiceWheelNearestIndex(position, options.length)
   const visualPosition = entryVisualPosition ?? position
   const indices = Array.from({ length: Math.min(options.length, 5) }, (_, slot) => {
@@ -323,7 +466,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
   const locked = phase !== 'active'
   const entryOffset = 1 - entryProgress
   const entryTransform = placement === 'narrow-bottom'
-    ? `translate3d(-50%, ${18 * entryOffset}px, 0) scale(${.98 + .02 * entryProgress})`
+    ? `translate3d(var(--dialogue-wheel-entry-x, -50%), ${18 * entryOffset}px, 0) scale(${.98 + .02 * entryProgress})`
     : wideLayout === 'inline'
       ? `translate3d(0, ${10 * entryOffset}px, 0) scale(${.99 + .01 * entryProgress})`
       : `translate3d(${20 * entryOffset}px, -50%, 0) scale(${.98 + .02 * entryProgress})`
@@ -345,7 +488,8 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
       data-dialogue-choice-entry-duration-ms={entryDurationMs}
       style={{
         ['--dialogue-choice-entry-duration' as string]: `${Math.max(0, entryDurationMs)}ms`,
-        opacity: .2 + .8 * entryProgress,
+        // Only while entering: a permanent inline opacity would override the .is-exiting fade-out.
+        opacity: entering ? .2 + .8 * entryProgress : undefined,
         transform: entering ? entryTransform : undefined,
         transition: entering ? 'none' : undefined,
       } as React.CSSProperties}
@@ -383,7 +527,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
                 data-dialogue-choice-index={index}
                 style={candidateStyle}
                 onClick={confirm}
-              >{label}</button>
+              >{desktopBubble ? <>{label.slice(0, typedCount)}<span style={{ visibility: 'hidden' }}>{label.slice(typedCount)}</span></> : label}</button>
             : <span
                 key={`${sessionId}:${index}`}
                 className="dialogue-choice-wheel__option dialogue-choice-wheel__option--neighbor"
@@ -394,6 +538,7 @@ export function DialogueChoiceWheel({ sessionId, actionId, options, phase, place
               ><span className="dialogue-choice-wheel__neighbor-copy">{label}</span></span>
         })}
       </div>
+      {showHint && phase === 'active' && <span className="dialogue-choice-wheel__hint" aria-hidden="true">⌄</span>}
     </div>
   )
 }

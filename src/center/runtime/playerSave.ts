@@ -12,7 +12,7 @@ import { createInitialMainlineStoryClock, storyClockForStage, storyWeekday, type
 import { applyPublicReleaseCutover } from '../../services/publicReleaseMigration'
 import { cleanPhoneCallHistory, cleanPhoneContactNotes, cleanPhoneNotes, createInitialPhoneNotes, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
 import { defaultLaoZhouCafeSeatId, isLaoZhouCafeSeatId, selectLaoZhouCafeSeat } from './commercialCafeSeatSelection'
-import { migrateLegacyShopState, sanitizeCrossShopOrderState, type CrossShopOrder, type HeldConsumable } from './crossShopOrders'
+import { migrateLegacyShopState, sanitizeCrossShopOrderState, sanitizeShopOrderHistory, type CrossShopOrder, type HeldConsumable, type ShopOrderHistoryEntry } from './crossShopOrders'
 import { sanitizeCafeStoryDeliveries, type CafeStoryDeliveryRecord } from './cafeStoryOrderDelivery'
 import { cleanShopOrderPaymentState, type ShopOrderPaymentReceipt } from './shopOrderPayment'
 import { cleanMonthlySalaryReceipts, isValidStoryDate, settleMonthlySalary, type MonthlySalaryReceipts, type StoryDate } from './monthlyPayroll'
@@ -46,6 +46,8 @@ export type PlayerSave = {
   gameTimeMs: number
   /** Cross-shop commerce state. Stored separately from scene state so rides and scene changes preserve one global hand. */
   shopOrders: Record<string, CrossShopOrder>
+  /** Latest picked-up orders, newest first (at most five). Recording starts from saves made after this field was added. */
+  shopOrderHistory?: ShopOrderHistoryEntry[]
   heldConsumable: HeldConsumable | null
   /** One shared prototype wallet; 800 is the approved test opening balance. */
   walletBalance: number
@@ -128,6 +130,7 @@ export function createInitialPlayerSave(sceneId: MainlineSceneId = initialMainli
     storyClock,
     gameTimeMs: storyClockTimeAsMilliseconds(storyClock),
     shopOrders: {},
+    shopOrderHistory: [],
     heldConsumable: null,
     walletBalance: 800,
     shopOrderPaymentReceipts: {},
@@ -318,6 +321,7 @@ export function sanitizePlayerSave(value: unknown, _fallbackSceneId: MainlineSce
     storyClock,
     gameTimeMs,
     shopOrders: commerceState.ordersByShop,
+    shopOrderHistory: sanitizeShopOrderHistory(source.shopOrderHistory),
     heldConsumable: commerceState.heldConsumable,
     walletBalance: paymentState.walletBalance,
     shopOrderPaymentReceipts: paymentState.paymentReceipts,

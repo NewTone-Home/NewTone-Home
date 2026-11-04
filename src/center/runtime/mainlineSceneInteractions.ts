@@ -80,9 +80,9 @@ export function incenseBurnRemainingMs(litAt: number | null, now: number) {
 }
 
 function incenseExplorationChoice(phase: IncenseBurnPhase): MainlineExplorationChoice {
-  if (phase === 'fresh') return { text: '重新点上了香。' }
-  if (phase === 'half') return { text: '重新点上的香已经烧到了一半。' }
-  return { text: '香早就烧完了，只剩根部伫立在里面。', options: ['重新点香'], optionFlow: 'world-action' }
+  if (phase === 'fresh') return { text: '香重新燃了起来。' }
+  if (phase === 'half') return { text: '香已经燃去了一半。' }
+  return { text: '香早已燃尽，香炉里只余一截短短的香根。', options: ['重新点香'], optionFlow: 'world-action' }
 }
 
 function interactionBehavior(entity: MainlineSceneEntity): MainlineInteractionBehavior | undefined {
@@ -114,7 +114,7 @@ export function resolveMainlineSceneExploration(
       choice: {
         text: context.officeBlindsOpen
           ? (scene.explorationText?.[entity.id] ?? []).join('\n')
-          : '百叶窗已经拉上，室内安静了许多。',
+          : '百叶窗合上后，室内的光线暗了下来。',
         options: [context.officeBlindsOpen ? '拉上窗帘' : '打开窗帘'],
         optionFlow: 'world-action',
       },
@@ -125,8 +125,8 @@ export function resolveMainlineSceneExploration(
     return {
       choice: {
         text: context.plantWatered
-          ? '花盆里的土还带着一点湿润的颜色，叶片看起来精神了一些。'
-          : '有段时间没浇水了，不那么精神了。',
+          ? '盆土还湿润着，叶子也显得精神了些。'
+          : '有阵子没浇水了，叶片看着有些蔫。',
         options: context.plantWatered ? undefined : ['浇水'],
         optionFlow: 'world-action',
       },

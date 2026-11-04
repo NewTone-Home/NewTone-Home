@@ -97,7 +97,8 @@
   height: clamp(560px, 74vh, 760px);
   min-height: 540px;
   overflow: hidden;
-  background: var(--mainline-environment-room, var(--room));
+  /* Every scene uses the same plain black as the commercial street; the day/night tint is switched off for now. */
+  background: var(--room);
   cursor: crosshair;
   touch-action: manipulation;
   isolation: isolate;
@@ -579,23 +580,25 @@
 .scene-protagonist__held-action {
   position: absolute;
   left: 19px;
-  top: -8px;
-  min-width: 31px;
-  height: 16px;
-  padding: 0 3px;
+  top: -12px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
   pointer-events: auto;
   cursor: pointer;
-  border: 1px solid var(--active);
-  border-radius: 5px;
+  border: 0;
+  border-radius: 0;
   color: var(--active);
-  background: rgba(18, 16, 13, .92);
-  font: 8px/1 system-ui, sans-serif;
-  white-space: nowrap;
-  box-shadow: 0 0 4px 1px rgba(240,204,123,.35);
+  background: none;
+  box-shadow: none;
+  font-size: 16px;
+  line-height: 1;
 }
-.scene-protagonist__held-action--meal { border-radius: 2px; border-style: dashed; }
-.scene-protagonist__held-action:hover, .scene-protagonist__held-action:focus-visible { transform: scale(1.08); filter: brightness(1.25); }
-@media (prefers-reduced-motion: reduce) { .scene-protagonist__held-action { box-shadow: none; } }
+.scene-protagonist__held-action--pop { pointer-events: none; overflow: visible; }
+.scene-protagonist__held-action--pop .held-consumable-mark { animation: held-grow-fade 620ms ease-out forwards; }
+@keyframes held-grow-fade { from { transform: scale(1); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .scene-protagonist__held-action--pop .held-consumable-mark { animation-duration: 1ms; } }
+.scene-protagonist__held-action:hover, .scene-protagonist__held-action:focus-visible { transform: scale(1.15); filter: brightness(1.25); outline: none; }
 
 .scene-protagonist__seat-label {
   display: block;
@@ -1111,8 +1114,8 @@
 }
 .scene-mainline-object.scene-mainline-incense--lit > .scene-mainline-object__grid-content {
   animation: none;
-  color: color-mix(in srgb, var(--interaction-dynamic) calc(60% + var(--scene-breathing-progress, .5) * 40%), var(--interaction-normal));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
+  color: color-mix(in srgb, var(--interaction-active) calc(35% + var(--scene-breathing-progress, .5) * 65%), var(--interaction-normal));
+  opacity: calc(.42 + var(--scene-breathing-progress, .5) * .58);
 }
 .scene-mainline-object.is-mid {
   opacity: .34;
@@ -1224,10 +1227,11 @@
   width: 100% !important;
   max-width: 100%;
   height: auto !important;
+  min-height: 15vh;
   max-height: min(34vh, 260px);
   overflow: hidden;
   transform: none !important;
-  padding: 22px max(20px, env(safe-area-inset-right)) max(64px, calc(16px + env(safe-area-inset-bottom))) max(20px, env(safe-area-inset-left));
+  padding: 22px max(20px, env(safe-area-inset-right)) max(16px, calc(8px + env(safe-area-inset-bottom))) max(20px, env(safe-area-inset-left));
   color: #f1f0ec;
   font-size: 18px !important;
   line-height: 1.5;
@@ -1286,36 +1290,53 @@
   overflow: hidden;
   pointer-events: none;
 }
-.scene-mainline-subtitle-host {
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 68%, transparent 100%);
-  -webkit-mask-size: 100% 300%;
-  -webkit-mask-position: 0 100%;
-  mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 68%, transparent 100%);
-  mask-size: 100% 300%;
-  mask-position: 0 100%;
-}
-.scene-mainline-subtitle-host:not([data-display-entered="true"]) { animation: mainline-subtitle-reveal 260ms cubic-bezier(.2, .72, .24, 1) both; }
-.scene-mainline-subtitle-host .narrow-dialogue-content {
+/* Phone: the dark band thickens from its transparent top edge towards the dark bottom (same idea as the wide
+   column, which thickens from its transparent left edge towards the dark right). Very soft edge, no visible sweep line. */
+.scene-mainline-subtitle-stack {
   position: absolute;
-  left: 0;
+  top: max(12px, env(safe-area-inset-top));
   right: 0;
   bottom: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Lines that grow past the top fade out instead of being cut off. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+}
+.scene-mainline-subtitle-stack__content {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+/* Every piece fades by itself at one common speed (--fade-rate is the time for a full 0 to 1), so a part that only goes
+   to 50% finishes sooner than a part that goes to 91%; nothing is revealed or removed as one block. */
+.scene-mainline-subtitle-host { --fade-rate: 1400ms; }
+.scene-mainline-subtitle-stack__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(to top, rgba(8, 10, 13, .84) 0%, rgba(8, 10, 13, .62) 55%, rgba(8, 10, 13, 0) 100%);
+  pointer-events: none;
+}
+.scene-mainline-subtitle-host:not([data-display-entered="true"]):not(.is-leaving) .scene-mainline-subtitle-stack__backdrop { animation: mainline-backdrop-in var(--fade-rate) linear backwards; }
+.scene-mainline-subtitle-host.is-leaving { pointer-events: none; }
+.scene-mainline-subtitle-host.is-leaving .scene-mainline-subtitle-stack__backdrop { animation: mainline-backdrop-out var(--fade-rate) linear both; }
+@keyframes mainline-backdrop-in { from { opacity: 0; } }
+@keyframes mainline-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+.scene-mainline-subtitle-host .narrow-dialogue-content {
+  position: relative;
+  flex: none;
   box-sizing: border-box;
   max-height: none;
   padding: 0;
   color: #f1f0ec;
   pointer-events: auto;
-}
-.scene-mainline-subtitle-host .narrow-dialogue-content::before {
-  position: absolute;
-  z-index: 0;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 100%;
-  background: linear-gradient(to top, rgba(8, 10, 13, .84) 0%, rgba(8, 10, 13, .60) 42%, rgba(8, 10, 13, .16) 78%, rgba(8, 10, 13, 0) 100%);
-  content: '';
-  pointer-events: none;
 }
 .scene-mainline-subtitle-host .narrow-dialogue-slot {
   inset: var(--narrow-dialogue-safe-top) var(--narrow-dialogue-safe-right) var(--narrow-dialogue-safe-bottom) var(--narrow-dialogue-safe-left);
@@ -1324,25 +1345,28 @@
   text-align: center;
 }
 .scene-mainline-subtitle-host__history {
-  position: absolute;
-  right: max(20px, env(safe-area-inset-right));
-  bottom: calc(min(34vh, 260px) + 10px);
-  left: max(20px, env(safe-area-inset-left));
+  position: relative;
+  z-index: 1;
   display: flex;
-  max-height: min(20vh, 168px);
+  flex: 0 0 auto;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 6px;
-  overflow: hidden;
-  color: rgba(241, 240, 236, .72);
-  font-size: 15px;
-  line-height: 1.42;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 36px max(20px, env(safe-area-inset-right)) 10px max(20px, env(safe-area-inset-left));
+  color: #f1f0ec;
+  font-size: 18px;
+  line-height: 1.45;
   text-shadow: 0 1px 5px rgba(0, 0, 0, .9);
-  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 55%, transparent 100%);
-  mask-image: linear-gradient(to top, #000 0%, #000 55%, transparent 100%);
   pointer-events: none;
 }
-.scene-mainline-subtitle-host__history .scene-mainline-conversation-line__speaker { font-size: .8em; }
+.scene-mainline-subtitle-host__line { flex: 0 0 auto; max-width: 88%; overflow-wrap: anywhere; opacity: var(--line-target, 1); transition: opacity calc(.15 * var(--fade-rate)) linear; }
+.scene-mainline-subtitle-host.is-leaving .scene-mainline-subtitle-host__line { opacity: 0; transition: opacity calc(var(--line-target, 1) * var(--fade-rate)) linear; }
+.scene-mainline-subtitle-host__line.is-npc { align-self: flex-start; text-align: left; }
+.scene-mainline-subtitle-host__line.is-player { align-self: flex-end; text-align: right; }
+.scene-mainline-subtitle-host__line p { margin: 0; white-space: pre-wrap; }
+.scene-mainline-subtitle-host__speaker { display: block; margin-bottom: 1px; font-size: 14px; }
+@keyframes mainline-subtitle-history-in { from { opacity: 0; } }
 .scene-mainline-subtitle-host .narrow-dialogue-choice { pointer-events: none; }
 .scene-mainline-subtitle-host .dialogue-choice-wheel { pointer-events: auto; }
 .scene-mainline-conversation-host .scene-mainline-conversation { pointer-events: none; }
@@ -1368,17 +1392,19 @@
   line-height: 1.68;
   background: linear-gradient(to left, rgba(11, 13, 17, .91) 0%, rgba(11, 13, 17, .76) 56%, rgba(11, 13, 17, .38) 82%, rgba(11, 13, 17, 0) 100%);
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(to left, #000 0%, #000 65%, transparent 68%, transparent 100%);
-  -webkit-mask-size: 300% 100%;
-  -webkit-mask-position: 100% 0;
-  mask-image: linear-gradient(to left, #000 0%, #000 65%, transparent 68%, transparent 100%);
-  mask-size: 300% 100%;
-  mask-position: 100% 0;
+  /* The dark backdrop spreads from the transparent left edge towards the right (not right-to-left). */
+  /* A very wide, soft edge: no visible line sweeps across, the backdrop just thickens from left to right. */
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 62.5%, transparent 100%);
+  -webkit-mask-size: 400% 100%;
+  -webkit-mask-position: 0 0;
+  mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 62.5%, transparent 100%);
+  mask-size: 400% 100%;
+  mask-position: 0 0;
 }
-.scene-mainline-conversation:not(.is-leaving) { animation: mainline-conversation-reveal 260ms cubic-bezier(.2, .72, .24, 1) both; }
+.scene-mainline-conversation:not(.is-leaving) { animation: mainline-conversation-reveal 800ms cubic-bezier(.4, 0, .3, 1) both; }
 @keyframes mainline-conversation-reveal {
-  from { -webkit-mask-position: 0 0; mask-position: 0 0; }
-  to { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; opacity: 0; }
+  to { -webkit-mask-position: 0 0; mask-position: 0 0; opacity: 1; }
 }
 .scene-mainline-conversation.is-leaving { animation: mainline-conversation-exit 220ms ease-in both; }
 @keyframes mainline-conversation-exit {
@@ -1406,14 +1432,15 @@
   text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
   overflow-wrap: anywhere;
 }
-.scene-mainline-conversation-line.is-npc { align-self: flex-start; }
-.scene-mainline-conversation-line.is-player { align-self: flex-end; }
+.scene-mainline-conversation-line.is-npc { align-self: flex-start; text-align: left; }
+.scene-mainline-conversation-line.is-player { align-self: flex-end; text-align: right; }
 .scene-mainline-conversation-line__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .78em; letter-spacing: .04em; }
 .scene-mainline-conversation-line__speaker .scene-mainline-text__speaker { font-size: 14px; }
 .scene-mainline-conversation-line p { margin: 0; white-space: pre-wrap; }
 .scene-mainline-conversation-line--current { max-height: min(38vh, 320px); overflow-y: auto; }
 @media (prefers-reduced-motion: reduce) {
   .scene-mainline-subtitle-host,
+  .scene-mainline-subtitle-stack__backdrop,
   .scene-mainline-text.scene-mainline-text--subtitle,
   .scene-mainline-conversation { animation-duration: 1ms !important; }
 }
@@ -1787,4 +1814,379 @@
 .scene-mainline-world .scene-mainline-object--table .scene-mainline-object__label,
 .scene-mainline-world .scene-mainline-object--seat .scene-mainline-object__label {
   letter-spacing: 0;
+}
+
+/* Question-mark monologue: text sits mid-screen; the dark backdrop only surrounds it and fades in gradually. */
+.scene-mainline-conversation--question-panel {
+  top: 50%;
+  bottom: auto;
+  height: 150px;
+  justify-content: center;
+  transform: translateY(-50%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 32%, #000 68%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 32%, #000 68%, transparent 100%);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+}
+.scene-mainline-conversation--question-panel:not(.is-leaving) { animation: mainline-question-panel-in 700ms ease-out both; }
+.scene-mainline-conversation--question-panel.is-leaving { animation: mainline-question-panel-out 420ms ease-in both; }
+@keyframes mainline-question-panel-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mainline-question-panel-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* The conversation stack moves as one piece; the choice wheel floats in a slot reserved under it. */
+.scene-mainline-conversation__stack {
+  display: flex;
+  min-height: 0;
+  flex: 0 1 auto;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.scene-mainline-conversation__stack.has-choice-slot { padding-bottom: calc(var(--wide-wheel-h, 84px) + 12px); }
+
+/* A new line reserves its name row and one text row up front, so the stack grows once and the name fades in. */
+.scene-mainline-conversation-line--current p { min-height: 1.68em; }
+.scene-mainline-conversation-line--current .scene-mainline-conversation-line__speaker { animation: mainline-conversation-name-in 220ms ease-out both; }
+@keyframes mainline-conversation-name-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Untyped remainder keeps the line's final size (no growth while typing). */
+.scene-mainline-conversation-line__pending { visibility: hidden; }
+/* Player lines hug the right edge, but the text inside the box reads left-to-right. */
+.scene-mainline-conversation-line.is-player p { text-align: left; }
+.scene-mainline-conversation-line.is-player .scene-mainline-conversation-line__speaker { text-align: right; }
+.scene-mainline-conversation--question-panel .scene-mainline-conversation-line { align-self: center; text-align: center; }
+.scene-mainline-conversation--question-panel .scene-mainline-conversation-line p { text-align: center; }
+
+/* ---- Conversation column: one bottom-anchored stack that grows upward (no inner scrolling), so every
+   new line / option block moves the whole stack with the same glide, full or not. ---- */
+.scene-mainline-conversation__viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 74%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, #000 74%, transparent 100%);
+}
+.scene-mainline-conversation__stack {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-bottom: 0;
+}
+.scene-mainline-conversation__history {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+/* Compact panels (question monologue, short prompt, wall menu) size to their content and sit mid-column. */
+.scene-mainline-conversation--question-panel .scene-mainline-conversation__viewport,
+.scene-mainline-conversation--short-prompt .scene-mainline-conversation__viewport {
+  flex: 0 0 auto;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.scene-mainline-conversation--question-panel .scene-mainline-conversation__stack,
+.scene-mainline-conversation--short-prompt .scene-mainline-conversation__stack { position: relative; }
+.scene-mainline-conversation--short-prompt {
+  /* A compact block mid-right with the same left-to-right backdrop as the long conversation. */
+  top: 50%;
+  bottom: auto;
+  height: auto;
+  min-height: 120px;
+  max-height: min(78vh, 700px);
+  justify-content: center;
+  padding-top: 52px;
+  padding-bottom: 52px;
+  transform: translateY(-50%);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 62.5%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 62.5%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+  -webkit-mask-size: 400% 100%, 100% 100%;
+  mask-size: 400% 100%, 100% 100%;
+  -webkit-mask-position: 0 0, 0 0;
+  mask-position: 0 0, 0 0;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.scene-mainline-conversation--short-prompt:not(.is-leaving) { animation: mainline-short-prompt-reveal 800ms cubic-bezier(.4, 0, .3, 1) both; }
+
+/* Phone: a menu viewed on its own sits in the middle of the screen, full width, over a dark band whose top and bottom edges fade. */
+.scene-mainline-conversation--phone-menu {
+  left: 0;
+  right: 0;
+  width: auto;
+  padding: 64px max(24px, env(safe-area-inset-right)) 64px max(24px, env(safe-area-inset-left));
+  background: rgba(8, 10, 13, .86);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+  -webkit-mask-composite: source-over;
+  mask-composite: add;
+}
+.scene-mainline-conversation--phone-menu:not(.is-leaving) { animation: mainline-phone-menu-in 1200ms cubic-bezier(.4, 0, .3, 1) both; }
+@keyframes mainline-phone-menu-in { from { opacity: 0; } to { opacity: 1; } }
+.scene-mainline-conversation--short-prompt.is-leaving { animation: mainline-question-panel-out 360ms ease-in both; }
+@keyframes mainline-short-prompt-reveal {
+  from { -webkit-mask-position: 100% 0, 0 0; mask-position: 100% 0, 0 0; opacity: 0; }
+  to { -webkit-mask-position: 0 0, 0 0; mask-position: 0 0, 0 0; opacity: 1; }
+}
+
+/* Priced menu (read-only wall menu): name left, price right, small description under each name. */
+.scene-mainline-conversation-line.has-menu { align-self: stretch; max-width: 100%; text-align: left; }
+.conversation-menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 12px;
+}
+.conversation-menu-panel.is-fading-in { animation: mainline-conversation-text-in 420ms ease-out both; }
+.conversation-menu-panel.is-fading-out { animation: mainline-conversation-text-out 260ms ease-in both; }
+.conversation-menu-panel__item { display: flex; flex-direction: column; gap: 1px; }
+.conversation-menu-panel__line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.conversation-menu-panel__price { font-variant-numeric: tabular-nums; }
+.conversation-menu-panel__desc { font-size: .72em; line-height: 1.4; color: rgba(243, 240, 233, .62); }
+@keyframes mainline-conversation-text-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mainline-conversation-text-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* Restroom fixtures show that they are in use. */
+.scene-mainline-object.scene-mainline-restroom-fixture--bright[aria-label^="洗手台"] {
+  animation: restroom-breathe 2.4s ease-in-out infinite;
+}
+.scene-mainline-object.scene-mainline-restroom-fixture--bright[aria-label^="洗手台"] .scene-mainline-object__label {
+  background: linear-gradient(to bottom, currentColor 0%, currentColor 30%, color-mix(in srgb, currentColor 35%, white) 50%, currentColor 70%, currentColor 100%);
+  background-size: 100% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: restroom-water-flow 1.6s linear infinite;
+}
+.scene-mainline-object.scene-mainline-restroom-fixture--bright[aria-label^="马桶"] {
+  animation: restroom-flash 1.5s ease-out 1 both;
+}
+@keyframes restroom-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
+@keyframes restroom-water-flow { from { background-position: 0 100%; } to { background-position: 0 0; } }
+@keyframes restroom-flash { 0% { opacity: .5; filter: brightness(2); } 25% { opacity: 1; filter: brightness(1.6); } 100% { opacity: 1; filter: brightness(1); } }
+
+/* Conversation column (wide, short prompt, question panel, phone menu): the section itself no longer sweeps or slides as one block.
+   The dark backdrop lives on ::before and fades by itself; each history row fades by itself, all at the same speed. */
+.scene-mainline-conversation-host .scene-mainline-conversation {
+  --fade-rate: 1400ms;
+  background: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+  animation: none !important;
+}
+.scene-mainline-conversation-host .scene-mainline-conversation > * { position: relative; z-index: 1; }
+.scene-mainline-conversation-host .scene-mainline-conversation::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(to left, rgba(11, 13, 17, .91) 0%, rgba(11, 13, 17, .76) 56%, rgba(11, 13, 17, .38) 82%, rgba(11, 13, 17, 0) 100%);
+  animation: mainline-backdrop-in var(--fade-rate) linear backwards;
+}
+.scene-mainline-conversation-host .scene-mainline-conversation--short-prompt::before,
+.scene-mainline-conversation-host .scene-mainline-conversation--question-panel::before {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+}
+.scene-mainline-conversation-host .scene-mainline-conversation--phone-menu::before {
+  background: rgba(8, 10, 13, .86);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+}
+.scene-mainline-conversation-host .scene-mainline-conversation.is-leaving::before { animation: mainline-backdrop-out var(--fade-rate) linear both; }
+.scene-mainline-conversation-host .scene-mainline-conversation-line { opacity: var(--line-target, 1); transition: opacity calc(.15 * var(--fade-rate)) linear; }
+.scene-mainline-conversation-host .scene-mainline-conversation.is-leaving .scene-mainline-conversation-line { opacity: 0; transition: opacity calc(var(--line-target, 1) * var(--fade-rate)) linear; }
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-conversation-host .scene-mainline-conversation::before { animation-duration: 1ms !important; }
+}
+
+/* Phone options: the same transparent choices as the wide column, laid out in rows under the conversation (wrapping when a row is full). */
+.scene-mainline-subtitle-host__choices {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 4px max(20px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  color: #f1f0ec;
+  pointer-events: auto;
+  touch-action: pan-y;
+}
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles { gap: 12px 16px; margin-top: 0; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles__item { min-height: 44px; padding: 8px 20px; font-size: 17px; max-width: 100%; }
+/* While only options are shown the (empty) text window gives its height back. */
+.scene-mainline-subtitle-host .narrow-dialogue-content[data-narrow-dialogue-content="options"] { height: 0; min-height: 0; }
+
+/* Locked options keep their space (hidden, not removed) so the line above never drops and rises again; a new set waits until the picked label has landed in the history, then fades in. */
+.scene-mainline-subtitle-host__choices .dialogue-choice-menu { animation: dialogue-choice-after-line 260ms linear 450ms both; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles { animation: none; }
+/* After a pick the other options stay (dimmed) so there is no empty gap; the picked one is gone (its label flies to the history); the next set replaces them in place and fades in. */
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles.is-locked:not(.is-soft) { display: flex; pointer-events: none; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-menu.is-locked { display: none; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles__item { animation: dialogue-choice-after-line 260ms linear 450ms both; }
+/* The options come in after the sentence has been read, not together with it (hidden, so not tappable, until then). */
+@keyframes dialogue-choice-after-line { from { opacity: 0; visibility: hidden; } to { opacity: 1; visibility: visible; } }
+/* A question with options below it is only as tall as its text, so the options sit right under it. */
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt,
+.scene-mainline-subtitle-host .narrow-dialogue-content--fit { height: auto; }
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt .narrow-dialogue-slot--current,
+.scene-mainline-subtitle-host .narrow-dialogue-content--fit .narrow-dialogue-slot--current {
+  position: relative;
+  inset: auto;
+  padding: 4px var(--narrow-dialogue-safe-right) 2px var(--narrow-dialogue-safe-left);
+}
+
+/* The options that will follow a line reserve their room while it is still being read, so they do not lift it when they appear. */
+.scene-mainline-subtitle-host__choices.is-placeholder { visibility: hidden; pointer-events: none; }
+.scene-mainline-subtitle-host__choices.is-placeholder .dialogue-choice-bubbles { animation: none; }
+.scene-mainline-subtitle-host__choices.is-placeholder .dialogue-choice-bubbles__item { animation: none; visibility: hidden; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles__item.is-picked { animation: none; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles__item:active:not(:disabled), .scene-mainline-subtitle-host__choices .dialogue-choice-menu__row:active:not(:disabled) { animation: none; opacity: .7; }
+
+/* No blue flash on touch. */
+.center-experience, .center-experience * { -webkit-tap-highlight-color: transparent; }
+
+/* A window that is only as tall as its text starts at the top, so the name row is not lifted out of it (that lift is for the fixed-height centred window). */
+.scene-mainline-subtitle-host .narrow-dialogue-content--fit .narrow-dialogue-copy--speaker,
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt .narrow-dialogue-copy--speaker { transform: none; }
+.scene-mainline-subtitle-host .narrow-dialogue-content--fit .narrow-dialogue-slot--current { padding-top: 6px; padding-bottom: 6px; }
+
+/* Wide: a picked ordering menu stays on screen (dimmed, not tappable) instead of vanishing. */
+.scene-mainline-conversation .dialogue-choice-menu.is-locked { display: none; }
+.scene-mainline-subtitle-host__choices.is-placeholder .dialogue-choice-menu { animation: none; visibility: hidden; }
+.scene-mainline-subtitle-host__choices.is-placeholder .dialogue-choice-menu * { visibility: hidden; }
+
+/* Phone: ordering questions (sugar, ice, …) use the same type size as every other line; the old compact 14px was for the retired bottom wheel. */
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt .narrow-dialogue-text { font-size: 18px; line-height: 1.45; }
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt .narrow-dialogue-speaker { font-size: 18px; line-height: 1.45; margin-bottom: 0.35em; }
+
+/* The ordering menu kept in the conversation after a pick: dimmed, not tappable; the picked row stays bright. */
+.dialogue-choice-menu--history { animation: none; pointer-events: none; }
+.dialogue-choice-menu--history .dialogue-choice-menu__row:not(.is-picked) { opacity: .4; }
+.dialogue-choice-menu--history .dialogue-choice-menu__row { cursor: default; }
+
+/* Phone: the real options are mounted as soon as they exist (so their true height is reserved while the question still types) but stay invisible and untappable until the question is finished; then they fade in. */
+.scene-mainline-subtitle-host__choices.is-pending { visibility: hidden; pointer-events: none; }
+.scene-mainline-subtitle-host__choices.is-pending .dialogue-choice-bubbles__item,
+.scene-mainline-subtitle-host__choices.is-pending .dialogue-choice-menu { animation: none; visibility: hidden; }
+.scene-mainline-subtitle-host__choices.is-pending .dialogue-choice-menu * { visibility: hidden; }
+.scene-mainline-subtitle-host__line .dialogue-choice-menu--history,
+.scene-mainline-conversation-line .dialogue-choice-menu--history { align-self: stretch; width: 100%; box-sizing: border-box; }
+
+/* ---- Phone conversation: the very same column as the wide screen, laid out for a narrow screen (full width, bottom-anchored, history fades at the top). ---- */
+.scene-mainline-conversation-host .scene-mainline-conversation--phone {
+  top: max(12px, env(safe-area-inset-top));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  gap: 8px;
+  padding: 0 max(20px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1.45;
+  color: #f1f0ec;
+  pointer-events: auto;
+}
+.scene-mainline-conversation-host .scene-mainline-conversation--phone::before {
+  background: linear-gradient(to top, rgba(8, 10, 13, .84) 0%, rgba(8, 10, 13, .62) 55%, rgba(8, 10, 13, 0) 100%);
+}
+.scene-mainline-conversation--phone .scene-mainline-conversation__viewport {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+}
+.scene-mainline-conversation--phone .scene-mainline-conversation__stack,
+.scene-mainline-conversation--phone .scene-mainline-conversation__history { gap: 8px; }
+.scene-mainline-conversation--phone .scene-mainline-conversation__stack { padding-top: 36px; }
+.scene-mainline-conversation--phone .scene-mainline-conversation-line { max-width: 88%; }
+.scene-mainline-conversation--phone .scene-mainline-conversation-line--current { max-height: none; overflow: visible; }
+.scene-mainline-conversation--phone .scene-mainline-conversation-line p { min-height: 0; }
+.scene-mainline-conversation--phone .scene-mainline-conversation-line__speaker { margin-bottom: 1px; font-size: 14px; color: inherit; }
+.scene-mainline-conversation--phone .dialogue-choice-bubbles { gap: 12px 16px; margin-top: 0; }
+.scene-mainline-conversation--phone .dialogue-choice-bubbles__item { min-height: 44px; padding: 8px 20px; font-size: 17px; max-width: 100%; }
+.scene-mainline-conversation-line:has(> .dialogue-choice-menu--history), .scene-mainline-subtitle-host__line:has(> .dialogue-choice-menu--history) { align-self: stretch; max-width: 100%; }
+
+/* Phone conversation: the dark band hangs on the content stack itself, so it is as tall as what is shown (one line: a thin band; a longer talk: thicker). */
+.scene-mainline-conversation-host .scene-mainline-conversation--phone { padding: 0; }
+.scene-mainline-conversation-host .scene-mainline-conversation--phone::before { display: none; }
+.scene-mainline-conversation--phone .scene-mainline-conversation__stack {
+  padding: 0 max(20px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+.scene-mainline-conversation--phone .scene-mainline-conversation__stack::before {
+  position: absolute;
+  z-index: -1;
+  top: -56px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(8, 10, 13, .84) 0%, rgba(8, 10, 13, .62) 55%, rgba(8, 10, 13, 0) 100%);
+  animation: mainline-backdrop-in var(--fade-rate) linear backwards;
+}
+.scene-mainline-conversation--phone.is-leaving .scene-mainline-conversation__stack::before { animation: mainline-backdrop-out var(--fade-rate) linear both; }
+/* Lines with no speaker (narration, "……") sit in the middle, not on the player's side. */
+.scene-mainline-conversation-line.is-narration { align-self: center; max-width: 88%; text-align: center; }
+.scene-mainline-conversation-line.is-narration p { text-align: center; }
+/* The options you did not pick fade out (instead of dimming and vanishing). */
+.dialogue-choice-bubbles .dialogue-choice-bubbles__item:disabled:not(.is-picked) { opacity: 0; transition: opacity 220ms linear; }
+
+/* Old locust tree: a permanent light drift across the glyphs (leaves in the
+   wind), plus a few yard stones that dim and brighten slowly like canopy shade. */
+.scene-mainline-tree-shimmer > .scene-mainline-object__grid-content > .scene-mainline-object__label {
+  color: transparent;
+  background-image: linear-gradient(105deg,
+    color-mix(in srgb, var(--interaction-normal) 55%, #000) 0%, color-mix(in srgb, var(--interaction-normal) 55%, #000) 34%,
+    #fff1c8 50%,
+    color-mix(in srgb, var(--interaction-normal) 55%, #000) 66%, color-mix(in srgb, var(--interaction-normal) 55%, #000) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: scene-tree-shimmer 3.6s ease-in-out infinite;
+}
+.scene-mainline-tree-shimmer:hover > .scene-mainline-object__grid-content > .scene-mainline-object__label,
+.scene-mainline-tree-shimmer:focus-visible > .scene-mainline-object__grid-content > .scene-mainline-object__label,
+.scene-mainline-tree-shimmer.is-active > .scene-mainline-object__grid-content > .scene-mainline-object__label {
+  animation: none;
+  background-image: none;
+  color: var(--active);
+}
+@keyframes scene-tree-shimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -20% 0; }
+}
+.scene-mainline-stone-shade > .scene-mainline-object__grid-content {
+  animation: scene-stone-shade 6s ease-in-out infinite;
+}
+.scene-mainline-stone-shade--0 > .scene-mainline-object__grid-content { animation-delay: -0.6s; }
+.scene-mainline-stone-shade--1 > .scene-mainline-object__grid-content { animation-delay: -1.9s; }
+.scene-mainline-stone-shade--2 > .scene-mainline-object__grid-content { animation-delay: -3.1s; }
+.scene-mainline-stone-shade--3 > .scene-mainline-object__grid-content { animation-delay: -4.3s; }
+.scene-mainline-stone-shade--4 > .scene-mainline-object__grid-content { animation-delay: -5.2s; }
+@keyframes scene-stone-shade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .38; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-tree-shimmer > .scene-mainline-object__grid-content > .scene-mainline-object__label { animation: none; background-image: none; color: var(--interaction-normal); }
+  .scene-mainline-stone-shade > .scene-mainline-object__grid-content { animation: none; }
 }

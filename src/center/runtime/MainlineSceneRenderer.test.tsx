@@ -10,13 +10,13 @@ import { mainlineScenes } from './mainlineScenes'
 import { sceneDesignReferenceMetrics } from './sceneBoundaryGrid'
 
 describe('mainline renderer breathing semantics', () => {
-  it('breathes for the old tree but not its tree-ring stones', () => {
+  it('no longer shows the onboarding breathing for the old tree or its stones', () => {
     const yard = mainlineScenes['jijia-ancestral-home']
     const tree = yard.objects.find((entity) => entity.id === 'jijia-old-tree')
     const stone = yard.objects.find((entity) => entity.id === 'jijia-old-tree-stone-n')
 
     expect(tree?.visualProfile).toBe('tree-ring')
-    expect(tree && mainlineEntityUsesBreathing(yard, tree)).toBe(true)
+    expect(tree && mainlineEntityUsesBreathing(yard, tree)).toBe(false)
     expect(stone).toMatchObject({ visualProfile: 'tree-ring', interactive: false })
     expect(stone && mainlineEntityUsesBreathing(yard, stone)).toBe(false)
   })

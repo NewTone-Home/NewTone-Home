@@ -17,18 +17,19 @@
 }
 
 .dialogue-choice-wheel--wide-right {
+  height: var(--wide-wheel-clip-height, calc(var(--dialogue-wheel-gap) * 2.3));
   right: clamp(16px, 4vw, 58px);
   top: 50%;
   transform: translate3d(0, -50%, 0) scale(1);
 }
 
 .dialogue-choice-wheel--wide-inline {
-  position: relative;
-  inset: auto;
-  width: 100%;
-  max-width: 100%;
-  height: clamp(148px, 22vh, 220px);
-  margin: 8px 0;
+  position: absolute;
+  inset: auto clamp(24px, 3vw, 42px) 28px 36px;
+  width: auto;
+  max-width: none;
+  height: var(--wide-wheel-h, 84px);
+  margin: 0;
   transform: none;
 }
 
@@ -41,6 +42,7 @@
 
 /* When hosted by the phone subtitle panel, share its padded safe content rect. */
 .narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom {
+  --dialogue-wheel-entry-x: 0px;
   top: var(--narrow-dialogue-safe-top);
   right: var(--narrow-dialogue-safe-right);
   bottom: var(--narrow-dialogue-safe-bottom);
@@ -113,7 +115,7 @@
 }
 
 .dialogue-choice-wheel--wide-inline.is-entering {
-  transform: translate3d(0, 10px, 0) scale(.99);
+  transform: none;
 }
 
 .dialogue-choice-wheel.is-locked {
@@ -126,6 +128,7 @@
 }
 .dialogue-choice-wheel--wide-right.is-exiting { transform: translate3d(10px, -50%, 0) scale(.985); }
 .dialogue-choice-wheel--narrow-bottom.is-exiting { transform: translate3d(-50%, 12px, 0) scale(.985); }
+.dialogue-choice-wheel--wide-inline.is-exiting { transform: none; }
 
 .dialogue-choice-wheel__viewport {
   position: absolute;
@@ -224,4 +227,121 @@
   .dialogue-choice-wheel__option {
     transition-duration: 1ms;
   }
+}
+
+/* Desktop choice bubble: nearly transparent, thin glass-like outline, smaller, faded in. */
+.dialogue-choice-wheel--wide-inline { animation: dialogue-choice-wide-fade-in 380ms ease-out both; }
+@keyframes dialogue-choice-wide-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.dialogue-choice-wheel--wide-inline .dialogue-choice-wheel__option { min-height: 36px; padding: 4px 14px; font-size: clamp(14px, 1.15vw, 17px); border-radius: 999px; }
+.dialogue-choice-wheel--wide-inline .dialogue-choice-wheel__option--center {
+  background: rgba(255, 255, 255, .025);
+  border: 1px solid rgba(255, 255, 255, .34);
+  box-shadow: 0 0 14px rgba(255, 255, 255, .08), inset 0 0 10px rgba(255, 255, 255, .05);
+  font-weight: 500;
+}
+.dialogue-choice-wheel--wide-inline.is-confirmed .dialogue-choice-wheel__option--center { background: rgba(255, 255, 255, .02); }
+
+/* One-time hint that the choices can be scrolled. */
+.dialogue-choice-wheel__hint {
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  margin-top: -10px;
+  color: rgba(255, 255, 255, .7);
+  font-size: 18px;
+  line-height: 1;
+  pointer-events: none;
+  animation: dialogue-choice-hint-bounce 1.1s ease-in-out infinite;
+}
+@keyframes dialogue-choice-hint-bounce { 0%, 100% { transform: translateY(-3px); opacity: .5; } 50% { transform: translateY(4px); opacity: 1; } }
+
+/* ---- Desktop: all choices visible, in the conversation flow (no wheel) ---- */
+@keyframes dialogue-choice-appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialogue-choice-breathe { 0%, 100% { opacity: .62; } 50% { opacity: 1; } }
+
+.dialogue-choice-bubbles,
+.dialogue-choice-menu {
+  position: relative;
+  flex: 0 0 auto;
+  pointer-events: auto;
+  animation: dialogue-choice-appear 480ms linear both;
+}
+.dialogue-choice-bubbles.is-locked,
+.dialogue-choice-menu.is-locked { display: none; }
+.dialogue-choice-bubbles.is-soft.is-locked { display: flex; pointer-events: none; animation: dialogue-choice-soft-out 300ms ease-in both; }
+@keyframes dialogue-choice-soft-out { from { opacity: 1; } to { opacity: 0; } }
+
+.dialogue-choice-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 10px;
+  margin-top: 4px;
+}
+.dialogue-choice-bubbles__item,
+.dialogue-choice-menu__extra {
+  min-height: 36px;
+  padding: 4px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: clamp(14px, 1.15vw, 17px);
+  cursor: pointer;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
+}
+/* Hover: the option itself breathes (dim <-> bright) so it is clear it is the one under the pointer. */
+.dialogue-choice-bubbles__item:focus-visible,
+.dialogue-choice-menu__row:focus-visible {
+  outline: none;
+  animation: dialogue-choice-breathe 1.2s ease-in-out infinite;
+}
+/* Only a real pointer hovers. On a touch screen :hover sticks to the spot you tapped, so the next option that appears there would keep flashing. */
+@media (hover: hover) and (pointer: fine) {
+  .dialogue-choice-bubbles__item:hover:not(:disabled),
+  .dialogue-choice-menu__extra:hover:not(:disabled),
+  .dialogue-choice-menu__row:hover:not(:disabled) {
+    outline: none;
+    animation: dialogue-choice-breathe 1.2s ease-in-out infinite;
+  }
+}
+.dialogue-choice-bubbles__item.is-picked,
+.dialogue-choice-menu__extra.is-picked,
+.dialogue-choice-menu__row.is-picked {
+  animation: none;
+  opacity: 1;
+}
+.dialogue-choice-bubbles__item:disabled:not(.is-picked),
+.dialogue-choice-menu__extra:disabled:not(.is-picked),
+.dialogue-choice-menu__row:disabled:not(.is-picked) { opacity: .4; cursor: default; }
+
+.dialogue-choice-menu__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 12px;
+}
+.dialogue-choice-menu__row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dialogue-choice-menu__line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: clamp(15px, 1.2vw, 18px); }
+.dialogue-choice-menu__price { font-variant-numeric: tabular-nums; }
+.dialogue-choice-menu__desc { font-size: .72em; line-height: 1.4; color: rgba(243, 240, 233, .62); }
+.dialogue-choice-menu__extra { align-self: center; margin-top: 6px; min-height: 30px; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) {
+  .dialogue-choice-bubbles__item:hover:not(:disabled),
+  .dialogue-choice-menu__row:hover:not(:disabled) { animation: none; }
 }

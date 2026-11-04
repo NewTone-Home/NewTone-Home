@@ -2,7 +2,7 @@
 
 import { officeBlindsRoomKey, officeRoomBlindsOpen, officeWindowRoom } from './officeRoomLighting'
 
-import { isWallMenuReading } from './menuReading'
+import { isWallMenuReading, parseWallMenuText } from './menuReading'
 
 import { hasContinuousCafe, isCafeWorldId, isPointInContinuousCafe, isCafeStoryKey, cafeStoryNamespace } from './continuousCafe'
 import { cafeRestroomFixtureIds, cafeRestroomFixtureUseDurationMs, cafeRestroomRoomId, isPointInsideCafeRestroom } from './cafeRestroom'
@@ -24,7 +24,7 @@ import { isTrueMilkTea } from './heldConsumablePresentation'
 import { sceneInteractionHandlers } from './sceneInteraction'
 import { useAutomaticPassages } from './useAutomaticPassages'
 import { defaultSceneScreenMetrics, sceneDesignReferenceMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
-import { useMainlineCamera } from './useMainlineCamera'
+import { mainlineCameraGlideMs, useMainlineCamera } from './useMainlineCamera'
 import { mainlineWorldScale } from './mainlineViewport'
 import { projectCommercialStreetX } from './commercialStreetGridProjection'
 import { currentMainlineViewportMetrics, mainlineDeviceProjectionScale, mainlineLegacyAreaProjectionScale, type MainlineViewportMetrics } from './mainlineViewportProjection'
@@ -34,17 +34,18 @@ import { sceneDoorMotion } from './sceneDoorConfig'
 import { sceneFrameGroupsDueForExit, type SceneFocusFrameMotionProfile } from './sceneFrameExitSchedule'
 import type { PlayerChoiceValue, PlayerSceneState } from './playerSave'
 import { defaultLaoZhouCafeSeatId, laoZhouCafeConversationSeatId, withLaoZhouCafeSeat, withRuoyuCafeSeat } from './commercialCafeSeatSelection'
-import { ruoyuCafeConversationSeatId, ruoyuCafeMeetingCompleted, ruoyuCafeMeetingCursorFromSceneState, ruoyuCafeMeetingDialogue, ruoyuCafeMeetingCursorKey, ruoyuCafeMeetingStatusKey, ruoyuCafeSeatFromSceneState, ruoyuCafeUnlockedKey, ruoyuCafeFollowupLine } from './ruoyuCafeMeeting'
+import { ruoyuCafeConversationSeatId, ruoyuCafeMeetingCompleted, ruoyuCafeMeetingCursorFromSceneState, ruoyuCafeMeetingDialogue, ruoyuCafeDepartedKey, ruoyuCafeSeatGuideDialogue, ruoyuCafeMeetingCursorKey, ruoyuCafeMeetingStatusKey, ruoyuCafeSeatFromSceneState, ruoyuCafeUnlockedKey, ruoyuCafeFollowupLine } from './ruoyuCafeMeeting'
 import { commercialCafeLaoZhouIsPresent } from './commercialCafeStory'
 import { commercialCafeAnalyticsMilestonePatch, commercialCafeAnalyticsMilestonesFromSceneState, commercialCafeAnalyticsStageForCursor, commercialCafeCoffeeDelivered, commercialCafeCoffeeOrderedState, commercialCafeDeliveryDialogueLine, commercialCafeDepartureText, commercialCafeFinishDeliveryLine, commercialCafeFinishDeliveryReturn, commercialCafeNarrativeDialogue, commercialCafeNarrativePhaseKey, commercialCafeNarrativeStarted, commercialCafeStoryCompleted, commercialCafeStoryNeedsMigration, commercialCafeStoryReadyToLeave, commercialCafeStoryStateFromSceneState, commercialCafeStoryStatePatch, commercialCafeStoryWithCursor, isCommercialCafeStoryStage, resolveCommercialCafeNpcInteraction, shouldCompleteCommercialCafeStoryOnTransition, commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, commercialCafeStoryTableId, type CommercialCafeAnalyticsStage, type CommercialCafeNpcInteractionResolution, type CommercialCafeStoryStage } from './commercialCafeStory'
 import { commercialCafeFloorServiceTarget, commercialCafeDutySpeedMultiplier, createCommercialCafeCoffeeOwnerBehaviorCoordinator, createCommercialCafeFloorServerBehaviorCoordinator } from './commercialCafeBehavior'
 import { commercialCafeDialogueReplayReducer, commercialCafeDialogueReplayView, initialCommercialCafeDialogueReplayState, shouldShowCommercialCafeDialogueReplay } from './CommercialCafeDialogueReplay'
 import { CommercialCafeDialogueReplayButton } from './CommercialCafeDialogueReplayButton'
 import { storeOrderEntryRoute } from './storeOrderEntryPolicy'
-import { chooseManualShopOrderOption, manualShopOrderView, startManualShopOrderSession, submitManualShopOrderSession, type ManualShopOrderSession, type ManualShopOrderSubmit } from './manualShopOrderSession'
+import { chooseManualShopOrderOption, manualShopOrderMenuItems, manualShopOrderView, startManualShopOrderSession, submitManualShopOrderSession, type ManualShopOrderSession, type ManualShopOrderSubmit } from './manualShopOrderSession'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { createNavigationRuntime } from './navigationCore'
 import { useNpcMovement } from './useNpcMovement'
+import { createShopClerkAmbient, shopClerkEngaged, shopClerkOrderIntent, shopClerkStationIntent, type ShopClerkConfig } from './shopClerkBehavior'
 import { AmbientNpcMotion } from './AmbientNpcMotion'
 import { npcRetryDelay, type NpcRuntimeSnapshot } from './npcCore'
 import { npcRoles } from './npcRoles'
@@ -63,7 +64,8 @@ import { incenseBurnPhase, incenseBurnRemainingMs, initializeOfficePlants, mainl
 import { nextMainlinePlayerSeatId, mainlineSceneOccupiedSeatIds } from './mainlineSeating'
 import { mainlineNpcStagedSeatId } from './mainlineNpcStaging'
 import { mainlineExploredObjectIdsFromSceneState, mainlineInteractionCompletesImmediately, mainlineInteractionExploredStateKey } from './mainlineInteractionVisualState'
-import { mainlineActiveSpatialSpaceId, mainlineEntityBelongsToActiveSpace } from './mainlineSceneModel'
+import { mainlineActiveSpatialSpaceId, mainlineEntityBelongsToActiveSpace, mainlineSceneRoomAtPosition } from './mainlineSceneModel'
+import { activeStorefrontInteriorOwner } from './storefrontPresentation'
 import { localSlideDirectionForCrossing, shouldUseLocalSlideForPassage, type MainlineWalkingPassageTransitionIntent } from './mainlineSceneTransition'
 import { createCommercialStreetStorefrontExecutionRuntime, createCommercialStreetStorefrontInteractionRuntime, commercialStreetStorefrontInteractionFor, executeCommercialStreetStorefrontInteraction, type CommercialStreetStorefrontAction } from './commercialStreetStorefrontInteractions'
 import { commercialStreetQuestionDialoguePosition, commercialStreetQuestionNarrativeAnchor, commercialStreetQuestionNarrativeCompleted, commercialStreetQuestionNarrativeCompletedKey, commercialStreetQuestionNarrativeLines, commercialStreetQuestionNarrativeShouldTrigger, nextCommercialStreetQuestionNarrative, type CommercialStreetQuestionNarrativeState } from './commercialStreetQuestionNarrative'
@@ -75,7 +77,7 @@ import { commercialCafeTakeawayCatalog } from './commercialCafeTakeawayCatalog'
 import type { SessionGameActivitySource } from './sessionGameClock'
 import { mainlineReadingSessionTextIsFinal, mainlineReadingTextMotionAfterAdvance, mainlineReadingTextMotionAfterAnimation, mainlineReadingTextMotionCompletionMatches, type MainlineReadingTextMotion } from './mainlineReadingTextMotion'
 import { yongheMenuForChoice, yongheMenuText, yongheTakeawayCatalog } from './yongheTakeawayCatalog'
-import { commercialStreetDrinkShopDialogue, commercialStreetDrinkShopForInteraction, recommendedCommercialStreetDrink } from './commercialStreetDrinkCatalog'
+import { commercialStreetDrinkShopDialogue, commercialStreetDrinkShopForInteraction, recommendedCommercialStreetDrink, shopClerkSpeakerFields, shopClerkSpeakerLabel } from './commercialStreetDrinkCatalog'
 import type { CafeStoryOrderStatus, CafeTableDeliveryCompletion, CafeTableOrderDeliveryTarget } from './cafeStoryOrderDelivery'
 
 const emptyExternalStoreSubscribe = () => () => undefined
@@ -94,7 +96,7 @@ function isYongheTakeawayScene(sceneId: string) {
 type NpcDialogueResolution = Extract<CommercialCafeNpcInteractionResolution, { kind: 'dialogue' }>
 function manualShopOrderFailureText(reason: string | undefined, copy: ReturnType<typeof shopServiceCopy>) {
   if (reason === 'hand-full') return copy.heldFull
-  if (reason === 'insufficient-funds') return '余额不足，暂时无法下单。'
+  if (reason === 'insufficient-funds') return '余额不足，无法下单'
   if (reason === 'shop-already-has-order') return copy.orderPending
   if (reason === 'preparation-not-configured') return '这款饮品的制作时间还没准备好，暂时不能下单。'
   if (reason === 'invalid-payment' || reason === 'invalid-order') return '订单信息有误，请重新选择。'
@@ -194,6 +196,7 @@ type MainlineSceneEcho = {
   position: Point
   options?: readonly string[]
   optionFlow?: MainlineSceneChoiceFlow
+  dismissible?: boolean
   textMotion: MainlineReadingTextMotion
   phase?: 'leaving'
   exit?: {
@@ -214,9 +217,14 @@ type MainlineSceneAction = {
   entityId?: string
   options: readonly string[]
   optionFlow?: MainlineSceneChoiceFlow
+  /** Desktop priced menu for the first options (catalogue step of a manual shop order). */
+  menu?: readonly { name: string; price: number; description: string | null }[]
   /** Keeps the same reading overlay identity through text -> choices -> reply. */
   conversationDisplaySessionId?: string
+  /** The clerk's question that belongs to this very action (ordering flow), so it stays put while the action is still leaving. */
+  promptText?: string
   confirmedOptionIndex?: number
+  dismissible?: boolean
   position: Point
   cameraOffset?: Point
   phase?: 'active' | 'committing' | 'exiting'
@@ -227,6 +235,20 @@ type CafeRestroomFixtureUseRequest = {
   requestId: number
   sceneId: MainlineSceneId
   startedAtGameTimeMs?: number
+}
+
+/** Being inside a room or shop draws the world a little larger; stepping back out restores it. */
+const mainlineIndoorZoom = 1.25
+/** Whole scenes that are a single shop. */
+const mainlineShopSceneIds: ReadonlySet<string> = new Set(['commercial-cafe', 'yonghe-eatery'])
+function mainlineIsIndoors(scene: MainlineSceneDefinition, position: Point) {
+  if (mainlineShopSceneIds.has(scene.id)) return true
+  // Offices: a numbered office room counts, the corridor does not.
+  if (scene.id === 'zhongshuyuan-office') return mainlineSceneRoomAtPosition(scene, position)?.kind === 'room'
+  // Street and mining area: only inside a shop's own interior room, not on the street itself.
+  if (scene.id === 'commercial-street' || scene.id === 'yonghe-mining-perimeter') return activeStorefrontInteriorOwner(scene, position) !== null
+  // The ancestral yard and house, passages and the like are single spaces with no small/large switch.
+  return false
 }
 
 function createMainlineSceneEcho(id: number, entityId: string | undefined, text: string, position: Point, clockActivitySource: MainlineSceneEcho['clockActivitySource'], options?: readonly string[], optionFlow?: MainlineSceneChoiceFlow, conversationDisplaySessionId?: string, textMotion: MainlineSceneEcho['textMotion'] = 'typing'): MainlineSceneEcho {
@@ -401,7 +423,8 @@ export function MainlineScenePage({
 }) {
   const clockPageId = useId()
   const baseSceneDefinition: MainlineSceneDefinition = mainlineScenes[sceneId]
-  const ruoyuCafeUnlocked = initialSceneState[ruoyuCafeUnlockedKey] === true
+  // Ruoyu is in the cafe from the SMS unlock until she leaves with the player after the finished meeting.
+  const ruoyuCafeUnlocked = initialSceneState[ruoyuCafeUnlockedKey] === true && initialSceneState[ruoyuCafeDepartedKey] !== true
   const ruoyuCafeSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
   const sceneDefinition: MainlineSceneDefinition = useMemo(() => {
     if (sceneId !== 'commercial-street' && sceneId !== 'commercial-cafe') return baseSceneDefinition
@@ -487,13 +510,53 @@ export function MainlineScenePage({
   }, [sceneId])
   const debugInputSearch = useSyncExternalStore(emptyExternalStoreSubscribe, getDebugInputSnapshot, getServerDebugInputSnapshot)
   const viewportFormulaLab = import.meta.env.DEV && new URLSearchParams(debugInputSearch).get('viewportFormulaLab') === '1'
+  const [indoorZoomed, setIndoorZoomed] = useState(() => mainlineShopSceneIds.has(sceneId))
+  // Stepping into or out of a room eases the zoom (about 0.65s) instead of jumping. A new scene snaps straight to its own zoom.
+  const [indoorZoomFactor, setIndoorZoomFactor] = useState(() => mainlineShopSceneIds.has(sceneId) ? mainlineIndoorZoom : 1)
+  const indoorZoomFactorRef = useRef(indoorZoomFactor)
+  const indoorZoomSceneChangedAtRef = useRef(0)
+  const indoorZoomSceneIdRef = useRef(sceneId)
+  if (indoorZoomSceneIdRef.current !== sceneId) {
+    indoorZoomSceneIdRef.current = sceneId
+    indoorZoomSceneChangedAtRef.current = typeof performance === 'undefined' ? 0 : performance.now()
+  }
+  useEffect(() => {
+    const target = indoorZoomed ? mainlineIndoorZoom : 1
+    const from = indoorZoomFactorRef.current
+    if (from === target) return
+    const now = performance.now()
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduced || now - indoorZoomSceneChangedAtRef.current < 600) {
+      indoorZoomFactorRef.current = target
+      setIndoorZoomFactor(target)
+      return
+    }
+    const duration = mainlineCameraGlideMs
+    const startedAt = now
+    let frame = 0
+    const step = (time: number) => {
+      const progress = Math.min(1, (time - startedAt) / duration)
+      const eased = progress < .5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2
+      const value = from + (target - from) * eased
+      indoorZoomFactorRef.current = value
+      setIndoorZoomFactor(value)
+      if (progress < 1) frame = window.requestAnimationFrame(step)
+    }
+    frame = window.requestAnimationFrame(step)
+    return () => window.cancelAnimationFrame(frame)
+  }, [indoorZoomed])
   const activeViewportMetrics = useMemo(() => {
-    if (!viewportFormulaLab) return viewportMetrics
-    const projectionScale = viewportFormulaMode === 'legacy'
-      ? mainlineLegacyAreaProjectionScale(viewportMetrics)
-      : mainlineDeviceProjectionScale(viewportMetrics)
-    return { ...viewportMetrics, projectionScale, projectionPolicy: viewportFormulaMode }
-  }, [viewportFormulaMode, viewportFormulaLab, viewportMetrics])
+    let base = viewportMetrics
+    if (viewportFormulaLab) {
+      const projectionScale = viewportFormulaMode === 'legacy'
+        ? mainlineLegacyAreaProjectionScale(viewportMetrics)
+        : mainlineDeviceProjectionScale(viewportMetrics)
+      base = { ...viewportMetrics, projectionScale, projectionPolicy: viewportFormulaMode }
+    }
+    // Rooms and shops are drawn a little larger so small objects are easier to see and tap.
+    if (indoorZoomFactor === 1) return base
+    return { ...base, projectionScale: (base.projectionScale ?? mainlineDeviceProjectionScale(base)) * indoorZoomFactor }
+  }, [indoorZoomFactor, viewportFormulaMode, viewportFormulaLab, viewportMetrics])
   const readingMetrics = activeViewportMetrics
   const debugInput = new URLSearchParams(debugInputSearch).get('debugInput') === '1'
   const debugNpcMovement = new URLSearchParams(debugInputSearch).get('debugNpcMovement') === '1'
@@ -658,6 +721,8 @@ export function MainlineScenePage({
   const hasHeldConsumable = Boolean(resolvedHeldConsumable)
   const shopOrderAppUnlocked = unlockedCommercialDrinkShopIds(initialSceneState).length > 0
   const shopServiceMessage = shopServiceCopy(shopOrderAppUnlocked ? 'unlocked' : 'not-unlocked')
+  const yongheServiceMessage = useMemo(() => ({ ...shopServiceMessage, orderSuccess: '行，你找个地方坐会儿吧。', orderPending: '还没好，再等会儿。', cancel: '好，那你再看看吧。', heldFull: '手里还有东西，拿不了这么多。' }), [shopServiceMessage])
+  const shopMessagesFor = (entityId: string | undefined) => entityId === 'yonghe-trial-worker' ? yongheServiceMessage : shopServiceMessage
   const commercialStreetQuestionNarrativeIsCompleted = commercialStreetQuestionNarrativeCompletedLocally || commercialStreetQuestionNarrativeCompleted(initialSceneState[commercialStreetQuestionNarrativeCompletedKey])
   commercialStreetQuestionNarrativeActiveRef.current = Boolean(commercialStreetQuestionNarrative)
   const recordSceneState = useCallback((targetSceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => {
@@ -725,7 +790,7 @@ export function MainlineScenePage({
     const next = current.phase === 'leaving' ? current : {
       ...current,
       phase: 'leaving' as const,
-      ...(current.presentationKind === 'commercial-street-question' ? { exitReason: 'cancel' as const } : {}),
+      ...(current.presentationKind === 'commercial-street-question' ? { exitReason: current.exitReason ?? 'cancel' as const } : {}),
     }
     sceneEchoRef.current = next
     setSceneEcho(next)
@@ -867,7 +932,7 @@ export function MainlineScenePage({
       || (sceneAction.phase === 'exiting' && pendingSceneActionAfterExitRef.current?.optionFlow === 'dialogue-choice'))
   const readingActive = Boolean(
     commercialCafeReplayView
-    || (sceneEcho && sceneEcho.presentationKind !== 'short-prompt' && (sceneEcho.presentationKind === 'commercial-street-question' || sceneEcho.phase !== 'leaving' || Boolean(sceneEcho.conversationDisplaySessionId)))
+    || (sceneEcho && (sceneEcho.presentationKind === 'commercial-street-question' || sceneEcho.phase !== 'leaving'))
     || (activeDialogueLine && dialoguePresentationPhase !== 'leaving')
     || commercialCafeDeliveryBeatActive
     || commercialCafeReturnBeatActive
@@ -909,20 +974,21 @@ export function MainlineScenePage({
       ? commercialCafeDeliveryBeatActive
         ? { sessionId: currentConversationDisplaySessionId, kind: 'waiting', text: '……', canAdvance: false, history: cafeNarrativeDisplayHistory }
         : { sessionId: currentConversationDisplaySessionId, kind: 'aside', text: commercialCafeDeliveryDialogueLine.text, displayUnitKey: `cafe-delivery-aside:${commercialCafeNarrative?.phase ?? 'none'}`, textMotion: dialogueTextMotion, canAdvance: false, history: cafeNarrativeDisplayHistory }
-      : (sceneEcho?.optionFlow === 'dialogue-choice' || sceneEcho?.conversationDisplaySessionId) && currentConversationDisplaySessionId
-        ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: sceneEcho.text, displayUnitKey: `echo:${sceneEcho.id}:fragment:${sceneEcho.segmentIndex}`, textMotion: sceneEcho.textMotion, canAdvance: sceneEcho.phase !== 'leaving', shortPrompt: sceneEcho.presentationKind === 'short-prompt' }
+      : (sceneEcho?.optionFlow === 'dialogue-choice' || sceneEcho?.conversationDisplaySessionId || sceneEcho?.presentationKind === 'commercial-street-question') && currentConversationDisplaySessionId
+        ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: sceneEcho.text, displayUnitKey: `echo:${sceneEcho.id}:fragment:${sceneEcho.segmentIndex}${sceneEcho.presentationKind === 'commercial-street-question' ? `:question:${(commercialStreetQuestionNarrativeLines as readonly string[]).indexOf(sceneEcho.sourceText ?? '')}` : ''}`, textMotion: sceneEcho.textMotion, canAdvance: sceneEcho.phase !== 'leaving', shortPrompt: sceneEcho.presentationKind === 'short-prompt' || Boolean(sceneEcho.dismissible), layout: sceneEcho.optionFlow === 'dialogue-choice' || shopClerkSpeakerFields(sceneEcho.entityId).speaker ? 'conversation' : 'center', expectedChoices: sceneEcho.optionFlow === 'dialogue-choice' && !sceneEcho.dismissible && sceneEcho.options?.length && sceneEcho.segmentIndex + 1 >= sceneEcho.segments.length ? sceneEcho.options : undefined, noHistory: sceneEcho.presentationKind === 'commercial-street-question', menuItems: isWallMenuReading(sceneEcho.entityId) ? parseWallMenuText(sceneEcho.text) ?? undefined : undefined, ...shopClerkSpeakerFields(sceneEcho.entityId) }
         : sceneAction?.optionFlow === 'dialogue-choice'
           && currentConversationDisplaySessionId
           && activeManualShopOrderSession
           && activeManualShopOrderDisplaySessionId === currentConversationDisplaySessionId
-          ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: manualShopOrderPromptOverrideRef.current ?? manualShopOrderView(activeManualShopOrderSession).text, displayUnitKey: `manual-order:${JSON.stringify([activeManualShopOrderSession.phase, activeManualShopOrderSession.productId, activeManualShopOrderSession.sugar, activeManualShopOrderSession.ice, manualShopOrderPromptOverrideRef.current])}`, textMotion: activeViewportMetrics.width >= 960 ? dialogueTextMotion : 'static', canAdvance: false, choicePrompt: true }
+          && sceneAction.promptText !== undefined
+          ? { sessionId: currentConversationDisplaySessionId, kind: 'text', text: sceneAction.promptText ?? manualShopOrderPromptOverrideRef.current ?? manualShopOrderView(activeManualShopOrderSession).text, displayUnitKey: `manual-order:${sceneAction.promptText !== undefined ? sceneAction.id : JSON.stringify([activeManualShopOrderSession.phase, activeManualShopOrderSession.productId, activeManualShopOrderSession.sugar, activeManualShopOrderSession.ice, manualShopOrderPromptOverrideRef.current])}`, textMotion: dialogueTextMotion, canAdvance: false, choicePrompt: true, layout: 'conversation', expectedChoices: sceneAction.options.length ? sceneAction.options : undefined, expectedMenu: sceneAction.menu?.length ? sceneAction.menu : undefined, speaker: shopClerkSpeakerFields(sceneAction.entityId).speaker ?? shopClerkSpeakerLabel, speakerIsNpc: true }
         : sceneAction?.optionFlow === 'dialogue-choice' && currentConversationDisplaySessionId
           ? { sessionId: currentConversationDisplaySessionId, kind: 'choice', actionId: sceneAction.id, options: sceneAction.options, canAdvance: false }
           : activeDialogueLine && currentConversationDisplaySessionId
-            ? { sessionId: currentConversationDisplaySessionId, kind: dialoguePresentation === 'aside' ? 'aside' : 'text', text: activeDialogueText, displayUnitKey: `${activeDialogueLine.id}:fragment:${dialogueSegmentIndex}`, textMotion: dialogueTextMotion, canAdvance: true, history: commercialCafeNarrative ? cafeNarrativeDisplayHistory : undefined }
+            ? { sessionId: currentConversationDisplaySessionId, kind: dialoguePresentation === 'aside' ? 'aside' : 'text', layout: commercialCafeNarrative || new Set((activeDialogue?.lines ?? []).map((line) => line.speaker ?? '')).size > 1 ? 'conversation' : 'center', text: activeDialogueText, displayUnitKey: `${activeDialogueLine.id}:fragment:${dialogueSegmentIndex}`, textMotion: dialogueTextMotion, canAdvance: true, history: commercialCafeNarrative ? cafeNarrativeDisplayHistory : undefined }
             : null)
-  const wideConversationTextUnitKey = activeViewportMetrics.width >= 960
-    && !sceneEcho
+  // Phone too: every new line of a real dialogue (and every later piece of an echo) types in, not only the first.
+  const wideConversationTextUnitKey = !sceneEcho
     && !commercialCafeReplayView
     && (conversationDisplayContent?.kind === 'text' || conversationDisplayContent?.kind === 'aside')
     && 'displayUnitKey' in conversationDisplayContent
@@ -931,7 +997,7 @@ export function MainlineScenePage({
     ? `${conversationDisplayContent.sessionId}:${conversationDisplayContent.displayUnitKey}`
     : null
   const wideConversationTextUnitRef = useRef<string | null>(null)
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!wideConversationTextUnitKey) {
       wideConversationTextUnitRef.current = null
       return
@@ -955,7 +1021,7 @@ export function MainlineScenePage({
       dispatchCommercialCafeReplay({ type: 'wide-unit-start', runId: commercialCafeReplayView.runId })
     }
   }, [commercialCafeReplayView, wideReplayTextUnitKey])
-  const wideEchoTextUnitKey = activeViewportMetrics.width >= 960
+  const wideEchoTextUnitKey = Boolean(sceneEcho)
     && sceneEcho
     && sceneEcho.presentationKind !== 'short-prompt'
     && sceneEcho.conversationDisplaySessionId
@@ -1030,7 +1096,9 @@ export function MainlineScenePage({
     resetMovementController(nextPosition)
     commercialStreetQuestionPreviousPositionRef.current = { sceneId: scene.id, position: nextPosition ?? getCurrentPosition() }
   }, [getCurrentPosition, resetMovementController, scene.id])
-  const cameraOffset = useMainlineCamera(scene, position, embedded, activeViewportMetrics)
+  const cameraOffset = useMainlineCamera(scene, position, embedded, activeViewportMetrics, indoorZoomed)
+  // Decided from where the player stands, not from the camera cut: the state only changes when the answer does.
+  useEffect(() => { setIndoorZoomed(mainlineIsIndoors(scene, position)) }, [scene, position.x, position.y])
 
   useEffect(() => {
     if (sceneAction !== null || !pendingSceneEchoAfterActionRef.current) return
@@ -1177,6 +1245,19 @@ export function MainlineScenePage({
   const fruitTeaWorkerBox = mainlineNpcLabelFootprint(scene, fruitTeaWorkerId, fruitTeaWorkerInitial, screenMetrics)
   const milkTeaWorkerMovement = useNpcMovement({ enabled: !presentationSnapshot && scene.npcs.some(npc => npc.id === milkTeaWorkerId) && mainlineActiveSpatialSpaceId(scene, milkTeaWorkerInitial) === 'commercial-south-s5-interior', npcId: milkTeaWorkerId, initialPosition: milkTeaWorkerInitial, navigationRuntime, footprint: { width: milkTeaWorkerBox.width, height: milkTeaWorkerBox.height } })
   const fruitTeaWorkerMovement = useNpcMovement({ enabled: !presentationSnapshot && scene.npcs.some(npc => npc.id === fruitTeaWorkerId) && mainlineActiveSpatialSpaceId(scene, fruitTeaWorkerInitial) === 'commercial-north-n1-interior', npcId: fruitTeaWorkerId, initialPosition: fruitTeaWorkerInitial, navigationRuntime, footprint: { width: fruitTeaWorkerBox.width, height: fruitTeaWorkerBox.height } })
+  const yongheWorkerId = 'yonghe-trial-worker'
+  const yongheWorkerInitial = stagedNpcPositions.get(yongheWorkerId) ?? scene.initialPlayerPosition
+  const yongheWorkerBox = mainlineNpcLabelFootprint(scene, yongheWorkerId, yongheWorkerInitial, screenMetrics)
+  const yongheWorkerMovement = useNpcMovement({ enabled: !presentationSnapshot && scene.npcs.some(npc => npc.id === yongheWorkerId) && mainlineActiveSpatialSpaceId(scene, yongheWorkerInitial) === 'mining-shop-2-interior', npcId: yongheWorkerId, initialPosition: yongheWorkerInitial, navigationRuntime, footprint: { width: yongheWorkerBox.width, height: yongheWorkerBox.height } })
+  const shopClerks = [
+    { key: 'milk', spaceId: 'commercial-south-s5-interior', shopId: crossShopIds.milkTea, prefix: 'milk-tea-trial', workerId: milkTeaWorkerId, movement: milkTeaWorkerMovement, initial: milkTeaWorkerInitial, box: milkTeaWorkerBox, work: { targetId: 'milk-tea-trial-worktop', targetEntityId: 'milk-tea-trial-equipment-1' } },
+    { key: 'fruit', spaceId: 'commercial-north-n1-interior', shopId: crossShopIds.fruitTea, prefix: 'fruit-tea-trial', workerId: fruitTeaWorkerId, movement: fruitTeaWorkerMovement, initial: fruitTeaWorkerInitial, box: fruitTeaWorkerBox, work: { targetId: 'fruit-tea-trial-worktop', targetEntityId: 'fruit-tea-trial-equipment-1' } },
+    { key: 'yonghe', spaceId: 'mining-shop-2-interior', shopId: crossShopIds.yonghe, prefix: 'yonghe-trial', workerId: yongheWorkerId, movement: yongheWorkerMovement, initial: yongheWorkerInitial, box: yongheWorkerBox, work: { targetId: 'yonghe-worker-prep-station', target: scene.npcBehaviorTargets?.find(target => target.id === 'yonghe-worker-prep-station')?.position ?? yongheWorkerInitial } },
+  ].filter(clerk => scene.npcs.some(npc => npc.id === clerk.workerId)).map(clerk => ({ ...clerk, config: { workerId: clerk.workerId, dutyPrefix: clerk.prefix, station: clerk.initial, work: clerk.work } as ShopClerkConfig }))
+  const shopClerksRef = useRef(shopClerks)
+  shopClerksRef.current = shopClerks
+  const shopClerkEngagedAtRef = useRef<number | null>(null)
+  const shopClerkAmbientRef = useRef<Record<string, ReturnType<typeof createShopClerkAmbient>>>({})
   const ambientNpcFootprints = useMemo(() => new Map(scene.ambientNpcRoutes.map((schedule) => {
     const npc = scene.npcs.find((candidate) => candidate.id === schedule.npcId)
     const position = stagedNpcPositions.get(schedule.npcId) ?? scene.initialPlayerPosition
@@ -1201,8 +1282,9 @@ export function MainlineScenePage({
     if (laoZhouMovement.position) positions.set('lao-zhou', laoZhouMovement.position)
     if (milkTeaWorkerMovement.position) positions.set(milkTeaWorkerId, milkTeaWorkerMovement.position)
     if (fruitTeaWorkerMovement.position) positions.set(fruitTeaWorkerId, fruitTeaWorkerMovement.position)
+    if (yongheWorkerMovement.position) positions.set(yongheWorkerId, yongheWorkerMovement.position)
     return positions
-  }, [cafeCoffeeOwnerMovement.position, cafeFloorServerMovement.position, fruitTeaWorkerId, fruitTeaWorkerMovement.position, laoZhouMovement.position, milkTeaWorkerId, milkTeaWorkerMovement.position])
+  }, [yongheWorkerMovement.position, cafeCoffeeOwnerMovement.position, cafeFloorServerMovement.position, fruitTeaWorkerId, fruitTeaWorkerMovement.position, laoZhouMovement.position, milkTeaWorkerId, milkTeaWorkerMovement.position])
   const hiddenAmbientNpcIds = useMemo(() => new Set([...ambientNpcRuntime]
     .filter(([, runtime]) => runtime.hidden)
     .map(([npcId]) => npcId)), [ambientNpcRuntime])
@@ -1218,10 +1300,11 @@ export function MainlineScenePage({
       ['lao-zhou', laoZhouMovement.snapshot],
       [milkTeaWorkerId, milkTeaWorkerMovement.snapshot],
       [fruitTeaWorkerId, fruitTeaWorkerMovement.snapshot],
+      [yongheWorkerId, yongheWorkerMovement.snapshot],
     ])
     ambientNpcRuntime.forEach(({ snapshot }, npcId) => snapshots.set(npcId, snapshot))
     return snapshots
-  }, [ambientNpcRuntime, cafeCoffeeOwnerMovement.snapshot, cafeFloorServerMovement.snapshot, fruitTeaWorkerId, fruitTeaWorkerMovement.snapshot, laoZhouMovement.snapshot, milkTeaWorkerId, milkTeaWorkerMovement.snapshot])
+  }, [yongheWorkerMovement.snapshot, ambientNpcRuntime, cafeCoffeeOwnerMovement.snapshot, cafeFloorServerMovement.snapshot, fruitTeaWorkerId, fruitTeaWorkerMovement.snapshot, laoZhouMovement.snapshot, milkTeaWorkerId, milkTeaWorkerMovement.snapshot])
   const resolvedNpcPositions = useMemo(() => new Map(scene.npcs.map((npc) => [
     npc.id,
     resolveMainlineNpcPosition(scene, npc.id, layout, { geometrySnapshot, screenMetrics, npcRuntimePositions }),
@@ -1237,6 +1320,7 @@ export function MainlineScenePage({
     ...(hasContinuousCafe(scene) ? [commercialCafeCoffeeOwnerNpcId, commercialCafeFloorServerNpcId, 'lao-zhou'] : []),
     ...(scene.npcs.some(npc => npc.id === milkTeaWorkerId) ? [milkTeaWorkerId] : []),
     ...(scene.npcs.some(npc => npc.id === fruitTeaWorkerId) ? [fruitTeaWorkerId] : []),
+    ...(scene.npcs.some(npc => npc.id === yongheWorkerId) ? [yongheWorkerId] : []),
   ]), [fruitTeaWorkerId, milkTeaWorkerId, scene.ambientNpcRoutes, scene.id, scene.npcs])
   const staticNpcPositions = useMemo(() => new Map([...registeredNpcPositions]
     .filter(([npcId]) => !runtimeManagedNpcIds.has(npcId))), [registeredNpcPositions, runtimeManagedNpcIds])
@@ -1359,7 +1443,7 @@ export function MainlineScenePage({
     })
     onChapterAnalytics?.('commercial_question_triggered')
   }, [activeViewportMetrics, cameraOffset, commercialStreetQuestionNarrative, commercialStreetQuestionNarrativeIsCompleted, onChapterAnalytics, position, presentSceneEcho, readingMetrics, scene, stopMovement])
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     if (!activeDialogueLine || dialoguePresentationPhase !== 'active'
       || (dialogueTextSessionId !== 0 && dialogueTextSessionSceneRef.current === sceneId)) return
     startDialogueTextSession()
@@ -1458,24 +1542,40 @@ export function MainlineScenePage({
   const takeawayWorkerOrderKeyRef = useRef('')
   useEffect(() => {
     const activeSpace = mainlineActiveSpatialSpaceId(scene, getCurrentPosition())
-    const isMilk = activeSpace === 'commercial-south-s5-interior' && scene.npcs.some(npc => npc.id === milkTeaWorkerId)
-    const isFruit = activeSpace === 'commercial-north-n1-interior' && scene.npcs.some(npc => npc.id === fruitTeaWorkerId)
-    if (!isMilk && !isFruit) { takeawayWorkerOrderKeyRef.current = ''; return }
-    const shopId = isMilk ? crossShopIds.milkTea : crossShopIds.fruitTea
-    const order = shopOrders?.[shopId]
+    const clerk = shopClerks.find(candidate => candidate.spaceId === activeSpace)
+    if (!clerk) { takeawayWorkerOrderKeyRef.current = ''; return }
+    const order = shopOrders?.[clerk.shopId]
     const preparing = Boolean(order && order.status === 'queued' && typeof gameTimeMs === 'number' && gameTimeMs < order.readyAtGameTimeMs)
-    const orderKey = order ? `${shopId}:${order.status}:${order.readyAtGameTimeMs}:${preparing}` : `${shopId}:idle`
+    const orderKey = order ? `${clerk.shopId}:${order.status}:${order.readyAtGameTimeMs}:${preparing}` : `${clerk.shopId}:idle`
     if (takeawayWorkerOrderKeyRef.current === orderKey) return
     takeawayWorkerOrderKeyRef.current = orderKey
-    const movement = isMilk ? milkTeaWorkerMovement : fruitTeaWorkerMovement
-    const workerId = isMilk ? milkTeaWorkerId : fruitTeaWorkerId
-    const initial = isMilk ? milkTeaWorkerInitial : fruitTeaWorkerInitial
-    const prefix = isMilk ? 'milk-tea-trial' : 'fruit-tea-trial'
-    const intent = preparing
-      ? { dutyId: `${prefix}.preparing`, targetId: `${prefix}-worktop`, targetEntityId: `${prefix}-equipment-1` }
-      : { dutyId: order ? `${prefix}.waiting-pickup` : `${prefix}.return-to-station`, targetId: `${workerId}.station`, target: initial }
-    movement.requestMove(intent, scene, layout, { ...navigationOptions, actorId: workerId })
-  }, [fruitTeaWorkerInitial, fruitTeaWorkerMovement, fruitTeaWorkerId, gameTimeMs, getCurrentPosition, layout, milkTeaWorkerInitial, milkTeaWorkerMovement, milkTeaWorkerId, navigationOptions, scene, shopOrders])
+    clerk.movement.requestMove(shopClerkOrderIntent(clerk.config, preparing ? 'preparing' : order ? 'waiting-pickup' : 'none'), scene, layout, { ...navigationOptions, actorId: clerk.workerId })
+  }, [shopClerks, gameTimeMs, getCurrentPosition, layout, navigationOptions, scene, shopOrders])
+  // Idle clerks keep working the counter: pace between worktop and station, like the café counter clerk.
+  const sceneRef = useRef(scene)
+  sceneRef.current = scene
+  const layoutRef = useRef(layout)
+  layoutRef.current = layout
+  const shopOrdersRef = useRef(shopOrders)
+  shopOrdersRef.current = shopOrders
+  useEffect(() => {
+    if (presentationSnapshot) return
+    const timer = window.setInterval(() => {
+      const now = Date.now()
+      const currentScene = sceneRef.current
+      const space = mainlineActiveSpatialSpaceId(currentScene, getCurrentPosition())
+      const clerk = shopClerksRef.current.find(candidate => candidate.spaceId === space)
+      if (!clerk) return
+      if (shopOrdersRef.current?.[clerk.shopId]) return
+      if (shopClerkEngaged(cancelPendingTakeawayWorkerResponseRef.current ? shopClerkEngagedAtRef.current : null, now)) return
+      const ambient = (shopClerkAmbientRef.current[clerk.key] ??= createShopClerkAmbient())
+      if (clerk.movement.snapshot.phase === 'moving' || !ambient.ready(now)) return
+      const intent = ambient.next(clerk.config)
+      ambient.dwell(now + 1200)
+      clerk.movement.requestMove(intent, currentScene, layoutRef.current, { ...navigationOptionsRef.current, actorId: clerk.workerId }, undefined, () => ambient.dwell(Date.now()))
+    }, 800)
+    return () => window.clearInterval(timer)
+  }, [getCurrentPosition, presentationSnapshot])
   const getLiveNavigationOptions = useCallback(() => ({
     ...navigationOptionsRef.current,
     openPassageIds: getOpenPassageIds(),
@@ -1725,6 +1825,8 @@ export function MainlineScenePage({
     ] as const)
     .filter((entry): entry is readonly [string, 'closed' | 'opening' | 'open' | 'crossing' | 'holding' | 'closing'] => Boolean(entry[0]))), [passageLifecycleDefinitions, passageStates, scene.passages])
   const armPassageFrameExit = useCallback((passage: MainlineScenePassage, remainingMovementMs?: number) => {
+    // A locked door is only approached, never crossed, so it must not retract the frame.
+    if (passage.access !== 'open') return
     if (passage.targetSceneId) {
       if (remainingMovementMs === undefined || !Number.isFinite(remainingMovementMs)) return
       setSceneFrameExit((current) => {
@@ -2200,7 +2302,25 @@ export function MainlineScenePage({
       return
     }
     const currentUse = cafeRestroomFixtureUsesRef.current[entityId]
-    if (currentUse?.phase === 'using' && currentUse.sceneId === scene.id) return
+    if (currentUse?.phase === 'using' && currentUse.sceneId === scene.id) {
+      // The sink is a switch: it is turned off at the sink, so walk up to it first. The toilet just finishes by itself.
+      if (!Number.isFinite(durationMs)) {
+        const turnOff = () => {
+          const arrived = resolveMainlineEntityInteraction(scene, entityId, getCurrentPosition(), layout, getLiveNavigationOptions())
+          if (arrived.inRange) clearCafeRestroomFixtureUse(entityId)
+        }
+        const toSink = resolveMainlineEntityInteraction(scene, entityId, getCurrentPosition(), layout, getLiveNavigationOptions())
+        if (toSink.inRange) { turnOff(); return }
+        if (!toSink.path?.length) return
+        setActiveObjectId(null)
+        moveAlong(toSink.path, turnOff, {
+          ...protagonistLocomotionOptions,
+          canOccupy: (point) => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
+          canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
+        })
+      }
+      return
+    }
     if (currentUse?.phase === 'approaching') return
     const requestId = (cafeRestroomFixtureUseRequestIdsRef.current[entityId] ?? 0) + 1
     cafeRestroomFixtureUseRequestIdsRef.current[entityId] = requestId
@@ -2245,7 +2365,7 @@ export function MainlineScenePage({
         setCafeRestroomFixtureUsePhases((phases) => { const next = { ...phases }; delete next[entityId]; return next })
         setActiveObjectId((currentId) => currentId === entityId ? null : currentId)
       }
-      cafeRestroomFixtureUseFramesRef.current[entityId] = window.requestAnimationFrame(finishWhenGameTimeElapsed)
+      if (Number.isFinite(durationMs)) cafeRestroomFixtureUseFramesRef.current[entityId] = window.requestAnimationFrame(finishWhenGameTimeElapsed)
     }
 
     const interaction = resolveMainlineEntityInteraction(scene, entityId, getCurrentPosition(), layout, getLiveNavigationOptions())
@@ -2294,59 +2414,33 @@ export function MainlineScenePage({
     startDialogueTextSession()
     if (resolution.promptSeatId) setPromptedSeatId(resolution.promptSeatId)
   }, [startDialogueTextSession, stopMovement])
-  const interactRuoyuCafe = useCallback(() => {
-    if (!hasContinuousCafe(scene) || initialSceneState[ruoyuCafeUnlockedKey] !== true) return
-    const meetingComplete = ruoyuCafeMeetingCompleted(initialSceneState)
-    if (meetingComplete) {
-      const followup = ruoyuCafeFollowupLine(initialSceneState, 'ruoyu')
-      if (!followup) return
-      recordSceneState(scene.id, followup.key, (typeof initialSceneState[followup.key] === 'number' ? initialSceneState[followup.key] as number : 0) + 1)
-      const point = getCurrentPosition()
-      sceneEchoIdRef.current += 1
-      const displaySessionId = `conversation:${++conversationDisplaySessionIdRef.current}`
-      setConversationDisplaySessionId(displaySessionId)
-      presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'ruoyu', followup.text,
-        sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation', undefined, undefined, displaySessionId))
-      return
-    }
-    const ruoyuSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
-    if (!ruoyuSeatId) return
-    const requestId = ++npcInteractionRequestRef.current
-    const conversationSeatId = ruoyuCafeConversationSeatId(ruoyuSeatId)
-    const startMeeting = () => {
-      const cursor = ruoyuCafeMeetingCursorFromSceneState(initialSceneState)
-      const dialogue: NpcDialogueResolution = { kind: 'dialogue', dialogue: ruoyuCafeMeetingDialogue }
-      startNpcDialogue(dialogue)
-      setDialogueLineIndex(cursor)
-      recordSceneState(scene.id, ruoyuCafeMeetingStatusKey, 'in-progress')
-      recordSceneState(scene.id, ruoyuCafeMeetingCursorKey, cursor)
-    }
-    if (activePlayerSeatId === conversationSeatId) { startMeeting(); return }
-    leavePlayerSeat()
-    const resolved = findMainlinePathToEntity(scene, conversationSeatId, getCurrentPosition(), layout, navigationOptions)
-    const sitPosition = resolveMainlineSeatSitPosition(scene, conversationSeatId, layout, navigationOptions)
-    if (!resolved.path || !sitPosition || nextMainlinePlayerSeatId(scene, activePlayerSeatId, conversationSeatId, occupiedSeatIds) !== conversationSeatId) {
-      stopMovement()
-      return
-    }
-    setActiveObjectId(conversationSeatId)
-    moveAlong(resolved.path, () => {
-      if (npcInteractionRequestRef.current !== requestId) return
-      resetMovement(sitPosition)
-      navigationRuntime.updateActor('protagonist', sitPosition)
-      setPlayerSeatId(conversationSeatId)
-      setActiveObjectId(null)
-      startMeeting()
-    }, {
-      ...protagonistLocomotionOptions,
-      preserveNavigationRoute: true,
-      canOccupy: point => isWalkableMainlinePoint(point, scene, layout, getLiveNavigationOptions()),
-      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, scene, layout, getLiveNavigationOptions()),
-      onBlocked: () => { if (npcInteractionRequestRef.current === requestId) setActiveObjectId(null) },
-    })
+  const presentRuoyuFollowup = useCallback(() => {
+    const followup = ruoyuCafeFollowupLine(initialSceneState, 'ruoyu')
+    if (!followup) return
+    recordSceneState(scene.id, followup.key, (typeof initialSceneState[followup.key] === 'number' ? initialSceneState[followup.key] as number : 0) + 1)
+    const point = getCurrentPosition()
+    sceneEchoIdRef.current += 1
+    const displaySessionId = `conversation:${++conversationDisplaySessionIdRef.current}`
+    setConversationDisplaySessionId(displaySessionId)
+    presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'ruoyu', followup.text,
+      sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation', undefined, undefined, displaySessionId))
   }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, getCurrentPosition, getLiveNavigationOptions, initialSceneState, layout, leavePlayerSeat, moveAlong, navigationOptions, navigationRuntime, protagonistLocomotionOptions, readingMetrics, recordSceneState, resetMovement, scene, startNpcDialogue, stopMovement])
+  const startRuoyuMeeting = useCallback(() => {
+    const cursor = ruoyuCafeMeetingCursorFromSceneState(initialSceneState)
+    startNpcDialogue({ kind: 'dialogue', dialogue: ruoyuCafeMeetingDialogue })
+    setDialogueLineIndex(cursor)
+    recordSceneState(scene.id, ruoyuCafeMeetingStatusKey, 'in-progress')
+    recordSceneState(scene.id, ruoyuCafeMeetingCursorKey, cursor)
+  }, [initialSceneState, recordSceneState, scene.id, startNpcDialogue])
+  // Before the meeting, clicking Ruoyu only invites the player to sit (generic NPC flow); sitting across from her starts it.
+  const interactRuoyuCafe = useCallback(() => {
+    if (!hasContinuousCafe(scene) || !ruoyuCafeUnlocked) return
+    if (ruoyuCafeMeetingCompleted(initialSceneState)) { presentRuoyuFollowup(); return }
+    const ruoyuSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
+    if (ruoyuSeatId && activePlayerSeatId === ruoyuCafeConversationSeatId(ruoyuSeatId)) startRuoyuMeeting()
+  }, [presentRuoyuFollowup, startRuoyuMeeting, activePlayerSeatId, initialSceneState, scene])
   const interactXiujieFollowup = useCallback(() => {
-    if (!ruoyuCafeMeetingCompleted(initialSceneState)) return
+    if (commercialCafeStory.status !== 'complete' || !laoZhouVisibleInCurrentVisit) return
     const followup = ruoyuCafeFollowupLine(initialSceneState, 'xiujie')
     if (!followup) return
     recordSceneState(scene.id, followup.key, (typeof initialSceneState[followup.key] === 'number' ? initialSceneState[followup.key] as number : 0) + 1)
@@ -2354,11 +2448,12 @@ export function MainlineScenePage({
     sceneEchoIdRef.current += 1
     presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'lao-zhou', followup.text,
       sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation'))
-  }, [activeViewportMetrics, cameraOffset, getCurrentPosition, initialSceneState, readingMetrics, recordSceneState, scene])
+  }, [commercialCafeStory.status, laoZhouVisibleInCurrentVisit, activeViewportMetrics, cameraOffset, getCurrentPosition, initialSceneState, readingMetrics, recordSceneState, scene])
   const startCommercialCafeNarrative = useCallback(() => {
     if (!hasContinuousCafe(scene) || commercialCafeStory.status !== 'available') return
     stopMovement()
-    setConversationDisplaySessionId(`conversation:${++conversationDisplaySessionIdRef.current}`)
+    // Keep the conversation id already shown (entering the cafe may have set one) so the surface is not rebuilt.
+    setConversationDisplaySessionId(current => current ?? `conversation:${++conversationDisplaySessionIdRef.current}`)
     setNpcDialogue(null)
     setDialogueSegmentIndex(0)
     setDialogueLineIndex(commercialCafeStory.narrativeCursor)
@@ -2437,14 +2532,15 @@ export function MainlineScenePage({
     }
     if (yongheReadyCue && lastYongheReadyCueRef.current !== yongheReadyCue.id) {
       lastYongheReadyCueRef.current = yongheReadyCue.id
-      pendingYongheReadyCueRef.current = yongheReadyCue
+      // The meal-ready line is only spoken when the player is inside the shop.
+      if (scene.id === 'yonghe-eatery' || mainlineActiveSpatialSpaceId(scene, getCurrentPosition()) === 'mining-shop-2-interior') pendingYongheReadyCueRef.current = yongheReadyCue
     }
     if (!orderFeedbackShown && !sceneEcho && pendingYongheReadyCueRef.current) {
       const cue = pendingYongheReadyCueRef.current
       pendingYongheReadyCueRef.current = null
       presentYongheEcho(cue.text)
     }
-  }, [presentYongheEcho, scene.id, sceneEcho, yongheOrderFeedback, yongheReadyCue])
+  }, [getCurrentPosition, presentYongheEcho, scene, sceneEcho, yongheOrderFeedback, yongheReadyCue])
 
   const interact = useCallback((entityId: string, requestAlreadyRecorded = false, counterContact?: { partId: string; point: Point }) => {
     if (readingActive || sceneAction?.phase === 'committing') return
@@ -2470,8 +2566,9 @@ export function MainlineScenePage({
     if (!requestAlreadyRecorded) pendingInteractionAfterTraversalRef.current = null
     if (!requestAlreadyRecorded) onInteractionAnalytics?.('requested', entityId, passage ? 'door' : entity.kind)
     if (entity.interactionBehavior === 'cafe-restroom-use') {
+      // No text and no options: walk up to the fixture and it is used on arrival.
       setActiveObjectId(null)
-      setSceneAction(createSceneAction({ entityId: entity.id, options: ['使用'], optionFlow: 'world-action', position: entity.position, cameraOffset }))
+      startCafeRestroomFixtureUse(entity.id)
       return
     }
     if (entity.kind === 'seat' && entity.seat) {
@@ -2514,6 +2611,13 @@ export function MainlineScenePage({
           conversationSeatId: cafeConversationSeatId,
         })
         if (resolution?.kind === 'start-narrative') startCommercialCafeNarrative()
+        else if (hasContinuousCafe(scene)) {
+          const ruoyuSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
+          if (ruoyuCafeUnlocked && ruoyuSeatId && nextSeatId === ruoyuCafeConversationSeatId(ruoyuSeatId)) {
+            if (ruoyuCafeMeetingCompleted(initialSceneState)) presentRuoyuFollowup()
+            else startRuoyuMeeting()
+          } else if (commercialCafeStory.status === 'complete' && laoZhouVisibleInCurrentVisit && nextSeatId === cafeConversationSeatId) interactXiujieFollowup()
+        }
       }, {
         ...protagonistLocomotionOptions,
         // A seat remains a two-step interaction exception. Its route may need
@@ -2558,10 +2662,14 @@ export function MainlineScenePage({
       const presentWarehouseAction = () => {
         const actionPosition = getCurrentPosition()
         setActiveObjectId(null)
+        const warehouseSessionId = `conversation:${++conversationDisplaySessionIdRef.current}`
+        setConversationDisplaySessionId(warehouseSessionId)
         setSceneAction(createSceneAction({
           entityId: entity.id,
           options: ['推一下门'],
-          optionFlow: 'world-action',
+          optionFlow: 'dialogue-choice',
+          conversationDisplaySessionId: warehouseSessionId,
+          dismissible: true,
           position: actionPosition,
           cameraOffset,
         }))
@@ -2650,9 +2758,19 @@ export function MainlineScenePage({
         setActiveObjectId(null)
         return
       }
+      if (entity.id === 'yonghe-counter' && isYongheTakeawayScene(scene.id)) {
+        // Pickup and "still cooking" were handled above; with no order the owner comes to her counter point first.
+        const startCounterDialogue = () => {
+          onInteractionAnalytics?.('completed', entity.id, entity.kind, 'dialogue-started')
+          presentYongheEcho('想吃点什么？', ['点餐', '有什么推荐吗', '聊聊', '我再看看吧'], 'yonghe-trial-worker', 'dialogue-choice')
+        }
+        setActiveObjectId(null)
+        startCounterDialogue()
+        return
+      }
       if (commercialStreetDrinkShopForInteraction(entity.id)) {
         recommendedDrinkRef.current = null
-        presentCommercialDrinkEcho(entity.id, commercialShopWelcomeCopy, ['\u70b9\u5355', commercialStreetDrinkShopDialogue.recommendationRequest])
+        presentCommercialDrinkEcho(entity.id, commercialShopWelcomeCopy, ['\u70b9\u5355', commercialStreetDrinkShopDialogue.recommendationRequest, '\u6211\u518d\u770b\u770b\u5427'])
         setActiveObjectId(null)
         onInteractionAnalytics?.('completed', entity.id, entity.kind, 'drink-shop-dialogue-started')
         return
@@ -2680,27 +2798,32 @@ export function MainlineScenePage({
       const hasExplorationContent = Boolean(explorationChoice || availableExplorationPool.length)
       const startsDialogue = scene.dialogue?.triggerEntityId === entity.id
       if (mainlineExplorationChoiceIsActionOnly(explorationChoice)) {
-        setSceneAction(createSceneAction({ entityId: entity.id, options: explorationChoice.options, optionFlow: explorationChoice.optionFlow ?? 'world-action', position: entity.position, cameraOffset }))
+        const actionSessionId = `conversation:${++conversationDisplaySessionIdRef.current}`
+        setConversationDisplaySessionId(actionSessionId)
+        setSceneAction(createSceneAction({ entityId: entity.id, options: explorationChoice.options, optionFlow: 'dialogue-choice', conversationDisplaySessionId: actionSessionId, dismissible: explorationChoice.optionFlow !== 'dialogue-choice', position: entity.position, cameraOffset }))
         markEntityExplored(entityId)
         return
       }
       if (hasExplorationContent) {
         const text = explorationChoice?.text ?? availableExplorationPool[Math.floor(Math.random() * availableExplorationPool.length)]
-        const dialogueChoiceSessionId = explorationChoice?.optionFlow === 'dialogue-choice'
+        // World interactions with options (phone swap, incense, watering, blinds...) use the same
+        // conversation surface as every other choice; declining is a click outside the choices.
+        const worldChoice = Boolean(explorationChoice?.options?.length) && explorationChoice?.optionFlow !== 'dialogue-choice'
+        const dialogueChoiceSessionId = explorationChoice?.optionFlow === 'dialogue-choice' || worldChoice
           ? `conversation:${++conversationDisplaySessionIdRef.current}`
           : undefined
         if (dialogueChoiceSessionId) setConversationDisplaySessionId(dialogueChoiceSessionId)
         sceneEchoIdRef.current += 1
-        presentSceneEcho(createMainlineSceneEcho(
+        presentSceneEcho({ ...createMainlineSceneEcho(
           sceneEchoIdRef.current,
           entity.id,
           text,
           sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
           clockActivityForExploration(entity, Boolean(explorationChoice?.options)),
           explorationChoice?.options,
-          explorationChoice?.optionFlow,
+          worldChoice ? 'dialogue-choice' : explorationChoice?.optionFlow,
           dialogueChoiceSessionId,
-        ))
+        ), ...(worldChoice ? { dismissible: true } : {}) })
       }
       if (startsDialogue) {
         setDialogueSegmentIndex(0)
@@ -2716,18 +2839,24 @@ export function MainlineScenePage({
       }
     }
     const presentCounterInteraction = () => {
-      if (!counterContact) { revealInteraction(); return }
       const spaceId = mainlineActiveSpatialSpaceId(scene, getCurrentPosition())
-      const isMilk = spaceId === 'commercial-south-s5-interior'
-      const isFruit = spaceId === 'commercial-north-n1-interior'
-      if (!isMilk && !isFruit) { revealInteraction(); return }
-      const workerId = isMilk ? milkTeaWorkerId : fruitTeaWorkerId
-      const movement = isMilk ? milkTeaWorkerMovement : fruitTeaWorkerMovement
+      if (!counterContact) {
+        const stationClerk = shopClerksRef.current.find(candidate => candidate.spaceId === spaceId && candidate.key === 'yonghe')
+        const away = stationClerk?.movement.position && Math.hypot(stationClerk.movement.position.x - stationClerk.initial.x, stationClerk.movement.position.y - stationClerk.initial.y) > 2
+        if (!stationClerk || !away) { revealInteraction(); return }
+        cancelPendingTakeawayWorkerResponseRef.current = () => { shopClerkEngagedAtRef.current = null; stationClerk.movement.requestMove(shopClerkStationIntent(stationClerk.config, 'return-to-station'), scene, layout, { ...navigationOptionsRef.current, actorId: stationClerk.workerId }) }
+        shopClerkEngagedAtRef.current = Date.now()
+        const moving = stationClerk.movement.requestMove(shopClerkStationIntent(stationClerk.config, 'counter-service'), scene, layout, { ...navigationOptions, actorId: stationClerk.workerId }, undefined, () => { if (npcInteractionRequestRef.current === requestId) revealInteraction() })
+        if (!moving) revealInteraction()
+        return
+      }
+      const clerk = shopClerksRef.current.find(candidate => candidate.spaceId === spaceId)
+      if (!clerk) { revealInteraction(); return }
+      const { workerId, movement, box } = clerk
       const part = getMainlineSceneEntity(scene, counterContact.partId)
       const body = part?.interactionStructureId ? scene.continuousStructures?.find(item => item.id === part.interactionStructureId) : undefined
       const side = part?.interactionContactSides?.[0]
       if (!body || !side) { revealInteraction(); return }
-      const box = isMilk ? milkTeaWorkerBox : fruitTeaWorkerBox
       const margin = .4
       const target = side === 'left'
         ? { x: body.x + body.width + box.width / 2 + margin, y: Math.max(body.y + box.height / 2, Math.min(body.y + body.height - box.height / 2, counterContact.point.y)) }
@@ -2736,7 +2865,8 @@ export function MainlineScenePage({
           : side === 'top'
             ? { x: Math.max(body.x + box.width / 2, Math.min(body.x + body.width - box.width / 2, counterContact.point.x)), y: body.y + body.height + box.height / 2 + margin }
             : { x: Math.max(body.x + box.width / 2, Math.min(body.x + body.width - box.width / 2, counterContact.point.x)), y: body.y - box.height / 2 - margin }
-      cancelPendingTakeawayWorkerResponseRef.current = () => movement.requestMove({ dutyId: `${workerId}.return-to-station`, targetId: `${workerId}.station`, target: isMilk ? milkTeaWorkerInitial : fruitTeaWorkerInitial }, scene, layout, { ...navigationOptionsRef.current, actorId: workerId })
+      cancelPendingTakeawayWorkerResponseRef.current = () => { shopClerkEngagedAtRef.current = null; movement.requestMove(shopClerkStationIntent(clerk.config, 'return-to-station'), scene, layout, { ...navigationOptionsRef.current, actorId: workerId }) }
+      shopClerkEngagedAtRef.current = Date.now()
       const started = movement.requestMove({ dutyId: `${workerId}.counter-service`, targetId: counterContact.partId, target }, scene, layout, { ...navigationOptions, actorId: workerId }, {
         onBlocked: () => {
           if (npcInteractionRequestRef.current !== requestId) return
@@ -2747,7 +2877,7 @@ export function MainlineScenePage({
         },
       }, () => {
         if (npcInteractionRequestRef.current !== requestId) return
-        cancelPendingTakeawayWorkerResponseRef.current = null
+        shopClerkEngagedAtRef.current = Date.now()
         revealInteraction()
       })
       if (!started) {
@@ -2791,7 +2921,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', entity.id, entity.kind, 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomFixtureUsesRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomFixtureUse, denyLockedPassageAfterApproach, dismissSceneEcho, fruitTeaWorkerBox.height, fruitTeaWorkerBox.width, fruitTeaWorkerId, fruitTeaWorkerInitial, fruitTeaWorkerMovement, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, milkTeaWorkerBox.height, milkTeaWorkerBox.width, milkTeaWorkerId, milkTeaWorkerInitial, milkTeaWorkerMovement, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, presentCommercialDrinkEcho, presentYongheEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
+  }, [startCafeRestroomFixtureUse, activePlayerSeatId, activeViewportMetrics, cameraOffset, cancelSceneAction, carriedPhoneDevice, cafeRestroomFixtureUsesRef, commercialCafeNarrative, commercialCafeStory, completeShortInteraction, createSceneAction, clearCafeRestroomFixtureUse, denyLockedPassageAfterApproach, dismissSceneEcho, fruitTeaWorkerBox.height, fruitTeaWorkerBox.width, fruitTeaWorkerId, fruitTeaWorkerInitial, fruitTeaWorkerMovement, getCurrentPosition, getLiveNavigationOptions, incensePhase, layout, leavePlayerSeat, milkTeaWorkerBox.height, milkTeaWorkerBox.width, milkTeaWorkerId, milkTeaWorkerInitial, milkTeaWorkerMovement, protagonistLocomotionOptions, markEntityExplored, moveAlong, navigationOptions, navigationRuntime, occupiedSeatIds, officeBlindsOpen, onCommerceEntity, onDoorEvent, onInteractionAnalytics, onObjectInteraction, onPhoneDismiss, phoneOpen, initialSceneState, plantWateredAt, presentSceneEcho, presentCommercialDrinkEcho, presentYongheEcho, readingActive, recordSceneState, recordSceneStatePatch, resetMovement, scene, sceneAction, screenMetrics, showLockedPassageText, startCommercialCafeNarrative, startDialogueTextSession, startNpcDialogue, startPassageTraversal, stopMovement])
 
   resumeInteractionRef.current = (entityId) => interact(entityId, true)
 
@@ -2949,12 +3079,16 @@ export function MainlineScenePage({
     const npc = scene.npcs.find((candidate) => candidate.id === npcId)
     if (!npc || npc.interactive === false) return
     if (npcId === 'ruoyu') {
-      onNpcInteraction?.(npc.id)
-      onInteractionAnalytics?.('requested', npc.id, 'npc')
-      interactRuoyuCafe()
-      return
+      const ruoyuSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
+      if (!ruoyuCafeUnlocked || !ruoyuSeatId) return
+      if (ruoyuCafeMeetingCompleted(initialSceneState) || activePlayerSeatId === ruoyuCafeConversationSeatId(ruoyuSeatId)) {
+        onNpcInteraction?.(npc.id)
+        onInteractionAnalytics?.('requested', npc.id, 'npc')
+        interactRuoyuCafe()
+        return
+      }
     }
-    if (npcId === 'lao-zhou' && hasContinuousCafe(scene) && ruoyuCafeMeetingCompleted(initialSceneState)) {
+    if (npcId === 'lao-zhou' && hasContinuousCafe(scene) && commercialCafeStory.status === 'complete') {
       onInteractionAnalytics?.('requested', npc.id, 'npc')
       interactXiujieFollowup()
       return
@@ -2999,12 +3133,19 @@ export function MainlineScenePage({
       if (commercialStreetDrinkShopForInteraction(npc.id)) {
         recommendedDrinkRef.current = null
         onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
-        presentCommercialDrinkEcho(npc.id, commercialShopWelcomeCopy, ['\u70b9\u5355', commercialStreetDrinkShopDialogue.recommendationRequest])
+        presentCommercialDrinkEcho(npc.id, commercialShopWelcomeCopy, ['\u70b9\u5355', commercialStreetDrinkShopDialogue.recommendationRequest, '\u6211\u518d\u770b\u770b\u5427'])
         return
       }
       if (isYongheTakeawayScene(scene.id) && npc.id === 'yonghe-trial-worker') {
         onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
-        presentYongheEcho('吃点什么？', ['点餐', '有什么推荐吗', '聊聊'], 'yonghe-trial-worker', 'dialogue-choice')
+        presentYongheEcho('想吃点什么？', ['点餐', '有什么推荐吗', '聊聊', '我再看看吧'], 'yonghe-trial-worker', 'dialogue-choice')
+        return
+      }
+      if (npc.id === 'ruoyu') {
+        const ruoyuSeatId = ruoyuCafeSeatFromSceneState(initialSceneState)
+        if (!ruoyuSeatId) { onInteractionAnalytics?.('blocked', npc.id, 'npc', 'no-interaction-available'); return }
+        onInteractionAnalytics?.('completed', npc.id, 'npc', 'dialogue-started')
+        startNpcDialogue({ kind: 'dialogue', dialogue: ruoyuCafeSeatGuideDialogue })
         return
       }
       const resolution = resolveCommercialCafeNpcInteraction({
@@ -3044,7 +3185,7 @@ export function MainlineScenePage({
         onInteractionAnalytics?.('blocked', npc.id, 'npc', 'movement-blocked')
       },
     })
-  }, [activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, interactXiujieFollowup, laoZhouVisibleInCurrentVisit, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
+  }, [presentRuoyuFollowup, startRuoyuMeeting, activePlayerSeatId, cafeStoryOrderDelivery, commercialCafeNarrative, commercialCafeStory, cancelSceneAction, dismissSceneEcho, getCurrentPosition, getLiveNavigationOptions, initialSceneState, interactRuoyuCafe, interactXiujieFollowup, laoZhouVisibleInCurrentVisit, layout, leavePlayerSeat, onInteractionAnalytics, onNpcInteraction, onPhoneDismiss, phoneOpen, presentCommercialDrinkEcho, presentYongheEcho, protagonistLocomotionOptions, moveAlong, movingNpcIds, navigationOptions, readingActive, scene, sceneAction?.phase, startCommercialCafeNarrative, startNpcDialogue, stopMovement])
 
   const queueManualShopOrderChoiceView = useCallback((entityId: string, session: ManualShopOrderSession, displaySessionId: string, promptOverride?: string) => {
     const view = manualShopOrderView(session)
@@ -3058,6 +3199,8 @@ export function MainlineScenePage({
       entityId,
       options: view.choices.map(choice => choice.label),
       optionFlow: 'dialogue-choice',
+      menu: manualShopOrderMenuItems(session) ?? undefined,
+      promptText: promptOverride ?? view.text,
       conversationDisplaySessionId: displaySessionId,
       position: sceneAction?.position ?? sceneTextPresentationPosition(scene, getCurrentPosition(), view.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
       cameraOffset: sceneAction?.cameraOffset ?? cameraOffset,
@@ -3069,7 +3212,7 @@ export function MainlineScenePage({
   const beginManualShopOrder = useCallback((shopId: string, entityId: string, preselectedProductId?: string | null, existingDisplaySessionId?: string) => {
     const displaySessionId = existingDisplaySessionId ?? `conversation:${++conversationDisplaySessionIdRef.current}`
     if (hasHeldConsumable) {
-      presentCommercialDrinkEcho(entityId, shopServiceMessage.heldFull, undefined, displaySessionId)
+      presentCommercialDrinkEcho(entityId, shopMessagesFor(entityId).heldFull, undefined, displaySessionId)
       return
     }
     const idempotencyKey = typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -3088,7 +3231,7 @@ export function MainlineScenePage({
       manualShopOrderSubmittingKeyRef.current = null
       manualShopOrderSubmittedKeyRef.current = null
       const message = started.reason === 'shop-already-has-order'
-        ? shopServiceMessage.orderPending
+        ? shopMessagesFor(entityId).orderPending
         : started.reason === 'unknown-shop'
           ? '这家店的商品目录暂时不可用。'
           : '暂时无法开始点单，请稍后再试。'
@@ -3110,11 +3253,11 @@ export function MainlineScenePage({
         manualShopOrderConversationSessionRef.current = null
         manualShopOrderPromptOverrideRef.current = null
         manualShopOrderSubmittingKeyRef.current = null
-        presentCommercialDrinkEcho(entityId, shopServiceMessage.orderSuccess, undefined, displaySessionId)
+        presentCommercialDrinkEcho(entityId, shopMessagesFor(entityId).orderSuccess, undefined, displaySessionId)
         return
       }
       manualShopOrderSubmittingKeyRef.current = null
-      const prompt = manualShopOrderFailureText(step.submitted?.reason, shopServiceMessage)
+      const prompt = manualShopOrderFailureText(step.submitted?.reason, shopMessagesFor(entityId))
       if (step.session && step.view?.choices.length) queueManualShopOrderChoiceView(entityId, step.session, displaySessionId, prompt)
       else presentCommercialDrinkEcho(entityId, prompt, undefined, displaySessionId)
       return
@@ -3147,12 +3290,12 @@ export function MainlineScenePage({
           manualShopOrderConversationSessionRef.current = null
           manualShopOrderPromptOverrideRef.current = null
           manualShopOrderSubmittingKeyRef.current = null
-          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', shopServiceMessage.orderSuccess, undefined, manualConversationSessionId)
+          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', shopMessagesFor(sceneAction.entityId ?? 'yonghe-trial-worker').orderSuccess, undefined, manualConversationSessionId)
         } else if (step.session) {
           manualShopOrderSubmittingKeyRef.current = null
           manualShopOrderSessionRef.current = step.session
           const prompt = step.submitted
-            ? manualShopOrderFailureText(step.submitted.reason, shopServiceMessage)
+            ? manualShopOrderFailureText(step.submitted.reason, shopMessagesFor(sceneAction.entityId ?? 'yonghe-trial-worker'))
             : step.view?.text ?? '点单暂时不可用。'
           if (step.view?.choices.length) {
             queueManualShopOrderChoiceView(sceneAction.entityId ?? 'yonghe-trial-worker', step.session, manualConversationSessionId, prompt)
@@ -3168,7 +3311,7 @@ export function MainlineScenePage({
           manualShopOrderPromptOverrideRef.current = null
           manualShopOrderSubmittingKeyRef.current = null
           manualShopOrderSubmittedKeyRef.current = null
-          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', shopServiceMessage.cancel, undefined, manualConversationSessionId)
+          presentCommercialDrinkEcho(sceneAction.entityId ?? 'yonghe-trial-worker', shopMessagesFor(sceneAction.entityId ?? 'yonghe-trial-worker').cancel, undefined, manualConversationSessionId)
         }
         commitSceneActionExit(actionId)
         return
@@ -3176,7 +3319,9 @@ export function MainlineScenePage({
     }
     if (sceneAction.entityId === 'commercial-cafe-counter' && sceneAction.conversationDisplaySessionId) {
       const sessionId = sceneAction.conversationDisplaySessionId
-      if (option === '\u70b9\u5355') {
+      if (option === '\u6211\u518d\u770b\u770b\u5427') {
+        presentCommercialDrinkEcho('commercial-cafe-counter', shopServiceMessage.cancel, undefined, sessionId)
+      } else if (option === '\u70b9\u5355') {
         beginManualShopOrder(crossShopIds.cafeTakeaway, 'commercial-cafe-counter', null, sessionId)
       } else if (option === '\u6709\u4ec0\u4e48\u63a8\u8350\uff1f') {
         presentCommercialDrinkEcho('commercial-cafe-counter', commercialCafeRecommendation.question, commercialCafeRecommendation.preferences.map(preference => preference.label), sessionId)
@@ -3185,7 +3330,7 @@ export function MainlineScenePage({
         if (preference) {
           recommendedDrinkRef.current = { shopId: crossShopIds.cafeTakeaway, productId: preference.productId }
           const productName = commercialCafeTakeawayCatalog.find(product => product.id === preference.productId)?.name ?? preference.productId
-          presentCommercialDrinkEcho('commercial-cafe-counter', `\u90a3\u6211\u63a8\u8350${productName}\u3002`, [commercialCafeRecommendation.acceptRecommendation, commercialCafeRecommendation.browseOtherCoffees], sessionId)
+          presentCommercialDrinkEcho('commercial-cafe-counter', `\u90a3\u53ef\u4ee5\u8bd5\u8bd5${productName}\u3002`, [commercialCafeRecommendation.acceptRecommendation, commercialCafeRecommendation.browseOtherCoffees], sessionId)
         } else if (option === commercialCafeRecommendation.acceptRecommendation) {
           const recommended = recommendedDrinkRef.current
           recommendedDrinkRef.current = null
@@ -3200,7 +3345,9 @@ export function MainlineScenePage({
     }
     const drinkShopId = sceneAction.entityId ? commercialStreetDrinkShopForInteraction(sceneAction.entityId) : null
     if (drinkShopId) {
-      if (option === '点单') {
+      if (option === '\u6211\u518d\u770b\u770b\u5427') {
+        presentCommercialDrinkEcho(sceneAction.entityId!, shopMessagesFor(sceneAction.entityId).cancel, undefined, sceneAction.conversationDisplaySessionId)
+      } else if (option === '点单') {
         beginManualShopOrder(drinkShopId, sceneAction.entityId!, null, sceneAction.conversationDisplaySessionId)
       } else if (option === commercialStreetDrinkShopDialogue.recommendationRequest) {
         presentCommercialDrinkEcho(sceneAction.entityId!, commercialStreetDrinkShopDialogue.preferenceQuestion, commercialStreetDrinkShopDialogue.preferenceOptions, sceneAction.conversationDisplaySessionId)
@@ -3222,17 +3369,12 @@ export function MainlineScenePage({
       return
     }
     if (sceneAction.entityId === 'yonghe-trial-worker' && isYongheTakeawayScene(scene.id)) {
-      if (option === '点餐') beginManualShopOrder(crossShopIds.yonghe, 'yonghe-trial-worker', null, sceneAction.conversationDisplaySessionId)
-      else if (option === '有什么推荐吗') presentYongheEcho('你想吃面还是吃饭？', ['面', '饭'], 'yonghe-trial-worker', 'dialogue-choice', sceneAction.conversationDisplaySessionId)
+      if (option === '\u6211\u518d\u770b\u770b\u5427') presentCommercialDrinkEcho('yonghe-trial-worker', '好，那你再看看吧。', undefined, sceneAction.conversationDisplaySessionId)
+      else if (option === '点餐') beginManualShopOrder(crossShopIds.yonghe, 'yonghe-trial-worker', null, sceneAction.conversationDisplaySessionId)
+      else if (option === '有什么推荐吗') presentYongheEcho('想吃面，还是吃饭？', ['面', '饭'], 'yonghe-trial-worker', 'dialogue-choice', sceneAction.conversationDisplaySessionId)
       else if (option === '聊聊') {
-        const text = '你们平常都这么忙吗？\n后面那个门是通向哪儿？'
-        pendingSceneActionAfterExitRef.current = {
-          entityId: 'yonghe-trial-worker',
-          options: ['你们平常都这么忙吗？', '后面那个门是通向哪儿？'],
-          optionFlow: 'dialogue-choice',
-          conversationDisplaySessionId: sceneAction.conversationDisplaySessionId,
-          position: sceneTextPresentationPosition(scene, getCurrentPosition(), text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, getCurrentPosition(), readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)),
-        }
+        const questions = ['你们平常都这么忙吗？', '后面那个门是通向哪儿？']
+        presentYongheEcho('现在不是很忙，你说吧。', questions, 'yonghe-trial-worker', 'dialogue-choice', sceneAction.conversationDisplaySessionId)
         commitSceneActionExit(actionId)
         return
       }
@@ -3249,17 +3391,8 @@ export function MainlineScenePage({
       } else {
         const product = yongheTakeawayCatalog.find(candidate => `${candidate.name} ${candidate.price}元` === option || candidate.name === option)
         if (product) beginManualShopOrder(crossShopIds.yonghe, 'yonghe-trial-worker', product.id, sceneAction.conversationDisplaySessionId)
-        else if (option === '你们平常都这么忙吗？') {
-          startNpcDialogue({ kind: 'dialogue', dialogue: { triggerEntityId: 'yonghe-trial-worker', lines: [
-            { id: 'yonghe-business-question', speaker: '修杰', text: '你们平常都这么忙吗？' },
-            { id: 'yonghe-business-answer', speaker: '店员', speakerNpcId: 'yonghe-trial-worker', text: '对啊，平常都这么忙。' },
-          ] } }, sceneAction.conversationDisplaySessionId)
-        } else if (option === '后面那个门是通向哪儿？') {
-          startNpcDialogue({ kind: 'dialogue', dialogue: { triggerEntityId: 'yonghe-trial-worker', lines: [
-            { id: 'yonghe-backdoor-question', speaker: '修杰', text: '后面那个门是通向哪儿？' },
-            { id: 'yonghe-backdoor-answer', speaker: '店员', speakerNpcId: 'yonghe-trial-worker', text: '后面是后巷，顺着走也能出去。' },
-          ] } }, sceneAction.conversationDisplaySessionId)
-        }
+        else if (option === '你们平常都这么忙吗？') presentCommercialDrinkEcho('yonghe-trial-worker', '是啊，忙起来基本没个停。', undefined, sceneAction.conversationDisplaySessionId)
+        else if (option === '后面那个门是通向哪儿？') presentCommercialDrinkEcho('yonghe-trial-worker', '后面通着后巷，顺着走就能出去。', undefined, sceneAction.conversationDisplaySessionId)
       }
       commitSceneActionExit(actionId)
       return
@@ -3338,6 +3471,7 @@ export function MainlineScenePage({
           ?? (current.optionFlow === 'dialogue-choice'
             ? conversationDisplaySessionId ?? `conversation:echo:${scene.id}:${current.id}`
             : undefined),
+        dismissible: current.dismissible,
         position: current.position,
       }
       if (current.optionFlow === 'dialogue-choice' && nextAction.conversationDisplaySessionId) {
@@ -3377,9 +3511,10 @@ export function MainlineScenePage({
       const nextNarrative = nextCommercialStreetQuestionNarrative(narrative)
       setCommercialStreetQuestionNarrative(nextNarrative)
       if (nextNarrative.phase === 'leaving') {
-        const leaving = { ...current, phase: 'leaving' as const, exitReason: 'natural' as const }
-        sceneEchoRef.current = leaving
-        setSceneEcho(leaving)
+        // Delete the last line in place, then leave naturally (wide and phone alike).
+        const deleting = { ...current, textMotion: 'deleting' as const, exitReason: 'natural' as const }
+        sceneEchoRef.current = deleting
+        setSceneEcho(deleting)
         return
       }
       const nextText = commercialStreetQuestionNarrativeLines[nextNarrative.segmentIndex]
@@ -3418,20 +3553,33 @@ export function MainlineScenePage({
       return
     }
     const atSessionEnd = mainlineReadingSessionTextIsFinal(current.segmentIndex, current.segments.length, 0, 1)
-    if (atSessionEnd && current.options?.length && current.optionFlow === 'dialogue-choice') {
+    if (atSessionEnd && current.options?.length && current.optionFlow === 'dialogue-choice' && !current.dismissible) {
       // A dialogue choice is another beat in this conversation, not the end
       // of the authored text session. Keep the same display surface alive.
       finishSceneEchoReading(current)
       return
     }
     const next = { ...current, textMotion: mainlineReadingTextMotionAfterAdvance(current.textMotion, atSessionEnd) }
+    if (next.textMotion === 'deleting' && (activeViewportMetrics.width >= 960 || current.optionFlow === 'dialogue-choice' || Boolean(shopClerkSpeakerFields(current.entityId).speaker)) && current.conversationDisplaySessionId && !(current.presentationKind === 'short-prompt' || (current.dismissible && current.options?.length))) {
+      // Wide layout moves the whole conversation column away; the last line is not erased first.
+      finishSceneEchoReading({ ...next, textMotion: 'deleted' })
+      return
+    }
     if (next.textMotion === 'deleting') {
       sceneEchoRef.current = next
       setSceneEcho(next)
+      if (current.presentationKind === 'short-prompt' || current.dismissible) {
+        // The panel erases its text before leaving; if the erase never reports back, leave anyway.
+        const echoId = next.id
+        window.setTimeout(() => {
+          const stuck = sceneEchoRef.current
+          if (stuck && stuck.id === echoId && stuck.textMotion === 'deleting' && stuck.phase !== 'leaving') finishSceneEchoReading({ ...stuck, textMotion: 'deleted' })
+        }, 600 + Array.from(current.text).length * 50)
+      }
       return
     }
     finishSceneEchoReading(next)
-  }, [commercialStreetQuestionNarrative, finishSceneEchoReading, onMeaningfulActivity])
+  }, [activeViewportMetrics.width, commercialStreetQuestionNarrative, finishSceneEchoReading, onMeaningfulActivity])
 
   const completeSceneEchoTextMotion = useCallback((echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => {
     const current = sceneEchoRef.current
@@ -3441,6 +3589,7 @@ export function MainlineScenePage({
     const callbackMatchesEcho = current && (
       mainlineReadingTextMotionCompletionMatches(`echo:${current.id}`, sessionKey)
       || Boolean(current.conversationDisplaySessionId && mainlineReadingTextMotionCompletionMatches(current.conversationDisplaySessionId, sessionKey))
+      || (current.presentationKind === 'commercial-street-question' && mainlineReadingTextMotionCompletionMatches(`conversation:resume:${sceneId}:commercial-street-question`, sessionKey))
     )
     if (!callbackMatchesEcho) return `rejected:echo-session:${sessionKey}`
     if (current.textMotion !== motion) return `rejected:echo-motion:${current.textMotion}`
@@ -3449,8 +3598,10 @@ export function MainlineScenePage({
     sceneEchoRef.current = next
     setSceneEcho(next)
     if (nextMotion === 'deleted') finishSceneEchoReading(next)
+    // Phone: once the line that leads into options has finished typing, the options simply appear (no extra tap needed).
+    else if (nextMotion === 'static' && activeViewportMetrics.width < 960 && current.optionFlow === 'dialogue-choice' && !current.dismissible && current.options?.length && current.segmentIndex + 1 >= current.segments.length) finishSceneEchoReading(next)
     return `accepted:echo-${nextMotion}`
-  }, [finishSceneEchoReading])
+  }, [activeViewportMetrics.width, finishSceneEchoReading, sceneId])
 
   const dialogueAtSessionEnd = useCallback(() => {
     const currentSegments = activeDialogueLine
@@ -3507,6 +3658,13 @@ export function MainlineScenePage({
         return
       }
       if (advanceIntent !== 'line' && dialogueAtSessionEnd()) {
+        if (activeViewportMetrics.width >= 960 || (conversationDisplayContent?.kind !== 'waiting' && conversationDisplayContent !== null && 'layout' in conversationDisplayContent && conversationDisplayContent.layout === 'conversation')) {
+          // Wide layout (and the phone conversation column) moves the whole conversation column away; the last line is not erased first.
+          updateDialogueTextMotion('deleted')
+          noteDialogueAdvance('starting-dialogue-exit:wide-direct', advanceIntent)
+          advanceDialogueRef.current(true, advanceIntent)
+          return
+        }
         updateDialogueTextMotion('deleting')
         noteDialogueAdvance('starting-dialogue-exit', advanceIntent)
         return
@@ -4019,6 +4177,8 @@ export function MainlineScenePage({
                     actionId: sceneAction.id,
                     flow: 'dialogue-choice',
                     options: sceneAction.options,
+                    menu: sceneAction.menu,
+                    dismissible: sceneAction.dismissible,
                     phase: sceneAction.phase === 'committing' || sceneAction.phase === 'exiting' ? sceneAction.phase : 'active',
                   } satisfies MainlineDialogueChoiceWheelPresentation
                 : null}

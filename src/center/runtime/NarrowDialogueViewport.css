@@ -58,7 +58,15 @@
   flex: none;
   margin-bottom: 0.35em;
   font-weight: 650;
+  transition: opacity 260ms ease-out;
 }
+.narrow-dialogue-speaker.is-erased { opacity: 0; }
+
+/* Conversation lines: them on the left, you on the right (the text keeps the same measured width). */
+.narrow-dialogue-content--align-start .narrow-dialogue-copy,
+.narrow-dialogue-content--align-start .narrow-dialogue-text { text-align: left; }
+.narrow-dialogue-content--align-end .narrow-dialogue-copy,
+.narrow-dialogue-content--align-end .narrow-dialogue-text { text-align: right; }
 
 .narrow-dialogue-copy {
   display: flex;
@@ -78,6 +86,8 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: normal;
+  line-break: strict;
+  text-wrap: balance;
   text-align: center;
 }
 

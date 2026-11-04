@@ -41,6 +41,14 @@ export type NarrowDialogueViewportProps = Readonly<{
   typewriterStartDelayMs?: number
   /** Positions a manual-order prompt above its wheel without changing session. */
   choicePrompt?: boolean
+  /** Back-and-forth conversation lines hug the left (them) or right (you); a lone prompt or reply stays centred. */
+  align?: 'start' | 'end' | 'center'
+  /** The host keeps the line that is leaving the window in its history above (and slides it there), so the window must not also roll it out. */
+  historyKeepsLines?: boolean
+  /** The line shown here has already moved into the history above: keep its space but do not draw it twice. */
+  textHidden?: boolean
+  /** The window is only as tall as its text (options sit right under it) instead of the fixed phone window height. */
+  fitHeight?: boolean
   choices?: readonly NarrowDialogueChoice[]
   overlay?: React.ReactNode
   onReady?: (identity: NarrowDialogueIdentity, scope: 'text' | 'options', focusedChoiceId?: string) => void
@@ -74,6 +82,10 @@ export function NarrowDialogueViewport({
   measuredPageHeightPx,
   isFinalLinePage,
   choicePrompt = false,
+  align = 'center',
+  historyKeepsLines = false,
+  textHidden = false,
+  fitHeight = false,
   typewriterEnabled = true,
   textMotion = typewriterEnabled ? 'typing' : 'static',
   typewriterStartDelayMs = 300,
@@ -137,7 +149,7 @@ export function NarrowDialogueViewport({
     ? displayedText
     : typewriterEnabled
       && narrowDialogueStartsTypewriter(presentedSnapshot.transition, identity.kind, identity.content)
-      && lastTypewriterSessionRef.current !== identity.sessionKey
+      && lastTypewriterSessionRef.current !== identityKey
       ? ''
       : pageText
   const visibleCharacterCount = Array.from(currentPageText).length
@@ -175,13 +187,22 @@ export function NarrowDialogueViewport({
   useLayoutEffect(() => {
     const runId = ++motionRunRef.current
     const prior = previousRef.current
-    const transition = prior
-      ? narrowDialogueTransition(prior.identity, identity)
-      : narrowDialogueTransition(null, identity)
+    // The same line seen again (only the motion flag changed, e.g. static to typing a moment after it appeared) keeps the transition it arrived with, so it can still type in.
+    const transition = prior && prior.identityKey === identityKey
+      ? prior.transition
+      : prior
+        ? narrowDialogueTransition(prior.identity, identity)
+        : narrowDialogueTransition(null, identity)
     const priorKey = prior?.identityKey
     const shouldAnimate = prior !== null
       && priorKey !== identityKey
-      && (transition === 'line-change' || transition === 'capacity-page' || transition === 'options-enter' || transition === 'options-return')
+      // Back-and-forth lines swap in place: the earlier line is already kept in the history above, so rolling it out would show it twice.
+      && !(historyKeepsLines && prior.identity.content === 'text' && (transition === 'line-change' || transition === 'options-enter'))
+      // A left/right (conversation) line never rolls in or out, including when it comes back after the options closed.
+      && !(align !== 'center' && (transition === 'line-change' || transition === 'options-return'))
+      // A new line that types itself in needs no page roll: the roll-out of the old line is what flashed between short lines.
+      && !(transition === 'line-change' && textMotion === 'typing')
+      && ((transition === 'line-change' && align === 'center') || transition === 'capacity-page' || transition === 'options-enter' || transition === 'options-return')
     const transitionRun = priorKey === identityKey ? transitionRunRef.current : ++transitionRunRef.current
     completedTransitionRef.current = null
     setTransitionDiagnostic({
@@ -196,9 +217,9 @@ export function NarrowDialogueViewport({
     setTextAnimating(false)
 
     const canType = typewriterEnabled && narrowDialogueStartsTypewriter(transition, identity.kind, identity.content)
-      && lastTypewriterSessionRef.current !== identity.sessionKey
+      && lastTypewriterSessionRef.current !== identityKey
     if (canType) {
-      lastTypewriterSessionRef.current = identity.sessionKey
+      lastTypewriterSessionRef.current = identityKey
       setDisplayedTextIdentityKey(identityKey)
       setDisplayedText('')
       setTextAnimating(true)
@@ -228,7 +249,7 @@ export function NarrowDialogueViewport({
           return
         }
         frame = window.requestAnimationFrame(animate)
-      }, Math.max(0, typewriterStartDelayMs))
+      }, Math.max(0, transition === 'conversation-start' ? typewriterStartDelayMs : Math.min(typewriterStartDelayMs, 150)))
       return () => {
         window.clearTimeout(delay)
         if (frame) window.cancelAnimationFrame(frame)
@@ -261,6 +282,9 @@ export function NarrowDialogueViewport({
         const remaining = Math.max(0, chars.length - Math.floor(elapsed / typewriterIntervalMs) - 1)
         setDisplayedText(chars.slice(0, remaining).join(''))
         if (remaining <= 0) {
+          // The last erase step and the next screen can land in one render; without this the outgoing slot
+          // still remembers the final glyph and flashes it while the options come in.
+          visiblePageRef.current = { identityKey, text: '' }
           setTextAnimating(false)
           reportTextMotionComplete('deleting')
           return
@@ -269,6 +293,7 @@ export function NarrowDialogueViewport({
       }
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || chars.length === 0) {
         setDisplayedText('')
+        visiblePageRef.current = { identityKey, text: '' }
         setTextAnimating(false)
         reportTextMotionComplete('deleting')
       } else frame = window.requestAnimationFrame(animateDelete)
@@ -433,6 +458,7 @@ export function NarrowDialogueViewport({
         const remaining = Math.max(0, chars.length - Math.floor(elapsed / typewriterIntervalMs) - 1)
         setDisplayedText(chars.slice(0, remaining).join(''))
         if (remaining <= 0) {
+          visiblePageRef.current = { identityKey, text: '' }
           setTextAnimating(false)
           latestPropsRef.current.onExitComplete?.(latestPropsRef.current.identity, 'conversation')
           return
@@ -460,6 +486,8 @@ export function NarrowDialogueViewport({
     '--narrow-dialogue-copy-speaker-offset': '-16.2px',
   } as CSSProperties
 
+  // The name leaves with the last erased glyph, on its own, instead of waiting for the backdrop to dissolve.
+  const speakerErased = identity.content === 'text' && (textMotion === 'deleted' || (textMotion === 'deleting' && visibleCharacterCount === 0))
   const outgoingSnapshot = outgoing
   const motionDiagnosticParts = motionCompletionDiagnostic.split(':')
   const choiceNeighbors = choices
@@ -472,7 +500,7 @@ export function NarrowDialogueViewport({
   }
 
   return <div
-    className={`narrow-dialogue-content${choicePrompt ? ' narrow-dialogue-content--choice-prompt' : ''}`}
+    className={`narrow-dialogue-content${choicePrompt ? ' narrow-dialogue-content--choice-prompt' : ''}${fitHeight ? ' narrow-dialogue-content--fit' : ''}${align !== 'center' ? ` narrow-dialogue-content--align-${align}` : ''}`}
     style={style}
     data-narrow-dialogue="true"
     data-narrow-dialogue-session={identity.sessionKey}
@@ -539,8 +567,8 @@ export function NarrowDialogueViewport({
           style={{ transform: `translate(-50%, calc(-50% + ${choiceOffset(index)}px))`, maxHeight: `${Math.max(1, choice.measuredHeightPx)}px` }}
           onClick={(event) => { event.preventDefault(); event.stopPropagation(); if (index === focusedIndex) confirmFocusedChoice() }}
         >{choice.label}</button>)}
-      </div> : <div className={`narrow-dialogue-copy${presentedSnapshot.speaker ? ' narrow-dialogue-copy--speaker' : ''}`}>
-        {presentedSnapshot.speaker && <div className="narrow-dialogue-speaker">{presentedSnapshot.speaker}</div>}
+      </div> : <div className={`narrow-dialogue-copy${presentedSnapshot.speaker ? ' narrow-dialogue-copy--speaker' : ''}`} style={textHidden ? { visibility: 'hidden' } : undefined}>
+        {presentedSnapshot.speaker && <div className={`narrow-dialogue-speaker${speakerErased ? ' is-erased' : ''}`}>{presentedSnapshot.speaker}</div>}
         <div className="narrow-dialogue-text-stack">
           <div className="narrow-dialogue-text narrow-dialogue-text--measure" aria-hidden="true">
             {pageText}

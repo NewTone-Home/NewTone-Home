@@ -43,7 +43,7 @@ import { mainlineReadingPageAdvanceResumeGraceMs, mainlineReadingPageAdvanceStar
 import { DialogueSpeaker } from './DialogueSpeaker'
 import { NarrowDialogueViewport } from './NarrowDialogueViewport'
 import { DialogueChoiceWheel } from './DialogueChoiceWheel'
-import { DialogueChoiceSelectionTransfer } from './DialogueChoiceSelectionTransfer'
+import { DialogueChoiceSelectionTransfer, firstTextLineRect } from './DialogueChoiceSelectionTransfer'
 import type { NarrowDialogueIdentity } from './NarrowDialogueIdentity'
 import { mainlineVisiblePresentationText } from './dialoguePresentation'
 import { resolveMainlineNpcPosition } from './mainlineNavigation'
@@ -206,10 +206,17 @@ function objectVisibility(entity: MainlineSceneEntity, layoutMode: boolean) {
 
 export function mainlineEntityUsesBreathing(_scene: MainlineSceneDefinition, entity: MainlineSceneEntity, incenseLit = false) {
   const isIncense = entity.visualProfile === 'incense'
-  return (entity.visualProfile === 'tree-ring' && entity.interactive !== false)
-    || isIncense && incenseLit
+  return isIncense && incenseLit
     || entity.animationGroup === 'office-breathing'
     || entity.animationGroup === 'yonghe-stove-breathing'
+}
+
+/** A fixed, per-stone choice (never random per render): about two thirds of the
+ * yard stones slowly dim and brighten with staggered phases, like canopy shade. */
+function mainlineStoneShadeClass(entityId: string) {
+  let sum = 0
+  for (let i = 0; i < entityId.length; i += 1) sum = (sum * 31 + entityId.charCodeAt(i)) % 997
+  return sum % 3 === 2 ? '' : `scene-mainline-stone-shade scene-mainline-stone-shade--${sum % 5}`
 }
 
 function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity, visibility: string, active: boolean, explored: boolean, tutorialCompleted: boolean, underPlayer: boolean, selected: boolean, dragging: boolean, incenseLit: boolean, cafeRestroomFixtureUsePhases: Partial<Record<string, 'approaching' | 'using'>> = {}, readingProtected = false) {
@@ -234,6 +241,8 @@ function objectClass(scene: MainlineSceneDefinition, entity: MainlineSceneEntity
     entity.facing ? `scene-mainline-object--facing-${entity.facing}` : '',
     `scene-object--${entity.weight}`,
     entity.visualProfile === 'tree-ring' ? 'scene-mainline-yard-tree-ring' : '',
+    entity.visualProfile === 'tree-ring' && entity.interactive !== false ? 'scene-mainline-tree-shimmer' : '',
+    entity.visualProfile === 'tree-ring' && entity.interactive === false ? mainlineStoneShadeClass(entity.id) : '',
     isCafeRestroomFixture ? 'scene-mainline-restroom-fixture' : '',
     isCafeRestroomFixture ? `scene-mainline-restroom-fixture--${isCafeRestroomFixtureBright ? 'bright' : 'dimmed'}` : '',
     interactionVisualState === 'tutorial-unexplored' || entity.animationGroup === 'yonghe-stove-breathing' ? 'scene-mainline-exploration--breathing' : '',
@@ -449,6 +458,10 @@ function ReadingPageFlip({ pageKey, continuityKey, visibleText, layout, worldSca
   </span>
 }
 
+/** 1 normally; a click while text types or erases raises it so the motion finishes quickly. */
+let readingTextMotionSpeed = 1
+const readingTextMotionClickSpeed = 12
+
 function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = false, settledImmediately = false, typingDelayMs, onComplete }: { sessionKey: string; pageKey: string; text: string; motion: MainlineReadingTextMotion; paused?: boolean; settledImmediately?: boolean; typingDelayMs?: number; onComplete?: (sessionKey: string, motion: MainlineReadingTextMotion) => void }) {
   const characters = useMemo(() => Array.from(mainlineVisiblePresentationText(text)), [text])
   const [settledPageKey, setSettledPageKey] = useState<string | null>(null)
@@ -477,6 +490,7 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
   useEffect(() => {
     if (paused || (motion !== 'typing' && motion !== 'deleting') || !mainlineReadingTextMotionCanAnimate(motion, pageSettled)) return
     const previous = progressRef.current?.key === animationKey ? progressRef.current.count : motion === 'deleting' ? characters.length : 0
+    if (previous === 0 || motion === 'deleting') readingTextMotionSpeed = 1
     let cancelMotion: (() => void) | undefined
     const start = () => { cancelMotion = startMainlineReadingTextMotion({
       motion,
@@ -486,6 +500,7 @@ function useReadingTextMotion({ sessionKey, pageKey, text, motion, paused = fals
       request: callback => window.requestAnimationFrame(callback),
       cancel: id => window.cancelAnimationFrame(id),
       isPaused: () => pausedRef.current,
+      speed: () => readingTextMotionSpeed,
       onProgress: next => {
         progressRef.current = { key: animationKey, count: next }
         setProgress(current => current?.key === animationKey && current.count === next ? current : { key: animationKey, count: next })
@@ -750,14 +765,21 @@ function DialogueText({ onProtectionRects, paused = false, group, continuityKey,
   </span>
 }
 
-function ConversationDialogueText({ pageKey, text, sessionId, motion, typingDelayMs, onMotionComplete, onReadyChange, group }: { pageKey: string; text: string; sessionId: number; motion: MainlineReadingTextMotion; typingDelayMs?: number; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; group: string }) {
+// Wide-screen conversation text types left-to-right inside a box that already has
+// its final size: the not-yet-typed remainder stays in the layout but is invisible.
+// That keeps right-aligned (player) lines from growing leftwards letter by letter.
+function ConversationDialogueText({ keepOnDeleted, pageKey, text, sessionId, motion, typingDelayMs, onMotionComplete, onReadyChange, group }: { keepOnDeleted?: boolean; pageKey: string; text: string; sessionId: number; motion: MainlineReadingTextMotion; typingDelayMs?: number; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; group: string }) {
   const completeMotion = useCallback((_sessionKey: string, completedMotion: MainlineReadingTextMotion) => onMotionComplete?.(sessionId, completedMotion), [onMotionComplete, sessionId])
   const textMotion = useReadingTextMotion({ sessionKey: group, pageKey, text, motion, settledImmediately: true, typingDelayMs, onComplete: completeMotion })
   useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, pageKey, onReadyChange])
   useEffect(() => {
     if (motion === 'static' || motion === 'deleted') onReadyChange?.(group, true)
   }, [group, motion, onReadyChange, textMotion.visibleText])
-  return <span className="scene-mainline-conversation-line__typing">{textMotion.visibleText}</span>
+  const fullText = useMemo(() => Array.from(mainlineVisiblePresentationText(text)).join(''), [text])
+  // On the phone column the last line is not erased: it stays whole and fades out together with the history.
+  const shownText = keepOnDeleted && motion === 'deleted' ? fullText : textMotion.visibleText
+  const remainder = fullText.startsWith(shownText) ? fullText.slice(shownText.length) : ''
+  return <span className="scene-mainline-conversation-line__typing">{shownText}{remainder && <span className="scene-mainline-conversation-line__pending" aria-hidden="true">{remainder}</span>}</span>
 }
 
 function mainlineConversationTurnGroup(dialogue: MainlineSceneDialoguePresentation, dialogueLine: MainlineSceneDialogueLine, dialogueLineIndex: number | null, dialogueTextSessionId: number) {
@@ -786,14 +808,48 @@ function MainlineDialogueConversation({ scene, dialogue, dialogueLine, dialogueL
         <p>{line.text}</p>
       </article>)}
     </div>
-    <article className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc(dialogueLine) ? 'is-npc' : 'is-player'}`} data-dialogue-current-line={dialogueLine.id}>
-      <span className="scene-mainline-conversation-line__speaker"><DialogueSpeaker speaker={dialogueLine.speaker} /></span>
+    <article key={`${dialogueLine.id}:${dialogueTextSessionId}`} className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc(dialogueLine) ? 'is-npc' : 'is-player'}`} data-dialogue-current-line={dialogueLine.id}>
+      <span className="scene-mainline-conversation-line__speaker">{dialogueLine.speaker}</span>
       <p><ConversationDialogueText pageKey={group} text={dialogueLine.text} sessionId={dialogueTextSessionId} motion={dialogueTextMotion} typingDelayMs={currentIndex === 0 ? mainlineReadingBackdropTypingDelayMs : undefined} onMotionComplete={onDialogueTextMotionComplete} onReadyChange={onDialogueReadyChange} group={group} /></p>
     </article>
   </section>
 }
 
-type ConversationHistoryEntry = Readonly<{ key: string; speaker?: string; speakerIsNpc: boolean; text: string }>
+type ConversationHistoryEntry = Readonly<{ key: string; speaker?: string; speakerIsNpc: boolean; text: string; menu?: Readonly<{ items: readonly { name: string; price: number | string; description: string | null }[]; pickedIndex: number }> }>
+
+function HistoryMenu({ items, pickedIndex }: { items: readonly { name: string; price: number | string; description: string | null }[]; pickedIndex: number }) {
+  return <div className="dialogue-choice-menu dialogue-choice-menu--history" aria-hidden="true"><div className="dialogue-choice-menu__panel">
+    {items.map((row, index) => <div key={index} className={`dialogue-choice-menu__row${index === pickedIndex ? ' is-picked' : ''}`}>
+      <span className="dialogue-choice-menu__line"><span className="dialogue-choice-menu__name">{row.name}</span><span className="dialogue-choice-menu__price">{row.price}</span></span>
+      {row.description && <span className="dialogue-choice-menu__desc">{row.description}</span>}
+    </div>)}
+  </div></div>
+}
+
+function ConversationMenuPanel({ items, sessionId, motion, delayMs, onMotionComplete, onReadyChange, group }: { items: readonly { name: string; price: string; description: string | null }[]; sessionId: number; motion: MainlineReadingTextMotion; delayMs: number; onMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => void; onReadyChange?: (group: string, ready: boolean) => void; group: string }) {
+  const onCompleteRef = useRef(onMotionComplete)
+  useEffect(() => { onCompleteRef.current = onMotionComplete }, [onMotionComplete])
+  useIsomorphicLayoutEffect(() => onReadyChange?.(group, false), [group, onReadyChange])
+  useEffect(() => {
+    if (motion === 'static' || motion === 'deleted') onReadyChange?.(group, true)
+  }, [group, motion, onReadyChange])
+  useEffect(() => {
+    if (motion !== 'typing' && motion !== 'deleting') return
+    const wait = motion === 'typing' ? delayMs + 420 : 260
+    const timer = window.setTimeout(() => onCompleteRef.current?.(sessionId, motion), wait)
+    return () => window.clearTimeout(timer)
+  }, [delayMs, motion, sessionId])
+  // On 'deleted' the whole panel keeps showing and fades out together with the leaving section.
+  return <div
+    className={`conversation-menu-panel${motion === 'typing' ? ' is-fading-in' : motion === 'deleting' || motion === 'deleted' ? ' is-fading-out' : ''}`}
+    style={motion === 'typing' ? { animationDelay: `${delayMs}ms` } : undefined}
+  >
+    {items.map((item, index) => <div className="conversation-menu-panel__item" key={`${index}:${item.name}`}>
+      <span className="conversation-menu-panel__line"><span>{item.name}</span><span className="conversation-menu-panel__price">{item.price}</span></span>
+      {item.description && <span className="conversation-menu-panel__desc">{item.description}</span>}
+    </div>)}
+  </div>
+}
 
 function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, pageText, speaker, speakerIsNpc, narrow, windowHeightPx, availableWidthPx, measuredPageHeightPx, pageIndex, isFinalLinePage, textSessionId, textMotion, pageAdvanceDiagnostic, onTextMotionComplete, onReadyChange, onAdvance, advanceReady, advanceReadyKey, requiredAdvanceReadyKey, advanceRoute, dialogueChoiceWheel, onSceneActionChoice, onSceneActionCancel, onSceneActionExitComplete, isLeaving, onExitComplete }: {
   sessionId: string
@@ -836,6 +892,21 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     textStyle?: CSSProperties
   }>(null)
   const [history, setHistory] = useState<readonly ConversationHistoryEntry[]>(() => content.history ?? [])
+  const [hiddenQuestionKey, setHiddenQuestionKey] = useState<string | null>(null)
+  // Phone: a real conversation (back-and-forth lines, options, history) uses exactly the wide column, only styled for a narrow screen.
+  // A lone narration or short prompt keeps the compact phone window.
+  const phoneMenuContent = content.kind === 'text' && Boolean(content.menuItems)
+  const columnSessionRef = useRef(false)
+  const columnAllowed = narrow && !phoneMenuContent && !(content.kind === 'choice' && Boolean(dialogueChoiceWheel?.dismissible))
+  const wantsColumn = columnAllowed
+    && (content.kind === 'choice'
+      || content.kind === 'waiting'
+      || ((content.kind === 'text' || content.kind === 'aside') && content.layout === 'conversation')
+      || (content.kind === 'text' && Boolean(content.choicePrompt || content.expectedChoices?.length)))
+  // Once a session has shown real conversation it stays in the column (its asides and "……" beats too).
+  const phoneColumn = columnAllowed && (wantsColumn || columnSessionRef.current)
+  useLayoutEffect(() => { if (wantsColumn) columnSessionRef.current = true })
+  const legacyNarrow = narrow && !phoneColumn && !phoneMenuContent
   const historyEntriesRef = useRef<ConversationHistoryEntry[]>([...(content.history ?? [])])
   const historyElementRef = useRef<HTMLDivElement>(null)
   const exitCompletionSessionRef = useRef<string | null>(null)
@@ -846,7 +917,7 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
   }, [content.kind, contentKey, onReadyChange])
   useLayoutEffect(() => {
     const previous = previousRef.current
-    if (previous && previous.key !== contentKey && previous.content.kind === 'text' && previous.content.text.trim()) {
+    if (previous && previous.key !== contentKey && !(legacyNarrow && content.kind === 'choice') && previous.content.kind === 'text' && !previous.content.noHistory && !previous.content.shortPrompt && previous.content.text.trim()) {
       const entry = { key: previous.key, speaker: previous.speaker, speakerIsNpc: previous.speakerIsNpc, text: previous.content.text }
       if (!historyEntriesRef.current.some(item => item.key === entry.key)) {
         historyEntriesRef.current = [...historyEntriesRef.current, entry]
@@ -855,10 +926,6 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     }
     previousRef.current = { key: contentKey, content, speaker, speakerIsNpc }
   }, [content, contentKey, speaker, speakerIsNpc])
-  useLayoutEffect(() => {
-    const node = historyElementRef.current
-    if (node) node.scrollTop = node.scrollHeight
-  }, [history.length])
   useLayoutEffect(() => {
     if (transferSessionRef.current !== sessionId) setChoiceTransfer(null)
     transferSessionRef.current = sessionId
@@ -873,37 +940,82 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     source.style.color = 'transparent'
     source.style.textShadow = 'none'
     return () => {
+      // On the phone the picked label stays gone after it has flown to the history (it would otherwise blink back for a moment).
+      if (legacyNarrow) return
       source.style.color = previousColor
       source.style.textShadow = previousTextShadow
     }
-  }, [choiceTransfer])
+  }, [choiceTransfer, legacyNarrow])
   useLayoutEffect(() => {
     if (!choiceTransfer || choiceTransfer.targetRect) return
     const escapedId = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(choiceTransfer.id) : choiceTransfer.id
     const target = historyElementRef.current?.querySelector<HTMLElement>(`[data-choice-transfer-target="${escapedId}"]`)
     if (!target) return
-    const rect = target.getBoundingClientRect()
+    const rect = firstTextLineRect(target) ?? target.getBoundingClientRect()
     if (rect.width <= 0 || rect.height <= 0) return
     setChoiceTransfer(current => current?.id === choiceTransfer.id && !current.targetRect
       ? { ...current, targetRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } }
       : current)
   }, [choiceTransfer, history])
 
+  const flipRootRef = useRef<HTMLElement>(null)
+  const flipStackRef = useRef<HTMLDivElement>(null)
+  const flipTopRef = useRef<number | null>(null)
+  const flipStack = useCallback(() => {
+    const stack = flipStackRef.current
+    const viewport = stack?.parentElement
+    if (!stack || !viewport) return
+    // offsetTop ignores transforms, so a glide that is still running never looks like a layout change.
+    // Nothing happens unless the stack's real position moved; the per-frame re-renders leave it alone.
+    const layoutTop = stack.offsetTop
+    const previousLayoutTop = flipTopRef.current
+    if (previousLayoutTop !== null && Math.abs(layoutTop - previousLayoutTop) < 1) return
+    flipTopRef.current = layoutTop
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (previousLayoutTop === null || reduced || !stack.animate) return
+    // Where the stack is drawn right now relative to its layout position (leftover of a running glide).
+    const transform = window.getComputedStyle(stack).transform
+    const leftover = transform && transform !== 'none' ? new DOMMatrixReadOnly(transform).m42 : 0
+    stack.getAnimations?.().forEach(animation => { if (animation.id === 'conversation-flip') animation.cancel() })
+    const delta = previousLayoutTop - layoutTop + leftover
+    if (Math.abs(delta) < 1) return
+    stack.animate([{ transform: `translateY(${delta}px)` }, { transform: 'translateY(0)' }], { duration: 320, easing: 'cubic-bezier(.22, .61, .36, 1)', id: 'conversation-flip' })
+  }, [])
+  // One glide for the whole stack: every change (a new line, a wrapped line, a history entry,
+  // the choice slot opening or closing) moves the stack once instead of each line jumping.
+  useLayoutEffect(() => { if (!legacyNarrow) flipStack() })
+  useLayoutEffect(() => {
+    const stack = flipStackRef.current
+    if (legacyNarrow || !stack || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => flipStack())
+    observer.observe(stack)
+    return () => observer.disconnect()
+  }, [legacyNarrow, flipStack])
+
   const lockWideChoice = (actionId: number, optionIndex: number) => {
-    if (narrow || !dialogueChoiceWheel || dialogueChoiceWheel.actionId !== actionId) return
-    const label = dialogueChoiceWheel.options[optionIndex]
+    if (!dialogueChoiceWheel || dialogueChoiceWheel.actionId !== actionId) return
+    // A declinable world choice has no conversation history to fly into; it just fades away.
+    if (dialogueChoiceWheel.dismissible) return
+    const label = dialogueChoiceWheel.menu?.[optionIndex]?.name ?? dialogueChoiceWheel.options[optionIndex]
     if (!label) return
     const wheel = document.querySelector<HTMLElement>(`[data-dialogue-choice-action="${actionId}"]`)
     const source = wheel?.querySelector<HTMLElement>(`[data-dialogue-choice-index="${optionIndex}"]`)
-    const sourceRect = source?.getBoundingClientRect()
-    if (!source || !sourceRect) return
+    if (!source) return
+    const sourceRect = firstTextLineRect(source) ?? source.getBoundingClientRect()
     const id = `choice-history:${sessionId}:${actionId}:${optionIndex}`
     const entry: ConversationHistoryEntry = { key: id, speaker: '修杰', speakerIsNpc: false, text: label }
     let nextHistory = historyEntriesRef.current
-    if (content.kind === 'text' && content.text.trim() && !nextHistory.some(item => item.key === contentKey)) {
-      nextHistory = [...nextHistory, { key: contentKey, speaker, speakerIsNpc, text: content.text }]
-    }
+    const question = content.kind === 'text' && content.text.trim() && !content.noHistory && !content.shortPrompt
+      ? { key: contentKey, speaker, speakerIsNpc, text: content.text }
+      : legacyNarrow && content.kind === 'choice' && stickyRef.current && stickyRef.current.sessionKey === sessionId
+        ? { key: stickyRef.current.key, speaker: stickyRef.current.speaker, speakerIsNpc: stickyRef.current.speakerIsNpc, text: stickyRef.current.text }
+        : null
+    if (question && !nextHistory.some(item => item.key === question.key)) nextHistory = [...nextHistory, question]
+    // An ordering menu stays in the conversation (dimmed, not tappable) above the picked item.
+    if (dialogueChoiceWheel.menu?.length && !nextHistory.some(item => item.key === `${id}:menu`)) nextHistory = [...nextHistory, { key: `${id}:menu`, speakerIsNpc: true, text: '', menu: { items: dialogueChoiceWheel.menu, pickedIndex: optionIndex } }]
     if (!nextHistory.some(item => item.key === id)) nextHistory = [...nextHistory, entry]
+    // On the phone the question now lives in the history: hide the copy still in the window (its space stays) until the next line replaces it.
+    if ((legacyNarrow || phoneColumn) && question) setHiddenQuestionKey(contentKey)
     if (nextHistory !== historyEntriesRef.current) {
       historyEntriesRef.current = nextHistory
       setHistory(nextHistory)
@@ -919,12 +1031,62 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     })
   }
 
+  // Phone: like the wide column, history, the text window and the options form ONE bottom-anchored stack that grows upward.
+  // Every change (new history row, taller or shorter options, a new line) moves the whole stack once with one glide, so parts never bump each other.
+  const phoneStackRef = useRef<HTMLDivElement>(null)
+  const phoneFlipTopRef = useRef<number | null>(null)
+  const phoneOffsetRef = useRef(0)
+  const phoneFrameRef = useRef<number | null>(null)
+  // Several layout changes can land within a few hundred ms (history row, next line, options). Each one only adds to a leftover offset
+  // that decays smoothly every frame, so they merge into one continuous glide instead of restarting an ease over and over (that restarting felt like a judder).
+  const flipPhoneStack = useCallback(() => {
+    const stack = phoneStackRef.current
+    if (!stack) return
+    const layoutTop = stack.offsetTop
+    const previousLayoutTop = phoneFlipTopRef.current
+    if (previousLayoutTop !== null && Math.abs(layoutTop - previousLayoutTop) < 1) return
+    phoneFlipTopRef.current = layoutTop
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (previousLayoutTop === null || reduced) return
+    phoneOffsetRef.current += previousLayoutTop - layoutTop
+    stack.style.transform = `translateY(${phoneOffsetRef.current}px)`
+    if (phoneFrameRef.current !== null) return
+    let last = performance.now()
+    const step = (now: number) => {
+      const element = phoneStackRef.current
+      if (!element) { phoneFrameRef.current = null; phoneOffsetRef.current = 0; return }
+      const elapsed = Math.min(48, now - last)
+      last = now
+      phoneOffsetRef.current *= Math.exp(-elapsed / 120)
+      if (Math.abs(phoneOffsetRef.current) < .4) {
+        phoneOffsetRef.current = 0
+        element.style.transform = ''
+        phoneFrameRef.current = null
+        return
+      }
+      element.style.transform = `translateY(${phoneOffsetRef.current}px)`
+      phoneFrameRef.current = window.requestAnimationFrame(step)
+    }
+    phoneFrameRef.current = window.requestAnimationFrame(step)
+  }, [])
+  useEffect(() => () => { if (phoneFrameRef.current !== null) window.cancelAnimationFrame(phoneFrameRef.current) }, [])
+  useLayoutEffect(() => { if (legacyNarrow) flipPhoneStack() })
+  useLayoutEffect(() => {
+    const stack = phoneStackRef.current
+    if (!legacyNarrow || !stack || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(() => flipPhoneStack())
+    observer.observe(stack)
+    return () => observer.disconnect()
+  }, [legacyNarrow, flipPhoneStack])
+
   const currentText = content.kind === 'choice' ? '' : pageText
   const keepChoiceWheelForExit = Boolean(dialogueChoiceWheel && (content.kind === 'choice'
     ? dialogueChoiceWheel.actionId === content.actionId
     : content.kind === 'text' && content.choicePrompt
       ? dialogueChoiceWheel.sessionId === sessionId
-      : dialogueChoiceWheel.phase === 'exiting'))
+      : dialogueChoiceWheel.phase !== 'active'))
+  // The wide choices appear only after the clerk's question has finished typing (or when they are shown alone).
+  const wideChoiceReady = Boolean(dialogueChoiceWheel && (dialogueChoiceWheel.phase !== 'active' || content.kind === 'choice' || (content.kind === 'text' && (content.textMotion ?? textMotion) === 'static')))
   const displayPhase = content.kind === 'choice'
     ? dialogueChoiceWheel?.phase ?? 'active'
     : content.kind === 'text' ? content.textMotion ?? textMotion : content.kind
@@ -951,34 +1113,59 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
     optionSetKey: content.kind === 'choice' ? `action:${content.actionId}` : undefined,
     speakerKey: speaker,
   }
+  // Phone: when options follow a line, that line stays in the window (options sit under it) and only moves into the history once an option is picked.
+  const stickyRef = useRef<{ sessionKey: string; key: string; identity: NarrowDialogueIdentity; pageText: string; text: string; speaker?: string; shownSpeaker?: string; speakerIsNpc: boolean; align: 'start' | 'end' | 'center' } | null>(null)
+  const sticky = legacyNarrow && content.kind === 'choice' && stickyRef.current && stickyRef.current.sessionKey === sessionId ? stickyRef.current : null
+  useLayoutEffect(() => {
+    if (content.kind === 'text' && !content.noHistory && !content.shortPrompt && content.text.trim()) {
+      stickyRef.current = { sessionKey: sessionId, key: contentKey, identity, pageText, text: content.text, speaker, shownSpeaker: speaker && !(content.choicePrompt || content.expectedChoices?.length) ? speaker : undefined, speakerIsNpc, align: content.layout === 'conversation' && speaker ? (speakerIsNpc ? 'start' : 'end') : 'center' }
+    }
+  })
 
-  if (narrow) return <div className="scene-mainline-subtitle-host" {...displayStateAttributes}>
+  // A menu viewed on its own is not a subtitle: on the phone it uses the compact centred panel (same markup as the wide short prompt).
+  const phoneMenu = narrow && phoneMenuContent
+  if (legacyNarrow) return <div
+    className={`scene-mainline-subtitle-host${isLeaving ? ' is-leaving' : ''}`}
+    {...displayStateAttributes}
+    onAnimationEnd={(event) => {
+      // The phone backdrop used to have no leaving state at all: the text was erased but the dark band stayed.
+      // Now the band fades out after the text is gone and reports the exit once, like the wide column does.
+      if (!isLeaving || event.animationName !== 'mainline-backdrop-out') return
+      if (exitCompletionSessionRef.current === sessionId) return
+      exitCompletionSessionRef.current = sessionId
+      onExitComplete?.()
+    }}
+  >
+    <div className={`scene-mainline-subtitle-stack${history.length ? ' has-history' : ''}`}>
+    <div ref={phoneStackRef} className="scene-mainline-subtitle-stack__content">
+    <div className="scene-mainline-subtitle-stack__backdrop" aria-hidden="true" />
+    {history.length > 0 && <div ref={historyElementRef} className="scene-mainline-subtitle-host__history" aria-label="对话记录">
+      {history.map((entry, entryIndex) => <article key={entry.key} data-flip-key={entry.key} className={`scene-mainline-subtitle-host__line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} style={{ '--line-target': Math.max(.5, .91 - .15 * (history.length - 1 - entryIndex)) } as CSSProperties}>
+        {entry.speaker && <span className="scene-mainline-subtitle-host__speaker">{entry.speaker}</span>}
+        {entry.menu ? <HistoryMenu items={entry.menu.items} pickedIndex={entry.menu.pickedIndex} /> : <p data-choice-transfer-target={choiceTransfer?.id === entry.key ? choiceTransfer.id : undefined} style={choiceTransfer?.id === entry.key ? { opacity: 0 } : undefined}>{entry.text}</p>}
+      </article>)}
+    </div>}
     <NarrowDialogueViewport
-      identity={identity}
+      identity={sticky ? sticky.identity : identity}
       // Narrow page-flips animate the name and body as one snapshot. Do not
       // mount DialogueSpeaker here: its independent exit timer can leave the
       // outgoing name beside the incoming page for part of the flip.
-      speaker={speaker ? speaker : undefined}
-      pageText={currentText}
+      // A question that has options below it carries no name of its own; the name appears once the line has moved up into the history.
+      speaker={sticky ? sticky.shownSpeaker : speaker && !(content.kind === 'text' && (content.choicePrompt || content.expectedChoices?.length)) ? speaker : undefined}
+      fitHeight
+      textHidden={hiddenQuestionKey === (sticky ? sticky.key : contentKey)}
+      pageText={sticky ? sticky.pageText : currentText}
       windowHeightPx={windowHeightPx}
       availableWidthPx={availableWidthPx}
       measuredPageHeightPx={measuredPageHeightPx}
       isFinalLinePage={isFinalLinePage}
+      typewriterStartDelayMs={450}
+      historyKeepsLines={Boolean(previousRef.current && previousRef.current.key !== contentKey && previousRef.current.content.kind === 'text' && !previousRef.current.content.noHistory && !previousRef.current.content.shortPrompt && previousRef.current.content.text.trim())}
+      align={sticky ? sticky.align : content.kind === 'text' && content.layout === 'conversation' && speaker ? (speakerIsNpc ? 'start' : 'end') : 'center'}
       choicePrompt={content.kind === 'text' && Boolean(content.choicePrompt)}
       typewriterEnabled={content.kind === 'text' && (content.textMotion ?? textMotion) === 'typing'}
       textMotion={content.kind === 'text' ? content.textMotion ?? textMotion : 'static'}
       choices={[]}
-      overlay={keepChoiceWheelForExit && dialogueChoiceWheel ? <DialogueChoiceWheel
-        sessionId={dialogueChoiceWheel.sessionId}
-        actionId={dialogueChoiceWheel.actionId}
-        options={dialogueChoiceWheel.options}
-        phase={dialogueChoiceWheel.phase}
-        placement="narrow-bottom"
-        promptAbove={content.kind === 'text' && Boolean(content.choicePrompt)}
-        onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
-        onCancel={() => { setChoiceTransfer(null); onSceneActionCancel?.() }}
-        onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
-      /> : null}
       onTextSettled={(readyIdentity, motion) => {
         if (readyIdentity.sessionKey !== sessionId) return 'rejected:session-key'
         if (readyIdentity.lineKey !== contentKey) return 'rejected:line-key'
@@ -995,33 +1182,86 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
       }}
       onAdvance={onAdvance}
     />
+    {!(keepChoiceWheelForExit && dialogueChoiceWheel) && content.kind === 'text' && content.expectedChoices?.length ? <div className="scene-mainline-subtitle-host__choices is-placeholder" aria-hidden="true">
+      {content.expectedMenu?.length
+        ? <div className="dialogue-choice-menu"><div className="dialogue-choice-menu__panel">
+          {content.expectedMenu.map((row, index) => <button key={index} type="button" tabIndex={-1} disabled className="dialogue-choice-menu__row">
+            <span className="dialogue-choice-menu__line"><span className="dialogue-choice-menu__name">{row.name}</span><span className="dialogue-choice-menu__price">{row.price}</span></span>
+            {row.description && <span className="dialogue-choice-menu__desc">{row.description}</span>}
+          </button>)}
+          {content.expectedChoices.slice(content.expectedMenu.length).map((label, index) => <button key={`x${index}`} type="button" tabIndex={-1} disabled className="dialogue-choice-menu__extra">{label}</button>)}
+        </div></div>
+        : <div className="dialogue-choice-bubbles">
+          {content.expectedChoices.map((label, index) => <button key={index} type="button" tabIndex={-1} disabled className="dialogue-choice-bubbles__item">{label}</button>)}
+        </div>}
+    </div> : null}
+    {keepChoiceWheelForExit && dialogueChoiceWheel && <div className={`scene-mainline-subtitle-host__choices${wideChoiceReady ? '' : ' is-pending'}`}>
+      <DialogueChoiceWheel
+        sessionId={dialogueChoiceWheel.sessionId}
+        actionId={dialogueChoiceWheel.actionId}
+        options={dialogueChoiceWheel.options}
+        menu={dialogueChoiceWheel.menu}
+        softExit={dialogueChoiceWheel.dismissible}
+        phase={dialogueChoiceWheel.phase}
+        placement="wide-right"
+        wideLayout="inline"
+        onSelectionLocked={lockWideChoice}
+        onConfirm={(actionId, optionIndex) => onSceneActionChoice?.(actionId, optionIndex)}
+        onCancel={() => { setChoiceTransfer(null); onSceneActionCancel?.() }}
+        onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
+      />
+    </div>}
+    </div>
+    </div>
+    {choiceTransfer?.targetRect && <DialogueChoiceSelectionTransfer
+      transferId={choiceTransfer.id}
+      text={choiceTransfer.text}
+      sourceRect={choiceTransfer.sourceRect}
+      targetRect={choiceTransfer.targetRect}
+      textStyle={choiceTransfer.textStyle}
+      onComplete={transferId => setChoiceTransfer(current => current?.id === transferId ? null : current)}
+    />}
   </div>
 
-  const compactShortPrompt = !narrow && content.kind === 'text' && Boolean(content.shortPrompt)
-  const shortPromptHeightPx = Math.min(windowHeightPx, Math.max(92, measuredPageHeightPx + (speaker ? 56 : 44)))
+  const menuItems = content.kind === 'text' ? content.menuItems : undefined
+  const compactShortPrompt = (!narrow || phoneMenu) && ((content.kind === 'text' && (Boolean(content.shortPrompt) || Boolean(menuItems))) || (content.kind === 'choice' && Boolean(dialogueChoiceWheel?.dismissible)))
+  const questionPanel = !narrow && content.kind === 'text' && Boolean(content.noHistory)
   return <div className="scene-mainline-conversation-host" {...displayStateAttributes}>
     <section
-      className={`scene-mainline-conversation${compactShortPrompt ? ' scene-mainline-conversation--short-prompt' : ''}${isLeaving ? ' is-leaving' : ''}`}
-      style={compactShortPrompt ? { top: 'auto', bottom: 'max(24px, env(safe-area-inset-bottom))', height: `${shortPromptHeightPx}px` } : undefined}
+      ref={flipRootRef}
+      className={`scene-mainline-conversation${compactShortPrompt ? ' scene-mainline-conversation--short-prompt' : ''}${phoneMenu ? ' scene-mainline-conversation--phone-menu' : ''}${phoneColumn ? ' scene-mainline-conversation--phone' : ''}${questionPanel ? ' scene-mainline-conversation--question-panel' : ''}${isLeaving ? ' is-leaving' : ''}`}
       aria-live="polite"
+      onClick={phoneColumn ? () => onAdvance(identity) : undefined}
       aria-label={compactShortPrompt ? '场景提示' : '对话记录'}
       data-dialogue-presentation={compactShortPrompt ? 'short-prompt' : 'conversation'}
       onAnimationEnd={(event) => {
-        if (!isLeaving || event.target !== event.currentTarget || event.animationName !== 'mainline-conversation-exit') return
+        if (!isLeaving || (event.target !== event.currentTarget && !(phoneColumn && event.target === flipStackRef.current)) || event.animationName !== 'mainline-backdrop-out') return
         if (exitCompletionSessionRef.current === sessionId) return
         exitCompletionSessionRef.current = sessionId
         onExitComplete?.()
       }}
     >
+      <div className="scene-mainline-conversation__viewport">
+      <div ref={flipStackRef} className="scene-mainline-conversation__stack">
       <div ref={historyElementRef} className="scene-mainline-conversation__history">
-        {history.map(entry => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}`} data-dialogue-history-line={entry.key}>
+        {history.map((entry, entryIndex) => <article key={entry.key} className={`scene-mainline-conversation-line ${entry.speakerIsNpc ? 'is-npc' : 'is-player'}${entry.speaker || entry.menu ? '' : ' is-narration'}`} data-dialogue-history-line={entry.key} style={{ '--line-target': Math.max(.5, .91 - .15 * (history.length - 1 - entryIndex)) } as CSSProperties}>
           {entry.speaker && <span className="scene-mainline-conversation-line__speaker">{entry.speaker}</span>}
-          <p data-choice-transfer-target={choiceTransfer?.id === entry.key ? choiceTransfer.id : undefined} style={choiceTransfer?.id === entry.key ? { opacity: 0 } : undefined}>{entry.text}</p>
+          {entry.menu ? <HistoryMenu items={entry.menu.items} pickedIndex={entry.menu.pickedIndex} /> : <p data-choice-transfer-target={choiceTransfer?.id === entry.key ? choiceTransfer.id : undefined} style={choiceTransfer?.id === entry.key ? { opacity: 0 } : undefined}>{entry.text}</p>}
         </article>)}
       </div>
-      {(content.kind === 'text' || content.kind === 'aside' || content.kind === 'waiting') && <article className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc ? 'is-npc' : 'is-player'} ${content.kind === 'aside' ? 'is-aside' : ''}`} data-dialogue-current-line={contentKey}>
-        {speaker && <span className="scene-mainline-conversation-line__speaker"><DialogueSpeaker speaker={speaker} /></span>}
-        {(content.kind === 'text' || content.kind === 'aside') && <p><ConversationDialogueText
+      {(content.kind === 'text' || content.kind === 'aside' || content.kind === 'waiting') && <article key={contentKey} className={`scene-mainline-conversation-line scene-mainline-conversation-line--current ${speakerIsNpc ? 'is-npc' : 'is-player'}${speaker ? '' : ' is-narration'} ${content.kind === 'aside' ? 'is-aside' : ''}${menuItems ? ' has-menu' : ''}`} data-dialogue-current-line={contentKey} style={phoneColumn && hiddenQuestionKey === contentKey ? { visibility: 'hidden' } : undefined}>
+        {speaker && <span className="scene-mainline-conversation-line__speaker">{speaker}</span>}
+        {content.kind === 'text' && menuItems && <ConversationMenuPanel
+          items={menuItems}
+          sessionId={textSessionId}
+          motion={content.textMotion ?? textMotion}
+          delayMs={450}
+          onMotionComplete={onTextMotionComplete}
+          onReadyChange={onReadyChange}
+          group={contentKey}
+        />}
+        {(content.kind === 'text' || content.kind === 'aside') && !menuItems && <p><ConversationDialogueText
+          keepOnDeleted={phoneColumn}
           pageKey={pageKey}
           text={currentText}
           sessionId={textSessionId}
@@ -1029,13 +1269,16 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
           onMotionComplete={onTextMotionComplete}
           onReadyChange={onReadyChange}
           group={contentKey}
+          typingDelayMs={questionPanel && contentKey.endsWith(':question:0') ? 450 : compactShortPrompt ? 450 : undefined}
         /></p>}
         {content.kind === 'waiting' && <p>{content.text}</p>}
       </article>}
-      {keepChoiceWheelForExit && dialogueChoiceWheel && <DialogueChoiceWheel
+      {keepChoiceWheelForExit && dialogueChoiceWheel && wideChoiceReady && <DialogueChoiceWheel
         sessionId={dialogueChoiceWheel.sessionId}
         actionId={dialogueChoiceWheel.actionId}
         options={dialogueChoiceWheel.options}
+        menu={dialogueChoiceWheel.menu}
+        softExit={dialogueChoiceWheel.dismissible}
         phase={dialogueChoiceWheel.phase}
         placement="wide-right"
         wideLayout="inline"
@@ -1044,6 +1287,8 @@ function ConversationDisplaySurface({ sessionId, content, contentKey, pageKey, p
         onCancel={() => { setChoiceTransfer(null); onSceneActionCancel?.() }}
         onExitComplete={(actionId, optionIndex) => onSceneActionExitComplete?.(actionId, optionIndex)}
       />}
+      </div>
+      </div>
       {choiceTransfer?.targetRect && <DialogueChoiceSelectionTransfer
         transferId={choiceTransfer.id}
         text={choiceTransfer.text}
@@ -1214,7 +1459,6 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
   const resolvedFrameGroup = frameGroup ?? focusGroup
   const visualOpen = sceneDoorIsVisuallyOpen(cell.doorBehavior, doorPhase)
   const animatedInterior = presentationActive !== undefined
-  const visualStyle = { opacity: presentationActive === false ? 0 : 1, transition: `opacity ${presentationDurationMs}ms ease-in-out` }
   const restoredWallStyle = { position: 'absolute' as const, inset: 0, opacity: presentationActive === false ? 1 : 0, transition: `opacity ${presentationDurationMs}ms ease-in-out`, pointerEvents: 'none' as const }
   return (
     <button
@@ -1234,10 +1478,8 @@ function MainlineDoorButton({ cell, entityId, className, style, doorLabel, glyph
       data-focus-gate-triggered={focusPolicy === 'gate' ? gateTriggered : undefined}
       {...dataAttributes}
     >
-      {animatedInterior && <span className="scene-mainline-door-button__restored-wall" style={restoredWallStyle} aria-hidden="true"><SceneCharacters>{cell.baselineGlyph ?? '墙'}</SceneCharacters></span>}
-      {animatedInterior
-        ? <span style={visualStyle} aria-hidden={presentationActive === false}><SceneDoor phase={doorPhase} behavior={cell.doorBehavior} label={doorLabel} glyph={glyph} visualGroup={focusGroup} characters={characterPresentation} onTransitionComplete={(completion) => onDoorTransitionComplete?.(entityId, completion)} /></span>
-        : <SceneDoor phase={doorPhase} behavior={cell.doorBehavior} label={doorLabel} glyph={glyph} visualGroup={focusGroup} characters={characterPresentation} onTransitionComplete={(completion) => onDoorTransitionComplete?.(entityId, completion)} />}
+      {animatedInterior && <span className="scene-mainline-door-button__restored-wall" style={restoredWallStyle} aria-hidden="true"><span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)' }}>{cell.baselineGlyph ?? '墙'}</span></span>}
+      <SceneDoor phase={doorPhase} behavior={cell.doorBehavior} label={doorLabel} glyph={glyph} visualGroup={focusGroup} characters={characterPresentation} presentation={animatedInterior ? { hidden: presentationActive === false, durationMs: presentationDurationMs } : undefined} onTransitionComplete={(completion) => onDoorTransitionComplete?.(entityId, completion)} />
       {renderFocusFrame(resolvedFrameGroup, presentationActive)}
     </button>
   )
@@ -1510,6 +1752,8 @@ function MainlineObject({ entity, scene, position, visualPosition, collision, fo
   const isRestroomFixture = entity.id === cafeRestroomToiletId || entity.id === cafeRestroomFaucetId
   const restroomFixtureBright = cafeRestroomFixtureUsePhases[entity.id] === 'using'
   const restroomFixtureOpacity = isRestroomFixture && !restroomFixtureBright ? .5 : 1
+  // An unlit burner stays dim; the inline presentation opacity would otherwise beat the CSS class.
+  const incenseUnlitOpacity = entity.visualProfile === 'incense' && !incenseLit ? .5 : 1
   const layoutItemId = mainlineLayoutItemForEntity(scene, entity.id)
   const className = objectClass(scene, entity, visibility, active, explored, tutorialCompleted, underPlayer, selected, dragging, incenseLit, cafeRestroomFixtureUsePhases, readingProtected)
   const visualScale = entity.visualScale ?? 1
@@ -1531,7 +1775,7 @@ function MainlineObject({ entity, scene, position, visualPosition, collision, fo
       alignItems: 'center',
       justifyContent: 'center',
       transform: 'translate(-50%, -50%)',
-      opacity: presentedInterior ? restroomFixtureOpacity : 0,
+      opacity: presentedInterior ? restroomFixtureOpacity * incenseUnlitOpacity : 0,
       pointerEvents: presentedInterior ? undefined : 'none',
       transition: interiorPresentationActive === undefined ? undefined : `opacity ${presentationDurationMs}ms ease-in-out`,
     } as CSSProperties,
@@ -1776,6 +2020,18 @@ export function MainlineSceneRenderer({
   debugRuntimeEvidence = false,
 }: MainlineSceneRendererProps) {
   const heldPresentation = heldConsumablePresentation(heldConsumable)
+  const [poppingHeld, setPoppingHeld] = useState<NonNullable<typeof heldPresentation> | null>(null)
+  const previousHeldRef = useRef(heldPresentation)
+  const poppingTimerRef = useRef<number | null>(null)
+  useEffect(() => {
+    if (previousHeldRef.current && !heldPresentation) {
+      setPoppingHeld(previousHeldRef.current)
+      if (poppingTimerRef.current !== null) window.clearTimeout(poppingTimerRef.current)
+      poppingTimerRef.current = window.setTimeout(() => { poppingTimerRef.current = null; setPoppingHeld(null) }, 660)
+    }
+    previousHeldRef.current = heldPresentation
+  })
+  useEffect(() => () => { if (poppingTimerRef.current !== null) window.clearTimeout(poppingTimerRef.current) }, [])
   const readingMaskId = `mainline-reading-mask-${useId().replace(/:/g, '')}`
   const [dialogueReady, setDialogueReady] = useState(false)
   const [readingOverflowPage, setReadingOverflowPage] = useState<import('./mainlineReadingProtection').MainlineReadingOverflowPageState>(null)
@@ -3532,9 +3788,11 @@ export function MainlineSceneRenderer({
               data-held-consumable-kind={heldConsumable?.kind}
               data-held-consumable-id={heldConsumable?.productId}
               aria-label={`修杰带着${heldPresentation.name}，点击${heldPresentation.actionLabel}`}
-              title={`修杰带着${heldPresentation.name}，点击${heldPresentation.actionLabel}`}
               onClick={(event) => { event.stopPropagation(); onHeldConsumableInteract?.() }}
-            ><HeldConsumableMark item={heldPresentation} />{heldPresentation.actionLabel}</button>}
+            ><HeldConsumableMark item={heldPresentation} /></button>}
+            {!heldPresentation && poppingHeld && !playerSeatId && <span className="scene-protagonist__held-action scene-protagonist__held-action--pop" aria-hidden="true">
+              <HeldConsumableMark item={poppingHeld} />
+            </span>}
           </div>}
           {worldQuestionMark?.visible && <span
             className="scene-commercial-question-mark"
@@ -3693,8 +3951,8 @@ export function MainlineSceneRenderer({
             contentKey={conversationDisplayContentKey}
             pageKey={conversationDisplayPageKey}
             pageText={conversationDisplayPageText}
-            speaker={conversationDisplayContent.kind === 'waiting' || conversationDisplayContent.kind === 'choice' ? undefined : dialogueLine?.speaker ?? sceneEchoSpeaker}
-            speakerIsNpc={Boolean(conversationDisplayContent.kind !== 'waiting' && conversationDisplayContent.kind !== 'choice' && (dialogueLine?.speakerNpcId || scene.npcs.some(npc => npc.label === (dialogueLine?.speaker ?? sceneEchoSpeaker))))}
+            speaker={conversationDisplayContent.kind === 'waiting' || conversationDisplayContent.kind === 'choice' ? undefined : conversationDisplayContent.speaker ?? dialogueLine?.speaker ?? sceneEchoSpeaker}
+            speakerIsNpc={Boolean(conversationDisplayContent.kind !== 'waiting' && conversationDisplayContent.kind !== 'choice' && (conversationDisplayContent.speakerIsNpc ?? (dialogueLine?.speakerNpcId || scene.npcs.some(npc => npc.label === (dialogueLine?.speaker ?? sceneEchoSpeaker)))))}
             narrow={!isWideDialogueConversation}
             windowHeightPx={!isWideDialogueConversation
               ? Math.max(1, viewportMetrics.height * .15)
@@ -3724,8 +3982,7 @@ export function MainlineSceneRenderer({
             onAdvance={(identity) => {
               if (identity.sessionKey !== stableConversationDisplaySessionId
                 || identity.pageKey !== conversationDisplayPageKey
-                || !conversationDisplayContent.canAdvance
-                || conversationDisplayReadyKeyRef.current !== conversationDisplayRequiredReadyKey) return
+                || !conversationDisplayContent.canAdvance) return
               readingShieldRef.current?.click()
             }}
             advanceReady={conversationDisplayAdvanceReady}
@@ -3826,7 +4083,20 @@ export function MainlineSceneRenderer({
               onPointerUp={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation()
+                if (conversationDisplayContent?.kind === 'choice' && dialogueChoiceWheel?.dismissible && dialogueChoiceWheel.phase === 'active') {
+                  onSceneActionCancel?.()
+                  return
+                }
                 if (conversationDisplayContent?.kind === 'waiting' || conversationDisplayContent?.kind === 'choice' || (conversationDisplayContent && 'canAdvance' in conversationDisplayContent && !conversationDisplayContent.canAdvance)) return
+                if (hasConversationDisplayContent && conversationDisplayContent?.kind === 'text') {
+                  // A click while a long line is still being typed shows the whole line at once.
+                  const typingNow = sceneEcho ? sceneEcho.textMotion === 'typing' : dialogueTextMotion === 'typing'
+                  if (typingNow) {
+                    // Hurry the typing along instead of jumping to the full text.
+                    readingTextMotionSpeed = readingTextMotionClickSpeed
+                    return
+                  }
+                }
                 if (hasConversationDisplayContent && conversationDisplayReadyKeyRef.current !== conversationDisplayRequiredReadyKey) return
                 if (hasConversationDisplayContent && !sceneEcho && dialogue && dialogueLine && currentDialogueGroupRef.current !== null) {
                   dialogueReadyGroupRef.current = currentDialogueGroupRef.current
@@ -3836,6 +4106,7 @@ export function MainlineSceneRenderer({
                   ? sceneEcho.textMotion === 'deleting' || sceneEcho.textMotion === 'deleted'
                   : dialogueTextMotion === 'deleting' || dialogueTextMotion === 'deleted'
                 if (readingTextIsDeleting) {
+                  readingTextMotionSpeed = readingTextMotionClickSpeed
                   if (isMenuReading && sceneEcho?.textMotion === 'deleting') onSceneEchoAdvance?.()
                   return
                 }

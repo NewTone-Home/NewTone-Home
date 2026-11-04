@@ -13,7 +13,7 @@ const categoryLabel: Record<HeldConsumableVisualKind, string> = {
 export function HeldConsumableMark({ item }: { item: HeldConsumablePresentation }) {
   const label = categoryLabel[item.visualKind]
   return (
-    <span className={`held-consumable-mark held-consumable-mark--${item.visualKind}`} aria-label={`手持${label}`} title={label}>
+    <span className={`held-consumable-mark held-consumable-mark--${item.visualKind}`} aria-hidden="true">
       <svg className="held-consumable-mark__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
         {item.visualKind === 'coffee' || item.visualKind === 'milk-tea' || item.visualKind === 'fruit-drink' ? (
           <>
@@ -29,7 +29,6 @@ export function HeldConsumableMark({ item }: { item: HeldConsumablePresentation 
           </>
         ) : <path d="M5 5h14v14H5zM8 9h8M8 13h8M8 16h5" />}
       </svg>
-      <span className="held-consumable-mark__label">{label}</span>
     </span>
   )
 }

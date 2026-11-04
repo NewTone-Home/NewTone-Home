@@ -83,7 +83,7 @@ export function bindContinuousCafe(blueprint: MainlineSceneBlueprint): MainlineS
       : structure),
     furnitureGroups: data.furnitureGroups.map(group => ({ ...group, id: rename(group.id), entityIds: group.entityIds.map(rename) })),
     npcs: [...(data.npcs ?? []), ...npcs], npcBehaviors: [...(data.npcBehaviors ?? []), ...behaviors],
-    accessRegions: [...(data.accessRegions ?? []), { id: 'commercial-cafe-staff-area', x: counter.x, y: counter.y + counter.height, width: counter.width, height: room.bounds.y + room.bounds.height - counter.y - counter.height, requiredAccess: 'staff', deniedText: '再往北去，可就是人家柜台里了。' }],
+    accessRegions: [...(data.accessRegions ?? []), { id: 'commercial-cafe-staff-area', x: counter.x, y: counter.y + counter.height, width: counter.width, height: room.bounds.y + room.bounds.height - counter.y - counter.height, requiredAccess: 'staff', deniedText: '柜台里面是员工区，还是别过去了。' }],
     actorAccess: { ...data.actorAccess, protagonist: ['public'], 'lao-zhou': ['public'], 'cafe-coffee-owner': ['public', 'staff'], 'cafe-floor-server': ['public'] },
     npcBehaviorTargets: [...(data.npcBehaviorTargets ?? []),
       { id: 'commercial-cafe-counter-service', position: staff },

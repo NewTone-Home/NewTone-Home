@@ -252,3 +252,56 @@ export function mapLegacyOrderToGameTime(
   }
   return { ok: true, state: { ...state, ordersByShop: { ...state.ordersByShop, [shopId]: mapped } }, value: mapped }
 }
+
+/** Short, stable, human-readable order number shown to the player instead of the internal id. */
+export function formatReadableOrderNumber(id: string): string {
+  let hash = 0
+  for (let index = 0; index < id.length; index += 1) hash = (hash * 31 + id.charCodeAt(index)) % 900
+  return String(hash + 100)
+}
+
+
+/** A finished (picked up) order, newest first. Only the latest few are kept, and only orders picked up from now on are recorded. */
+export type ShopOrderHistoryEntry = {
+  id: string
+  shopId: string
+  productId: string
+  pricePaid?: number
+  options?: Record<string, string | number | boolean | null>
+  placedAtGameTimeMs: number | null
+  pickedUpAtGameTimeMs: number
+}
+
+export const shopOrderHistoryLimit = 5
+
+export function sanitizeShopOrderHistory(value: unknown): ShopOrderHistoryEntry[] {
+  if (!Array.isArray(value)) return []
+  const entries: ShopOrderHistoryEntry[] = []
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue
+    const entry = item as Partial<ShopOrderHistoryEntry>
+    if (typeof entry.id !== 'string' || !entry.id || typeof entry.shopId !== 'string' || !entry.shopId
+      || typeof entry.productId !== 'string' || !entry.productId || !isFiniteNonNegative(entry.pickedUpAtGameTimeMs)) continue
+    entries.push({
+      id: entry.id, shopId: entry.shopId, productId: entry.productId,
+      ...(isFiniteNonNegative(entry.pricePaid) ? { pricePaid: entry.pricePaid } : {}),
+      ...(cleanOptions(entry.options) ? { options: cleanOptions(entry.options) } : {}),
+      placedAtGameTimeMs: isFiniteNonNegative(entry.placedAtGameTimeMs) ? entry.placedAtGameTimeMs : null,
+      pickedUpAtGameTimeMs: entry.pickedUpAtGameTimeMs,
+    })
+  }
+  return entries.slice(0, shopOrderHistoryLimit)
+}
+
+export function appendShopOrderHistory(history: readonly ShopOrderHistoryEntry[] | undefined, order: CrossShopOrder | undefined, pickedUpAtGameTimeMs: number): ShopOrderHistoryEntry[] {
+  const existing = history ?? []
+  if (!order || existing.some(entry => entry.id === order.id)) return [...existing]
+  const entry: ShopOrderHistoryEntry = {
+    id: order.id, shopId: order.shopId, productId: order.productId,
+    ...(order.pricePaid !== undefined ? { pricePaid: order.pricePaid } : {}),
+    ...(order.options ? { options: order.options } : {}),
+    placedAtGameTimeMs: order.placedAtGameTimeMs,
+    pickedUpAtGameTimeMs,
+  }
+  return [entry, ...existing].slice(0, shopOrderHistoryLimit)
+}

@@ -16,3 +16,21 @@
 .shop-order-app__confirm { justify-self:stretch; padding:12px; border:0; border-radius:9px; background:#d9d2c6; color:#27231d; font-weight:700; }
 .shop-order-app__confirm:disabled { opacity:.45; }
 .shop-order-app__cancel-legacy { justify-self:start; padding:9px 12px; border:1px solid var(--phone-border); border-radius:8px; background:#ffffff08; color:inherit; font-weight:600; }
+
+/* Phone ordering layout: compact header, readable order rows, equal-width options, clear selection, confirm bar pinned to the bottom. */
+.shop-order-app { min-height:100%; align-content:start; }
+.shop-order-app__balance { margin:-10px 0 0; color:var(--phone-muted); font-size:13px; }
+.shop-order-app__all-orders ul { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.shop-order-app__all-orders li { display:grid; gap:2px; padding:9px 12px; border:1px solid var(--phone-border); border-radius:9px; background:#ffffff06; }
+.shop-order-app__all-orders li span:first-child { font-weight:700; font-size:13px; }
+.shop-order-app__all-orders li span:last-child { color:var(--phone-muted); font-size:12px; }
+.shop-order-app__shops button[aria-pressed=true],
+.shop-order-app__products button[aria-pressed=true],
+.shop-order-app fieldset button[aria-pressed=true] { background:#d9d2c6; border-color:#d9d2c6; color:#27231d; font-weight:700; }
+.shop-order-app__products button[aria-pressed=true] small { color:#27231dcc; }
+.shop-order-app fieldset { flex-wrap:nowrap; }
+.shop-order-app fieldset button { flex:1 1 0; min-width:0; padding:11px 4px; text-align:center; }
+.shop-order-app__bar { position:sticky; bottom:0; display:grid; gap:8px; margin:0 -2px; padding:12px 2px calc(10px + env(safe-area-inset-bottom, 0px)); background:linear-gradient(to bottom, transparent, var(--phone-bg, #121316) 26%); }
+.shop-order-app__summary { margin:0; font-size:13px; color:var(--phone-muted); text-align:center; }
+.shop-order-app__summary[data-complete=true] { color:var(--phone-text); font-weight:600; }
+.shop-order-app__confirm:disabled { opacity:1; background:#ffffff14; color:var(--phone-muted); }

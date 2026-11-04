@@ -3,6 +3,7 @@ import { attachSessionGameClockVisibilityLifecycle, createSessionGameClock } fro
 import { MainlineScenePage } from './runtime/MainlineScenePage'
 import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
+import { commercialStreetMapGuideActive, laoZhouArrivalLabel, laoZhouArrivalShouldDeliver, laoZhouArrivalTimeKey } from './runtime/openingGuidance'
 import { WorldPhone } from './runtime/WorldPhone'
 import { storeOrderEntryRoute } from './runtime/storeOrderEntryPolicy'
 import {
@@ -23,7 +24,7 @@ import { isPointInContinuousCafe } from './runtime/continuousCafe'
 import { advanceMainlineStoryClock, isStoryNight } from './runtime/mainlineStoryClock'
 import { advancePhoneStoryNotes, createPlayerPhoneNote, ensurePhoneYongheLead, pinPhoneStoryNote, updatePhoneNote } from './runtime/phonePersonalData'
 import { commercialCafeStoryStatusKey, commercialCafeDepartureOnTransition, commercialCafeLegacyDeparture } from './runtime/commercialCafeStory'
-import { ruoyuCafeMineExitPatch, ruoyuCafeUnlockedKey } from './runtime/ruoyuCafeMeeting'
+import { ruoyuCafeDepartureOnTransition, ruoyuCafeMineExitPatch, ruoyuCafeUnlockedKey } from './runtime/ruoyuCafeMeeting'
 import {
   commercialCafeCompletionPhoneCanRequest,
   commercialCafeCompletionPhoneDisplayedPatch,
@@ -74,7 +75,7 @@ import {
   commercialStreetMilkTeaReadyAnalyticsWasReported,
   createCommercialStreetMilkTeaOrder,
 } from './runtime/commercialStreetMilkTea'
-import { cancelUnmappedLegacyOrder, claimCrossShopOrder, consumeHeldConsumable, crossShopIds } from './runtime/crossShopOrders'
+import { appendShopOrderHistory, cancelUnmappedLegacyOrder, claimCrossShopOrder, consumeHeldConsumable, crossShopIds } from './runtime/crossShopOrders'
 import { shopPreparationDurationGameMs } from './runtime/shopPreparationPolicy'
 import { placePaidShopOrder } from './runtime/shopOrderPayment'
 import { shopProductFor } from './runtime/shopOrderCatalog'
@@ -488,7 +489,7 @@ export default function CenterExperience({
       const result = claimCrossShopOrder({ ordersByShop: current.shopOrders, heldConsumable: current.heldConsumable }, shopId, nowGameTimeMs, kind)
       outcome = result
       if (!result.ok) return current
-      const updated = { ...current, shopOrders: result.state.ordersByShop, heldConsumable: result.state.heldConsumable }
+      const updated = { ...current, shopOrders: result.state.ordersByShop, heldConsumable: result.state.heldConsumable, shopOrderHistory: appendShopOrderHistory(current.shopOrderHistory, current.shopOrders?.[shopId], nowGameTimeMs) }
       return shopId === crossShopIds.cafeTakeaway
         ? recordPlayerSceneStatePatch(updated, 'commercial-street', { [commercialCafeTableDeliverySeatKey]: null })
         : updated
@@ -498,8 +499,8 @@ export default function CenterExperience({
       setBoundaryNotice('咖啡正在送到座位，请稍等。')
       return false
     }
-    if (outcome?.reason === 'hand-full') setBoundaryNotice('\u624b\u91cc\u8fd8\u6709\u4e1c\u897f\uff0c\u62ff\u4e0d\u4e86\u8fd9\u4e48\u591a\u3002')
-    else if (outcome?.reason === 'not-ready') setBoundaryNotice('\u8fd8\u6ca1\u505a\u597d\uff0c\u7a0d\u540e\u518d\u6765\u53d6\u3002')
+    if (outcome?.reason === 'hand-full') setBoundaryNotice('\u624b\u91cc\u8fd8\u6709\u4e1c\u897f\uff0c\u6682\u65f6\u62ff\u4e0d\u4e86\u3002')
+    else if (outcome?.reason === 'not-ready') setBoundaryNotice('\u996e\u54c1\u8fd8\u5728\u5236\u4f5c\u4e2d\uff0c\u7a0d\u540e\u518d\u6765\u53d6\u5427\u3002')
     else setBoundaryNotice('\u73b0\u5728\u6ca1\u6709\u53ef\u4ee5\u9886\u53d6\u7684\u8ba2\u5355\u3002')
     return false
   }, [commitPlayerSave])
@@ -559,13 +560,11 @@ export default function CenterExperience({
       const order = playerSaveRef.current.shopOrders?.[crossShopIds.yonghe]
       const gameTimeMs = sessionGameClockRef.current.read().gameTimeMs
       if (order?.status === 'queued' && order.readyAtGameTimeMs !== null && gameTimeMs >= order.readyAtGameTimeMs) {
+        if (playerSaveRef.current.heldConsumable || commercialStreetMilkTeaHeld(playerSaveRef.current.sceneState['commercial-street'])) return { text: '手里还有东西，拿不了这么多。' }
         claimShopOrder(crossShopIds.yonghe)
         return true
       }
-      if (order?.status === 'queued') {
-        setBoundaryNotice('餐食还在制作中。')
-        return true
-      }
+      if (order?.status === 'queued') return { text: '还没好，再等会儿。' }
       // With no active order the player starts through the owner's opening,
       // then chooses ordering or recommendation. The phone QR remains a
       // separate shortcut inside the unified app.
@@ -580,7 +579,7 @@ export default function CenterExperience({
       }
       if (order) return { text: serviceCopy.orderPending }
       if (playerSaveRef.current.heldConsumable || commercialStreetMilkTeaHeld(playerSaveRef.current.sceneState['commercial-street'])) return { text: serviceCopy.heldFull }
-      return { text: commercialShopWelcomeCopy, options: ['\u70b9\u5355', '\u6709\u4ec0\u4e48\u63a8\u8350\uff1f'] }
+      return { text: commercialShopWelcomeCopy, options: ['\u70b9\u5355', '\u6709\u4ec0\u4e48\u63a8\u8350\uff1f', '\u6211\u518d\u770b\u770b\u5427'] }
     }
     return false
   }, [claimShopOrder, drinkOrderingAppUnlocked, openShopOrderApp])
@@ -776,6 +775,8 @@ export default function CenterExperience({
       const cafeState = { ...current.sceneState['commercial-street'], ...current.sceneState['commercial-cafe'] }
       const departure = commercialCafeDepartureOnTransition(cafeState, route.sceneId, nextSceneId)
       if (departure) next = recordPlayerSceneStatePatch(next, 'commercial-cafe', departure)
+      const ruoyuDeparture = ruoyuCafeDepartureOnTransition(cafeState, route.sceneId, nextSceneId)
+      if (ruoyuDeparture) next = recordPlayerSceneStatePatch(next, 'commercial-cafe', ruoyuDeparture)
       return isTutorialCompletionTransition(route.sceneId, nextSceneId, nextRoute.spawnMode)
         ? recordPlayerSceneState(next, 'commercial-street', interactionTutorialCompletedStateKey, true)
         : next
@@ -1036,6 +1037,16 @@ export default function CenterExperience({
     setPhoneOpen(true)
   }, [cafeHandoffPositionRevision, longDistanceTravel, phoneDevice, phoneOpen, phonePanelRetracted, playerSave.sceneState, route.sceneId, sceneReadingActive])
 
+  useEffect(() => {
+    if (entryPhase !== 'active' || route.sceneId !== 'commercial-street') return
+    if (phoneDevice !== 'inner' || sceneReadingActive || phoneOpen || longDistanceTravel !== null) return
+    if (!laoZhouArrivalShouldDeliver(playerSave.sceneState['commercial-street'], playerSave.sceneState['commercial-cafe'])) return
+    commitPlayerSave(current => recordPlayerSceneStatePatch(current, 'commercial-street', { [laoZhouArrivalTimeKey]: formatTrialGameTime(trialClockSnapshot.gameTimeMs) }))
+    setPhoneNotificationScreen(false)
+    setRequestedPhoneApp('lao-zhou-messages')
+    setPhoneOpen(true)
+  }, [commitPlayerSave, entryPhase, longDistanceTravel, phoneDevice, phoneOpen, playerSave.sceneState, route.sceneId, sceneReadingActive, trialClockSnapshot.gameTimeMs])
+
   const handlePlayerMovementStateChange = useCallback((moving) => {
     setCenterMovementActive(moving)
     if (!moving) flushPositionSave(route.sceneId)
@@ -1200,6 +1211,7 @@ export default function CenterExperience({
           onShopOrderReady={handleYongheOrderReady}
           onShopNotificationOpen={openShopOrderApp}
           shopOrders={playerSave.shopOrders}
+          shopOrderHistory={playerSave.shopOrderHistory}
           heldConsumable={resolvedHeldConsumable}
           walletBalance={playerSave.walletBalance}
           gameTimeMs={trialClockSnapshot.gameTimeMs}
@@ -1208,6 +1220,8 @@ export default function CenterExperience({
           onLegacyShopOrderCancel={cancelLegacyShopOrder}
           onRequestedAppHandled={() => { setRequestedPhoneApp(null); setRequestedShopId(null); setRequestedShopProductId(null) }}
           onLaoZhouMessagesDisplayed={acknowledgeCafeStoryMessagesDisplayed}
+          laoZhouArrivalLabel={laoZhouArrivalLabel(playerSave.sceneState['commercial-street'])}
+          commercialMapGuide={commercialStreetMapGuideActive(route.sceneId, playerSave.sceneState['commercial-cafe'])}
           onMilkTeaOrderConfirm={confirmMilkTeaOrder}
           onMilkTeaOrderStarted={handleMilkTeaOrderStarted}
           feedbackMode={feedbackMode}

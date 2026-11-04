@@ -16,18 +16,18 @@ export type ShopServiceCopy = Readonly<{
 const sharedCopy = {
   welcome: commercialShopWelcomeCopy,
   cancel: '没问题，欢迎下次光临。',
-  pickup: '饮品好了，请慢用。',
-  heldFull: '手里还有东西，拿不了这么多。',
+  pickup: '您的饮料好了，请慢用。',
+  heldFull: '手里还有东西，暂时拿不了。',
 } as const
 
 const copyByAppState: Readonly<Record<ShopOrderAppState, Pick<ShopServiceCopy, 'orderSuccess' | 'orderPending'>>> = {
   'not-unlocked': {
-    orderSuccess: '好的，手机里还没有订单 App。扫一下柜台上的二维码，之后就能查看订单号和进度哦。',
-    orderPending: '饮品还没做好哦，可以先逛逛或坐一会儿。手机里还没有订单 App，扫一下柜台上的二维码后就能查看进度。',
+    orderSuccess: '好的。扫一下柜台上的二维码，就可以查看订单号和进度了。',
+    orderPending: '还没做好哦，可以先逛逛。可以扫一下柜台二维码查看进度噢。',
   },
   unlocked: {
     orderSuccess: '好的，订单号和进度可以在手机里的订单 App 查看哦。',
-    orderPending: '饮品还没做好哦，可以先逛逛或坐一会儿，也可以打开手机里的订单 App 看进度。',
+    orderPending: '还没做好哦，先逛逛吧，进度可以在订单 App 里看。',
   },
 }
 

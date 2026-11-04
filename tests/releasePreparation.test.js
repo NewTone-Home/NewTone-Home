@@ -25,7 +25,7 @@ describe('release preparation', () => {
     const phone = read('../src/center/runtime/WorldPhone.tsx')
     const contacts = phone.slice(phone.indexOf('const innerContacts'), phone.indexOf('type WorldPhoneProps'))
     expect([...contacts.matchAll(/id: '([^']+)'/g)].map(match => match[1])).toEqual(['ruoyu', 'lao-zhou'])
-    expect(contacts).toContain("messages: ['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。']")
+    for (const text of ['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。']) expect(contacts).toContain(`text: '${text}'`)
     expect(phone).not.toContain('ruo-yu')
     expect(phone).toContain("innerContacts.filter(contact => ruoyuMessagesUnlocked || contact.id !== 'ruoyu')")
     expect(phone).toContain("requestedApp === 'ruoyu-messages'")

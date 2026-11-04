@@ -12,7 +12,7 @@ import {
   selectLaoZhouCafeSeat,
   withLaoZhouCafeSeat,
 } from '../src/center/runtime/commercialCafeSeatSelection'
-import { initialCommercialCafeStoryState, resolveCommercialCafeNpcInteraction } from '../src/center/runtime/commercialCafeStory'
+import { commercialCafeSeatGuideDialogue, initialCommercialCafeStoryState, resolveCommercialCafeNpcInteraction } from '../src/center/runtime/commercialCafeStory'
 
 describe('Lao Zhou Cafe seat selection', () => {
   it('offers each authored two-seat table without inventing IDs and selects deterministically from the supplied draw', () => {
@@ -40,7 +40,7 @@ describe('Lao Zhou Cafe seat selection', () => {
         expect(findMainlinePathToEntity(scene, conversationSeatId, currentCafeStart).path).not.toBeNull()
         expect(laoZhouCafeConversationSeatId(laoZhouSeat.id)).toBe(conversationSeatId)
         expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-street', npcId: 'lao-zhou', story, playerSeatId: conversationSeatId, conversationSeatId })).toEqual({ kind: 'start-narrative' })
-        expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-street', npcId: 'lao-zhou', story, playerSeatId: laoZhouSeat.id, conversationSeatId })).toMatchObject({ kind: 'dialogue', promptSeatId: conversationSeatId })
+        expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-street', npcId: 'lao-zhou', story, playerSeatId: laoZhouSeat.id, conversationSeatId })).toEqual({ kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue })
       }
     }
   })

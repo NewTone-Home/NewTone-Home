@@ -29,7 +29,8 @@ export function mainlineDoorPortalShouldRender(
   entity: Pick<MainlineSceneEntity, 'spaceId'> | undefined,
   activeSpaceId: string | undefined,
 ) {
-  return !entity?.spaceId || entity.spaceId === activeSpaceId
+  // Between rooms (no active space) a door stays a door; it only becomes wall from another room.
+  return !entity?.spaceId || !activeSpaceId || entity.spaceId === activeSpaceId
 }
 
 /** Cull only shell glyphs outside the translated viewport, with small text overdraw. */

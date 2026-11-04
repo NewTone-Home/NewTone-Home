@@ -8,8 +8,10 @@ export const cafeRestroomFaucetLabel = '洗手台'
 export const cafeRestroomFixtureIds = [cafeRestroomToiletId, cafeRestroomFaucetId] as const
 /** Each duration is measured on the shared game clock. */
 export const cafeRestroomFixtureUseGameDurationMs = {
+  // 1.5 s of real play at the normal-play rate (30x) = 45 game seconds.
   [cafeRestroomToiletId]: 45_000,
-  [cafeRestroomFaucetId]: 90_000,
+  // The sink is a switch: it stays on until pressed again or the restroom is left.
+  [cafeRestroomFaucetId]: Number.POSITIVE_INFINITY,
 } as const
 
 export function cafeRestroomFixtureUseDurationMs(entityId: string): number | undefined {

@@ -28,6 +28,10 @@ export type MainlineDialogueChoiceWheelPresentation = {
   actionId: number
   flow: 'dialogue-choice'
   options: readonly string[]
+  /** Desktop only: render the first `menu.length` options as a priced menu (name, price, small description). */
+  menu?: readonly { name: string; price: number; description: string | null }[]
+  /** A click outside the choices closes them (world interactions that can simply be declined). */
+  dismissible?: boolean
   phase: 'active' | 'committing' | 'exiting'
   focusedOptionIndex?: number
 }
@@ -38,7 +42,7 @@ export type MainlineConversationDisplayHistoryEntry = Readonly<{
   text: string
 }>
 export type MainlineConversationDisplayContent =
-  | { sessionId: string; kind: 'text' | 'aside'; text: string; displayUnitKey?: string; textMotion?: 'typing' | 'static' | 'deleting' | 'deleted'; canAdvance: boolean; history?: readonly MainlineConversationDisplayHistoryEntry[]; choicePrompt?: boolean; shortPrompt?: boolean }
+  | { sessionId: string; kind: 'text' | 'aside'; expectedChoices?: readonly string[]; expectedMenu?: readonly { name: string; price: number | string; description: string | null }[]; text: string; displayUnitKey?: string; textMotion?: 'typing' | 'static' | 'deleting' | 'deleted'; canAdvance: boolean; history?: readonly MainlineConversationDisplayHistoryEntry[]; choicePrompt?: boolean; shortPrompt?: boolean; noHistory?: boolean; menuItems?: readonly { name: string; price: string; description: string | null }[]; speaker?: string; speakerIsNpc?: boolean; /** 'conversation': back-and-forth lines aligned left (them) / right (you). 'center': a lone prompt or reply. */ layout?: 'conversation' | 'center' }
   | { sessionId: string; kind: 'waiting'; text: '……'; canAdvance: false; history?: readonly MainlineConversationDisplayHistoryEntry[] }
   | { sessionId: string; kind: 'choice'; actionId: number; options: readonly string[]; canAdvance: false; history?: readonly MainlineConversationDisplayHistoryEntry[] }
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
@@ -57,7 +61,7 @@ export type MainlineSceneExternalExit = {
   /** Optional tangent-axis span for an opening without an interactive entity. */
   triggerSpan?: { start: number; end: number }
 }
-export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员' | '若雨'
+export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员' | '老板娘' | '若雨'
 export type MainlineSceneDialogueLine = {
   id: string
   speaker: MainlineSceneDialogueSpeaker
@@ -263,10 +267,12 @@ export function mainlineActiveSpatialSpaceId(
 
 /** Keep a passage door available from either active endpoint space. */
 export function mainlinePassageDoorPresentationActive(
-  passage: Pick<MainlineScenePassage, 'fromRoomId' | 'toRoomId'> | undefined,
+  passage: (Pick<MainlineScenePassage, 'fromRoomId' | 'toRoomId'> & { access?: string }) | undefined,
   activeSpaceId: string | undefined,
   interiorPresentationActive: boolean | undefined,
 ) {
+  // Standing between rooms (e.g. the strip behind the shallower shops) must not fade a door back into wall.
+  if (!activeSpaceId && passage) return true
   if (activeSpaceId && (passage?.fromRoomId === activeSpaceId || passage?.toRoomId === activeSpaceId)) return true
   return interiorPresentationActive
 }
@@ -1758,11 +1764,11 @@ const jijiaInnerPortraitFeatures: readonly MainlineWallFeatureBlueprint[] = [
 ]
 
 const jijiaPortraitExplorationPool = [
-  '画像上的人，修杰都从没见过，只听家里人提起过。',
+  '画像中的面孔都很陌生，修杰只听家人提起过他们。',
   '画像上有些色块已经掉了，木板上还出现了一些细微的裂缝。',
-  '画像太高了，阳光根本照不到上半身，但是眼睛却格外有神，像是在盯着修杰看。',
-  '以前爷爷讲过这些先祖的故事，但是从没提起过名字。',
-  '妹妹小时候每次进来，都会被吓到嚎啕大哭。',
+  '画像很长，挂得很高，上半身藏在阴影里面，但是修杰能感觉画像里的眼睛在盯着自己',
+  '爷爷以前讲过这些先祖的故事，却从没说过他们的名字。',
+  '小时候妹妹最怕进这里，每次都会嚎啕大哭。',
 ] as const
 
 const jijiaYardBlueprint: MainlineSceneBlueprint = {
@@ -1802,13 +1808,13 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     endpoint: { doorPosition: authoredPoint(10, 47.5), threshold: authoredPoint(14, 47.5), crossingTarget: authoredPoint(12, 47.5) },
     wallOpenings: [], transitionText: '修杰走到院门边，前院出口被触发。', access: 'open',
   }],
-  interactionText: { 'jijia-main-door': '正门通向独立的祖宅内堂。', 'jijia-yard-gate': '院门是前院的固定边界出口。', 'jijia-old-tree': '老槐树的影子落在石砖地面上。' },
+  interactionText: { 'jijia-main-door': '正门通向独立的祖宅内堂。', 'jijia-yard-gate': '院门是前院的固定边界出口。', 'jijia-old-tree': '老槐树的枝影铺在前院的石砖上。' },
   echoPool: [
-    '树上刻着某些痕迹，岁月磨去了不少。',
-    '树下的土还带着点湿润。',
-    '树荫底下非常阴凉，老槐树把太阳遮挡了大半。',
-    '妹妹总说，为什么不能砍树呀，这样多亮堂。',
-    '树下的石块已经失去了大半棱角，变得光滑了许多。',
+    '树干上留着几道刻痕，已经被岁月磨得模糊。',
+    '树下的泥土仍有些潮湿。',
+    '老槐树遮去了大半阳光，树荫下凉快许多。',
+    '妹妹以前总说：“为什么不把树砍了？这样院子里多亮堂。”',
+    '树下的石块早已磨得圆润，棱角几乎看不见了。',
   ],
 }
 
@@ -1843,14 +1849,14 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   }],
   interactionText: {
     'jijia-main-door': '正门通向前院。', 'jijia-secret-door': '后门通向中枢院的窄暗道。',
-    'jijia-offering-table-north': '桌子上摆放着不少的牌位。', 'jijia-offering-table-south': '桌子上摆放着不少的牌位。', 'jijia-offering-table-west': '桌子上摆放着一些瓜果。', 'jijia-offering-table-east': '桌子上只摆放着一个牌位，上面写着“姬家家主”。',
+    'jijia-offering-table-north': '桌子上摆放着不少的牌位。', 'jijia-offering-table-south': '桌子上摆放着不少的牌位。', 'jijia-offering-table-west': '桌子上摆放着一些瓜果。', 'jijia-offering-table-east': '桌上孤零零放着一块牌位，写着“姬家家主”。',
   },
   explorationText: {
     ...Object.fromEntries(jijiaInnerPortraitFeatures.map((feature) => [feature.id, jijiaPortraitExplorationPool])),
     'jijia-offering-table-north': ['桌子上摆放着不少的牌位。'],
     'jijia-offering-table-south': ['桌子上摆放着不少的牌位。'],
     'jijia-offering-table-west': ['桌子上摆放着一些瓜果。'],
-    'jijia-offering-table-east': ['桌子上只摆放着一个牌位，上面写着“姬家家主”。'],
+    'jijia-offering-table-east': ['桌上孤零零放着一块牌位，写着“姬家家主”。'],
   },
 }
 
@@ -2320,9 +2326,9 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   explorationText: {
     'zhongshuyuan-office-desk': ['左下办公室的办公桌上留着一份尚未归档的材料。'],
     'zhongshuyuan-office-chair': ['这椅子有些年头了，坐上去并不是很舒服。'],
-    'zhongshuyuan-office-plant': ['有段时间没浇水了，不那么精神了。'],
+    'zhongshuyuan-office-plant': ['有阵子没浇水了，叶片看着有些蔫。'],
     'zhongshuyuan-office-rack': ['看起来有点老派的衣架。'],
-    'zhongshuyuan-office-window': ['外面的阳光白的有些刺眼。', '外面看起来跟表世界没什么区别。'],
+    'zhongshuyuan-office-window': ['外面的阳光白得有些刺眼。', '从这里看出去，和表世界没什么两样。'],
   },
 }
 

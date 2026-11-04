@@ -82,11 +82,20 @@ export function startManualShopOrderSession(input: {
   }
 }
 
+export type ManualShopOrderMenuItem = Readonly<{ name: string; price: number; description: string | null }>
+
+/** Menu rows for the catalogue step; they line up with the first `items.length` choices of the view. */
+export function manualShopOrderMenuItems(session: ManualShopOrderSession): readonly ManualShopOrderMenuItem[] | null {
+  if (session.phase !== 'catalog') return null
+  return (shopProductsFor(session.shopId) as readonly (ManualShopOrderProduct & { description?: string | null })[])
+    .map(product => ({ name: product.name, price: product.price, description: product.description ?? null }))
+}
+
 export function manualShopOrderView(session: ManualShopOrderSession): ManualShopOrderView {
   const products = shopProductsFor(session.shopId) as readonly ManualShopOrderProduct[]
   if (session.phase === 'catalog') {
     return {
-      text: '想点哪一款？',
+      text: session.shopId === 'yonghe-eatery' ? '菜单在这儿，你看看。' : '看看想喝哪一款？',
       choices: [...products.map(product => ({ id: `product:${product.id}`, label: `${product.name} ${product.price}元` })), cancelChoice],
     }
   }
@@ -96,7 +105,7 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
 
   if (session.phase === 'sugar') {
     return {
-      text: `${product.name}想要几分甜？`,
+      text: `好的，一杯${product.name}，请问要多少糖？`,
       choices: (product.customization?.sugar ?? []).map(value => ({ id: `sugar:${value}`, label: value })),
     }
   }
@@ -104,15 +113,15 @@ export function manualShopOrderView(session: ManualShopOrderSession): ManualShop
   if (session.phase === 'ice') {
     return {
       text: product.customization?.sugar === null
-        ? '糖是固定的噢，请问要多少冰呢？'
-        : `${product.name}的糖度选好了，请问要多少冰呢？`,
+        ? `好的，一杯${product.name}。糖是固定的噢，请问要多少冰呢？`
+        : '好的，请问要多少冰呢？',
       choices: (product.customization?.ice ?? []).map(value => ({ id: `ice:${value}`, label: value })),
     }
   }
 
   if (session.phase === 'confirm') return { text: '', choices: [] }
 
-  return { text: '订单已提交', choices: [] }
+  return { text: '订单提交成功', choices: [] }
 }
 
 function beginProduct(session: ManualShopOrderSession, product: ManualShopOrderProduct): ManualShopOrderSession {

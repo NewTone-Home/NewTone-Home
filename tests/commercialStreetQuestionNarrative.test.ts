@@ -85,9 +85,9 @@ describe('Commercial Street question-mark narration', () => {
 
   it('keeps the approved lines intact and advances to an exit only after the final line', () => {
     expect(commercialStreetQuestionNarrativeLines).toEqual([
-      '难道刚刚是幻觉吗？',
-      '不，不会认错的。',
-      '那张脸修杰太过于熟悉。',
+      '难道刚才是幻觉？',
+      '不，不可能认错。',
+      '那张脸，我太熟悉了。',
     ])
     const second = nextCommercialStreetQuestionNarrative({ phase: 'active', segmentIndex: 0 })
     const third = nextCommercialStreetQuestionNarrative(second)

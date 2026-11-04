@@ -10,13 +10,4 @@
   transform-origin: top left;
   will-change: transform;
 }
-.dialogue-choice-selection-transfer::before {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  inset: 0;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, .13);
-  opacity: var(--dialogue-choice-transfer-backdrop-opacity, 1);
-}
 .dialogue-choice-selection-transfer > span { position: relative; z-index: 1; }

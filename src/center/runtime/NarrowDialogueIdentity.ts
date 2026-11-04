@@ -57,7 +57,10 @@ export function narrowDialogueTransition(
 }
 
 export function narrowDialogueStartsTypewriter(transition: NarrowDialogueTransition, kind: NarrowDialogueKind, content: NarrowDialogueContent) {
-  return transition === 'conversation-start' && kind === 'conversation' && content === 'text'
+  // Every new line of a conversation types in, not only the first one.
+  if (content !== 'text') return false
+  if (kind === 'aside') return transition === 'aside-start' || transition === 'aside-enter' || transition === 'aside-return' || transition === 'line-change'
+  return (transition === 'conversation-start' || transition === 'line-change' || transition === 'options-return') && kind === 'conversation'
 }
 
 export function narrowDialogueEndsConversation(closing: 'none' | 'aside' | 'conversation') {

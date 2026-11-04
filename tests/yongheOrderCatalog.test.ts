@@ -14,9 +14,9 @@ describe('Yonghe order integration catalog', () => {
   })
 
   it('keeps only authored interaction copy and leaves unchosen recommendation details blank', () => {
-    expect(yongheInteractionCopy.opening).toBe('吃点什么？')
+    expect(yongheInteractionCopy.opening).toBe('想吃点什么？')
     expect(yongheInteractionCopy.options).toEqual(['点餐', '有什么推荐吗？', '聊聊'])
-    expect(yongheInteractionCopy.recommendationQuestion).toBe('你想吃面还是吃饭？')
+    expect(yongheInteractionCopy.recommendationQuestion).toBe('想吃面，还是吃饭？')
     expect(yongheInteractionCopy.recommendationOptions).toEqual(['面', '饭'])
     expect(yongheInteractionCopy.ordered).toBe('行，你找个地方坐会儿吧。')
   })

@@ -23,7 +23,7 @@
 @keyframes world-phone-screen-retract { to { transform:translateY(calc(100% + 4px)); opacity:0; } }
 @keyframes world-phone-swap-retract{ to { transform:translateY(32px); opacity:0; } }
 .world-phone__panel { position:relative; height:100%; display:flex; flex-direction:column; min-height:0; padding:28px 14px 14px; border:1px solid var(--phone-border); border-radius:19px 19px 0 0; background:radial-gradient(ellipse at top,#ffffff08,transparent 60%),var(--phone-bg); overflow:hidden; }
-.world-phone__header { display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:30px; margin-bottom:12px; font-size:11px; }
+.world-phone__header { touch-action: none; display:flex; align-items:center; justify-content:space-between; gap:8px; min-height:30px; margin-bottom:12px; font-size:11px; }
 .world-phone__status { display:flex; align-items:center; gap:8px; white-space:nowrap; }
 .world-phone__signal-bars { display:flex; align-items:end; gap:2px; height:12px; }
 .world-phone__signal-bars i { width:3px; background:#d5d6db; height:5px; }
@@ -136,6 +136,7 @@
 .world-phone__place-card-copy { display:flex; flex:1 1 auto; flex-direction:column; align-items:flex-start; justify-content:center; gap:2px; min-width:0; overflow:hidden; }
 .world-phone__place-card-clue-label { color:#625c52; font-size:9px; font-weight:700; letter-spacing:.08em; }
 .world-phone__place-card-copy p { display:-webkit-box; margin:0; overflow:hidden; color:#48443d; font-size:9px; line-height:1.25; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+.world-phone__place-card-scribble { display:block; width:100%; height:22px; margin-top:2px; fill:none; stroke:#48443d; stroke-width:1.4; stroke-linecap:round; stroke-linejoin:round; opacity:.5; filter:blur(.5px); pointer-events:none; }
 .world-phone__place-card-orientation { align-self:flex-start; padding:2px 6px; border:1px solid #7772; border-radius:999px; background:#fff9; color:#48443d; font-size:9px; }
 .world-phone__place-card-close { flex:none; align-self:flex-start; width:24px; height:24px; padding:0; border:0; border-radius:50%; color:#383940!important; background:#18191d0b; font-size:18px; line-height:1; }
 .world-phone__handoff-layer { position:absolute; inset:0; z-index:12; pointer-events:none; overflow:visible; }
@@ -306,3 +307,31 @@
 .world-phone__ride-map-scene { position:absolute; inset:0; animation:ride-map-enter 200ms ease-out both; }
 .world-phone__ride-map-scene>.world-phone__map-viewport { position:absolute; inset:0; }
 .world-phone__apps button[data-unread="true"]::after { content: ''; position: absolute; top: 2px; right: 10px; width: 7px; height: 7px; border-radius: 50%; background: #ec6862; box-shadow: 0 0 0 2px var(--bg, #14232b); }
+
+/* Home screen: a downward swipe anywhere puts the phone away, so the browser must not claim the touch for scrolling. */
+.world-phone__panel.is-home { touch-action: none; }
+.world-phone__panel.is-home .world-phone__home-screen { touch-action: none; }
+.world-phone__panel.is-home .world-phone__lock-screen { touch-action: none; }
+
+.world-phone__map-region-field { stroke-width:calc(var(--px,.3) * 1.2); }
+.world-phone__map-contour { stroke-width:calc(var(--px,.4) * .8); }
+.world-phone__map-region-field.is-guided { stroke:#bfe6dc; stroke-opacity:.25; animation:phone-map-guide-breathe 5s cubic-bezier(.37,0,.63,1) infinite; }
+@keyframes phone-map-guide-breathe { 0%,100% { stroke-opacity:.25; } 50% { stroke-opacity:.7; } }
+.world-phone__street-lane { fill:#ffffff0b; stroke:none; }
+.world-phone__street-centerline { stroke:#ffffff26; stroke-width:calc(var(--px,.1) * 1); stroke-dasharray:calc(var(--px,.1) * 7) calc(var(--px,.1) * 6); }
+.world-phone__street-shop { fill:#ffffff14; stroke:#ffffff26; stroke-width:calc(var(--px,.1) * .8); }
+.world-phone__street-shop.is-food { fill:#e0b07a22; stroke:#e0b07a55; }
+.world-phone__street-shop.is-cafe { fill:#e0b07a38; stroke:#e0b07a99; }
+.world-phone__street-shop-label { fill:#d6d9df; paint-order:stroke; stroke:#17181d; stroke-width:calc(var(--px,.1) * 2.5); stroke-linejoin:round; }
+.world-phone__street-name { fill:#9aa2ad; letter-spacing:.2em; paint-order:stroke; stroke:#17181d; stroke-width:calc(var(--px,.1) * 2); }
+.world-phone__street-player circle { fill:#4f9dff; stroke:#fff; stroke-width:calc(var(--px,.1) * 1.5); }
+.world-phone__street-player .world-phone__street-player-halo { fill:#4f9dff44; stroke:none; }
+@media (prefers-reduced-motion: reduce) { .world-phone__map-region-field.is-guided,.world-phone__street-guide { animation:none; stroke-opacity:.8; } }
+
+.world-phone__map-transit { stroke-width:calc(var(--px,.25) * .9); stroke-dasharray:calc(var(--px,.25) * 4) calc(var(--px,.25) * 6); }
+.world-phone__street-dot { fill:#9aa2ad; stroke:#17181d; stroke-width:calc(var(--px,.1) * 1); }
+.world-phone__street-dot.is-food { fill:#e0b07a; }
+
+.world-phone__map-poi.is-guided i { background:#bfe6dc; animation:phone-poi-guide 5s cubic-bezier(.37,0,.63,1) infinite; }
+@keyframes phone-poi-guide { 0%,100% { box-shadow:0 0 0 0 #bfe6dc00; opacity:.5; } 50% { box-shadow:0 0 0 7px #bfe6dc30; opacity:.9; } }
+@media (prefers-reduced-motion: reduce) { .world-phone__map-poi.is-guided i { animation:none; opacity:.9; } }

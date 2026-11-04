@@ -75,11 +75,11 @@ function legacyStoryStage(sceneState: PlayerSceneState | undefined): CommercialC
 export const commercialCafeNarrativeDialogue = {
   triggerEntityId: 'lao-zhou',
   lines: [
-    { id: 'commercial-cafe-lao-zhou-first-xiujie', speaker: '修杰', text: '陈副部长还是没有消息吗？' },
+    { id: 'commercial-cafe-lao-zhou-first-xiujie', speaker: '修杰', text: '陈副部长那边，还是没消息吗？' },
     { id: 'commercial-cafe-lao-zhou-first-lao-zhou', speaker: '老周', speakerNpcId: 'lao-zhou', text: '还没有。' },
     { id: 'commercial-cafe-coffee-xiujie', speaker: '修杰', text: '你还是不爱喝咖啡。' },
     { id: 'commercial-cafe-coffee-lao-zhou', speaker: '老周', speakerNpcId: 'lao-zhou', text: '喝不惯。上次就因为喝了杯咖啡，折腾得半宿没睡好。年纪大了，经不起这个。' },
-    { id: 'commercial-cafe-intel-lao-zhou-document', speaker: '老周', speakerNpcId: 'lao-zhou', text: '说正事儿，昨天我整理文件的时候，无意间翻到一份文件，不过我权限不足，只能看到一部分。' },
+    { id: 'commercial-cafe-intel-lao-zhou-document', speaker: '老周', speakerNpcId: 'lao-zhou', text: '说正事儿。昨天整理文件时，我无意中看到一份材料，不过权限不够，只看到了其中一部分。' },
     { id: 'commercial-cafe-intel-lao-zhou-camera', speaker: '老周', speakerNpcId: 'lao-zhou', text: '文件里提到，矿区附近的监控疑似拍到过陈副部长。不过没有照片，我也不能确定是不是真的。' },
     { id: 'commercial-cafe-intel-xiujie-mine', speaker: '修杰', text: '矿区？' },
     { id: 'commercial-cafe-intel-lao-zhou-mine', speaker: '老周', speakerNpcId: 'lao-zhou', text: '对，按照陈副部长的生活工作范围来推测，不大可能会出现在那边。' },
@@ -306,6 +306,6 @@ export type CommercialCafeNpcInteractionResolution = { kind: 'dialogue'; dialogu
 export function resolveCommercialCafeNpcInteraction({ sceneId, npcId, story, playerSeatId, conversationSeatId = commercialCafeLaoZhouConversationSeatId }: { sceneId: MainlineSceneId; npcId: string; story: CommercialCafeStoryState; playerSeatId?: string | null; conversationSeatId?: string }): CommercialCafeNpcInteractionResolution | null {
   if (!isCafeWorldId(sceneId) || npcId !== 'lao-zhou') return null
   if (story.status === 'complete' || story.status === 'ready-to-leave' || story.laoZhouDeparture !== 'seated') return null
-  if (playerSeatId !== conversationSeatId) return { kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue, promptSeatId: conversationSeatId }
+  if (playerSeatId !== conversationSeatId) return { kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue }
   return { kind: 'start-narrative' }
 }

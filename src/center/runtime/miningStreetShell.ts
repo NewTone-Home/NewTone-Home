@@ -204,15 +204,16 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
     access: index === 1 ? 'open' : 'locked',
     ...(index === 1
       ? { transitionText: '\u8fdb\u5165\u6c38\u548c\u5c0f\u9986\u3002' }
-    : { lockedText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002', transitionText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002' }),
+    : { lockedText: '\u8fd9\u5bb6\u5e97\u6682\u65f6\u6ca1\u6709\u8425\u4e1a\u3002', transitionText: '\u8fd9\u5bb6\u5e97\u6682\u65f6\u6ca1\u6709\u8425\u4e1a\u3002' }),
   }))
   portals.push(...shops.filter(shop => shop.label !== miningShopNames[1]).map(shop => ({
     id: shop.portalId + '-back-door',
     entity: { id: shop.portalId + '-back-door', label: '\u540e\u95e8', displayLabel: '\u95e8', kind: 'door' as const, weight: 'gateway' as const, surface: 'wall' as const, doorBehavior: { leafCount: 'single' as const, openLeaves: 'both' as const } },
     endpoint: {
       doorPosition: { x: shop.doorX, y: shop.back },
-      threshold: { x: shop.doorX, y: shop.back + 1.5 * vertical },
-      crossingTarget: { x: shop.doorX, y: shop.back - 1.5 * vertical },
+      // Approached from the alley (above the shop's rear wall); crossing leads into the shop.
+      threshold: { x: shop.doorX, y: shop.back - 1.5 * vertical },
+      crossingTarget: { x: shop.doorX, y: shop.back + 1.5 * vertical },
     },
     routeThrough: true,
     fromRoomId: backAlleyRoom.id,
@@ -222,16 +223,16 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       opening: { edge: 'top' as const, start: shop.doorX - horizontal / 2, end: shop.doorX + horizontal / 2, doorId: shop.portalId + '-back-door', labelLayout: 'center' as const },
     }],
     access: 'locked' as const,
-    lockedText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002',
-    transitionText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002',
+    lockedText: '\u8fd9\u5bb6\u5e97\u6682\u65f6\u6ca1\u6709\u8425\u4e1a\u3002',
+    transitionText: '\u8fd9\u5bb6\u5e97\u6682\u65f6\u6ca1\u6709\u8425\u4e1a\u3002',
   })))
   portals.push({
     id: 'yonghe-back-door',
     entity: { id: 'yonghe-back-door', label: '\u540e\u95e8', displayLabel: '\u95e8', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
     endpoint: {
       doorPosition: { x: eatery.doorX, y: eatery.back },
-      threshold: { x: eatery.doorX, y: eatery.back + 1.5 * vertical },
-      crossingTarget: { x: eatery.doorX, y: eatery.back - 1.5 * vertical },
+      threshold: { x: eatery.doorX, y: eatery.back - 1.5 * vertical },
+      crossingTarget: { x: eatery.doorX, y: eatery.back + 1.5 * vertical },
     },
     routeThrough: true,
     fromRoomId: backAlleyRoom.id,
@@ -241,6 +242,26 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       opening: { edge: 'top', start: eatery.doorX - horizontal, end: eatery.doorX + horizontal, doorId: 'yonghe-back-door', labelLayout: 'center' },
     }],
     access: 'open',
+    transitionText: '',
+  })
+  // Warehouse door: the middle of the three wall cells on the alley's far-east wall (corners excluded).
+  const warehouseDoorCellHeight = backAlleyFrameHeight / sharedNarrowPassageFrameIntervals
+  const warehouseDoorY = backAlleyUpperWallY + 2 * warehouseDoorCellHeight
+  portals.push({
+    id: 'yonghe-warehouse-door',
+    entity: { id: 'yonghe-warehouse-door', label: '\u95e8', displayLabel: '\u95e8', spaceId: backAlleyRoom.id, kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+    endpoint: {
+      doorPosition: { x: rowRight, y: warehouseDoorY },
+      threshold: { x: rowRight - 1.5 * horizontal, y: warehouseDoorY },
+      crossingTarget: { x: rowRight + 1.5 * horizontal, y: warehouseDoorY },
+    },
+    fromRoomId: backAlleyRoom.id,
+    wallOpenings: [{
+      wallId: 'mining-street-back-alley-frame',
+      opening: { edge: 'right' as const, start: warehouseDoorY - warehouseDoorCellHeight / 2, end: warehouseDoorY + warehouseDoorCellHeight / 2, doorId: 'yonghe-warehouse-door', labelLayout: 'center' as const, doorFlankCount: 0 },
+    }],
+    access: 'locked' as const,
+    lockedText: '\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002',
     transitionText: '',
   })
   const lockedShops = shops.filter((_, index) => index !== 1)
@@ -271,15 +292,15 @@ export function createMiningStreetShellBlueprint(id: 'yonghe-mining-perimeter' |
       externalExit: { axis: 'x', direction: -1, threshold: rowStartX - 2.5 * horizontal },
       wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 }, walls,
       storefronts: shops.map(shop => shop.storefront), floorEntities: [], furnitureGroups: [], blockers: [],
-      accessRegions: lockedShops.map(shop => ({ id: shop.roomId + '-prohibited', x: shop.left, y: shop.back, width: shop.right - shop.left, height: facadeY - shop.back, requiredAccess: 'staff' as const, deniedText: '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002' })),
+      accessRegions: lockedShops.map(shop => ({ id: shop.roomId + '-prohibited', x: shop.left, y: shop.back, width: shop.right - shop.left, height: facadeY - shop.back, requiredAccess: 'staff' as const, deniedText: '\u8fd9\u5bb6\u5e97\u6682\u65f6\u6ca1\u6709\u8425\u4e1a\u3002' })),
       accessBoundaries: lockedShops.map(shop => ({ id: shop.roomId + '-front-permission', regionId: shop.roomId + '-prohibited', edge: 'bottom' as const })),
       airWalls,
       initialPlayerPosition: arrival, rideArrivalPosition: arrival,
     },
     portals,
     interactionText: {
-      ...Object.fromEntries(shops.map((shop, index) => [shop.portalId, index === 1 ? '\u8fdb\u5165\u6c38\u548c\u5c0f\u9986\u3002' : '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002'])),
-      ...Object.fromEntries(shops.filter(shop => shop.label !== miningShopNames[1]).map(shop => [shop.portalId + '-back-door', '\u8fd9\u5bb6\u5e97\u8fd8\u6ca1\u5f00\u95e8\u3002'])),
+      ...Object.fromEntries(shops.map((shop, index) => [shop.portalId, index === 1 ? '\u8fdb\u5165\u6c38\u548c\u5c0f\u9986\u3002' : '\u8fd9\u5bb6\u5e97\u6682\u65f6\u6ca1\u6709\u8425\u4e1a\u3002'])),
+      ...Object.fromEntries(shops.filter(shop => shop.label !== miningShopNames[1]).map(shop => [shop.portalId + '-back-door', '\u8fd9\u5bb6\u5e97\u6682\u65f6\u6ca1\u6709\u8425\u4e1a\u3002'])),
     },
   }
 }

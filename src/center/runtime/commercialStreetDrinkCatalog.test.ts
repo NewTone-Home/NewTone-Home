@@ -38,16 +38,16 @@ describe('commercial street drink reference catalog', () => {
       '百香果酸香，绿茶清爽', '葡萄果香，伴有茉莉花香', '鲜橙酸甜，果香自然', '草莓香甜，果味浓郁',
     ])
     expect(commercialStreetDrinkCatalogMissingCopy.descriptions).toEqual([])
-    expect(commercialStreetDrinkShopDialogue).toEqual({ welcome: '欢迎光临，看看想喝什么？', recommendationRequest: '有什么推荐？', preferenceQuestion: '喜欢清爽一点，还是浓郁一点？', preferenceOptions: ['清爽一点', '浓郁一点'], recommendationOptions: ['就要这款', '看看其他饮品'] })
+    expect(commercialStreetDrinkShopDialogue).toEqual({ welcome: '欢迎光临，看看想喝什么？', recommendationRequest: '有什么推荐？', preferenceQuestion: '想喝清爽些的，还是口味浓一点的？', preferenceOptions: ['清爽些的', '口味浓一点的'], recommendationOptions: ['就要这款', '再看看其他饮品'] })
   })
 
   it('points recommendations to products that support their customization', () => {
     const recommendations = commercialStreetDrinkCatalog.filter(item => item.recommendation)
     expect(recommendations.map(item => [item.id, item.recommendation?.mood, item.recommendation?.line])).toEqual([
-      ['taro-milk-tea', '浓郁', '芋泥奶茶的口感会比较浓郁。'],
-      ['jasmine-milk-green-tea', '清爽', '可以试试茉莉奶绿，花香比较清爽。'],
-      ['passionfruit-green-tea', '清爽', '可以试试百香果绿茶，酸香比较清爽。'],
-      ['strawberry-fruit-drink', '浓郁', '草莓果饮的果味会更浓郁一些。'],
+      ['taro-milk-tea', '浓郁', '想喝浓郁一点的，可以试试芋泥奶茶。'],
+      ['jasmine-milk-green-tea', '清爽', '可以试试茉莉奶绿，茉莉花香比较清新。'],
+      ['passionfruit-green-tea', '清爽', '百香果绿茶不错，果香明显，喝起来也清爽。'],
+      ['strawberry-fruit-drink', '浓郁', '想要果味浓一点，可以试试草莓果饮。'],
     ])
     expect(recommendations.find(item => item.id === 'strawberry-fruit-drink')?.customization.sugar).toBeNull()
     expect(recommendations.every(item => item.customization.ice.length > 0)).toBe(true)
@@ -73,9 +73,9 @@ describe('commercial street drink reference catalog', () => {
     expect(fruitTeaMenu).toContain('百香果绿茶  4\n百香果酸香，绿茶清爽')
     expect(fruitTeaMenu).toContain('草莓果饮  5\n草莓香甜，果味浓郁')
     expect(fruitTeaMenu).not.toContain('原味奶茶')
-    expect(recommendedCommercialStreetDrink('commercial-south-slot-5', '清爽一点')?.id).toBe('jasmine-milk-green-tea')
+    expect(recommendedCommercialStreetDrink('commercial-south-slot-5', '清爽些的')?.id).toBe('jasmine-milk-green-tea')
     expect(recommendedCommercialStreetDrink('commercial-south-slot-5', '浓郁一点')?.id).toBe('taro-milk-tea')
-    expect(recommendedCommercialStreetDrink('commercial-north-slot-1', '清爽一点')?.id).toBe('passionfruit-green-tea')
+    expect(recommendedCommercialStreetDrink('commercial-north-slot-1', '清爽些的')?.id).toBe('passionfruit-green-tea')
     expect(recommendedCommercialStreetDrink('commercial-north-slot-1', '浓郁一点')?.id).toBe('strawberry-fruit-drink')
   })
 })

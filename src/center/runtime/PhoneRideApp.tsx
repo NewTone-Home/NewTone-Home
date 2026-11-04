@@ -9,8 +9,8 @@ import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnaps
 import type { MainlineStoryClock } from './mainlineStoryClock'
 import { phoneDriverDistanceLabel, phoneDriverEtaLabel, phoneRideTripEstimate } from './phoneRidePresentation'
 type Point={x:number;y:number}
-export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,order,clock,storyClock,gameTimeMs,available,online,destinationId,onDestination,onConfirm,getPosition,getRideMapSnapshot}:{
- regions:readonly PhoneMapRegion[];device:PhoneDevice;currentLandmark:{device:PhoneDevice;id:string}|null;currentSceneId:MainlineSceneId;order:MainlineRideOrder|null;clock:number;storyClock:MainlineStoryClock;gameTimeMs?:number;available:boolean;online:boolean;destinationId:string|null;onDestination:(id:string)=>void;onConfirm:(sceneId:MainlineSceneId,presentation:{vehicle:MainlineRideVehicle;arrivalLabel?:string})=>MainlineRideRequestResult|void;getPosition?:()=>Point|null;getRideMapSnapshot?:()=>MainlineSceneGeometrySnapshot|null
+export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,order,clock,storyClock,gameTimeMs,available,online,destinationId,onDestination,onConfirm,getPosition,getRideMapSnapshot,guideRegionId}:{
+ guideRegionId?:string|null;regions:readonly PhoneMapRegion[];device:PhoneDevice;currentLandmark:{device:PhoneDevice;id:string}|null;currentSceneId:MainlineSceneId;order:MainlineRideOrder|null;clock:number;storyClock:MainlineStoryClock;gameTimeMs?:number;available:boolean;online:boolean;destinationId:string|null;onDestination:(id:string)=>void;onConfirm:(sceneId:MainlineSceneId,presentation:{vehicle:MainlineRideVehicle;arrivalLabel?:string})=>MainlineRideRequestResult|void;getPosition?:()=>Point|null;getRideMapSnapshot?:()=>MainlineSceneGeometrySnapshot|null
 }) {
  const destinations=regions.filter(region=>region.sceneId && region.id!==currentLandmark?.id)
  const destination=destinations.find(region=>region.id===destinationId) ?? null
@@ -41,7 +41,7 @@ export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,orde
  },[request])
  return <section className="world-phone__ride-page" aria-label="叫车">
   <div className="world-phone__ride-map-stage" data-ride-map-stage={order ? 'order' : 'selection'} key={order ? 'ride-order-map' : 'ride-selection-map'}>
-   {order ? <PhoneRideLocalMap waitingSceneId={order.sourceSceneId} sceneId={currentSceneId} getPosition={getPosition} getSnapshot={getRideMapSnapshot} coveredHeight={sheetHeight} /> : <PhoneMapCanvas mapRegions={regions} displayDevice={device} currentLandmark={currentLandmark} selectedMapPlaceId={destinationId} onSelect={id=>{if(destinations.some(d=>d.id===id)) {onDestination(id);setVehicle(null)}}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} focusId={destinationId} coveredHeight={sheetHeight} regionsOnly slowDestinationTravel />}
+   {order ? <PhoneRideLocalMap waitingSceneId={order.sourceSceneId} sceneId={currentSceneId} getPosition={getPosition} getSnapshot={getRideMapSnapshot} coveredHeight={sheetHeight} /> : <PhoneMapCanvas mapRegions={regions} displayDevice={device} currentLandmark={currentLandmark} selectedMapPlaceId={destinationId} onSelect={id=>{if(destinations.some(d=>d.id===id)) {onDestination(id);setVehicle(null)}}} mapZoom={zoom} setMapZoom={setZoom} mapPan={pan} setMapPan={setPan} focusId={destinationId} coveredHeight={sheetHeight} regionsOnly slowDestinationTravel guideRegionId={guideRegionId} />}
   </div>
   <div ref={sheetRef} className="world-phone__ride-sheet" data-expanded={sheetExpanded}>
    <button className="world-phone__sheet-handle" aria-label={sheetExpanded?'收起叫车面板':'展开叫车面板'} aria-expanded={sheetExpanded}
@@ -51,7 +51,7 @@ export function PhoneRideApp({regions,device,currentLandmark,currentSceneId,orde
     onClick={()=>{if(sheetDragged.current){sheetDragged.current=false;return}setSheetExpanded(value=>!value)}}><span className="world-phone__sheet-grip" /></button>
    {order ? <div data-ride-order="true" aria-live="polite"><div className="world-phone__ride-order-state" key={clock<order.driverArrivesAt?'driver-enroute':'driver-arrived'}><h3>{clock<order.driverArrivesAt?'司机正在路上':'司机已到达'}</h3><dl className="world-phone__ride-summary">
     {clock<order.driverArrivesAt && <><div><dt>司机预计到达</dt><dd>{phoneDriverEtaLabel(order.driverArrivesAt,clock)}</dd></div><div><dt>距离</dt><dd>{phoneDriverDistanceLabel(order.driverArrivesAt,clock)}</dd></div></>}
-    <div><dt>车型</dt><dd>{order.vehicle ?? '未记录'}</dd></div><div><dt>目的地</dt><dd>{regions.find(r=>r.sceneId===order.targetSceneId)?.label ?? '目的地'}</dd></div><div><dt>预计抵达目的地</dt><dd>{order.arrivalLabel ? `${order.arrivalLabel} 左右` : '未记录'}</dd></div></dl></div></div> : !online ? <p>当前无网络，无法叫车</p> : !available ? <p>服务暂未开通</p> : <>
+    <div><dt>车型</dt><dd>{order.vehicle ?? '未记录'}</dd></div><div><dt>目的地</dt><dd>{regions.find(r=>r.sceneId===order.targetSceneId)?.label ?? '目的地'}</dd></div><div><dt>预计抵达目的地</dt><dd>{order.arrivalLabel ? `${order.arrivalLabel} 左右` : '未记录'}</dd></div></dl></div></div> : !online ? <p>当前无网络，暂时无法叫车</p> : !available ? <p>叫车服务暂未开通</p> : <>
     <h3>{destination?`前往${destination.label}`:'选择目的地'}</h3>
     {!destination ? destinations.map(d=><button className="world-phone__ride-destination" key={d.id} onClick={()=>{onDestination(d.id);setVehicle(null)}}><span><strong>{d.label}</strong><small>从当前位置出发</small></span><span>›</span></button>) : <>
      {estimate && <p className="world-phone__ride-estimate" data-trip-minutes={estimate.minutes}><strong>预计 {estimate.arrivalLabel} 左右到达</strong><span>车程约 {estimate.minutes} 分钟</span></p>}

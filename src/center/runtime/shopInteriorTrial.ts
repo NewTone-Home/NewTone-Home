@@ -143,7 +143,7 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
     explorationText: { ...blueprint.explorationText, ...Object.fromEntries(entities.filter(e=>e.interactionStructureId&&!e.interactionBehavior).map(e=>[e.id,[e.label+'。']])),
       'commercial-cafe-menu': ['美式  3\n拿铁  4\n澳白  4\n焦糖玛奇朵  5\n海盐焦糖拿铁  5'], 'commercial-cafe-blackboard': ['新品｜海盐焦糖拿铁 — 5'],
       'cafe-trial-corner-plant-rear': ['这是店内的装饰，最好不要碰。'],
-      'cafe-trial-corner-plant-front': ['叶片层层叠在一起，把墙边的一小块地方遮住了。'],
+      'cafe-trial-corner-plant-front': ['层层叶片遮住了墙边一小块地方。'],
       'cafe-trial-coffee-machine': ['咖啡机放在员工工作线上。'], 'cafe-trial-prep-table': ['备餐台与咖啡机共用员工侧通道。'],
       'cafe-trial-wash': ['清洗台在柜台里面。'], 'cafe-trial-cold': ['冷藏设备在后方准备区。'],
     },
@@ -155,7 +155,7 @@ export function trialCafeInterior(blueprint: MainlineSceneBlueprint): MainlineSc
         ...groups.flatMap(group => group.entityIds.slice(1).map(id => ({ id: `${id}-table-gap`, firstEntityId: group.entityIds[0], secondEntityId: id })))],
       // These are role permissions inside the actual counter, not extra physical collision.
       accessRegions: [...(data.accessRegions ?? []).filter(region => region.id !== 'commercial-cafe-staff-area' && region.id !== 'cafe-trial-rear-work-area'),
-        { id: 'commercial-cafe-staff-area', ...point(0, 0), width: 196 / 1920 * 100, height: 480 / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }],
+        { id: 'commercial-cafe-staff-area', ...point(0, 0), width: 196 / 1920 * 100, height: 480 / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '柜台里面是员工区，不能随便进去。' }],
       // One finite work strip owns the counter and its independent employee opening.
       accessBoundaries: [...(data.accessBoundaries ?? []).filter(boundary => boundary.regionId !== 'commercial-cafe-staff-area' && boundary.regionId !== 'cafe-trial-rear-work-area'),
         { id: 'commercial-cafe-staff-right-access-boundary', regionId: 'commercial-cafe-staff-area', edge: 'right' as const }],
@@ -215,7 +215,7 @@ function buildTakeawayTrial(blueprint: MainlineSceneBlueprint, trial: TakeawayTr
     continuousStructures: [...(data.continuousStructures ?? []).filter(body => !body.id.startsWith(trial.oldStructurePrefix)), ...structures],
     blockers: data.blockers.filter(body => !body.id.startsWith(trial.oldStructurePrefix)),
     navigationBarriers: data.navigationBarriers?.filter(relation => !oldIds.has(relation.firstEntityId) && !oldIds.has(relation.secondEntityId)),
-    accessRegions: [...(data.accessRegions ?? []), ...trial.regions.map((region, index) => ({ id: `${trial.prefix}-staff-${index}`, ...point(region.x, region.y), width: region.width / 1920 * 100, height: region.height / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '这里是柜台员工区。' }))],
+    accessRegions: [...(data.accessRegions ?? []), ...trial.regions.map((region, index) => ({ id: `${trial.prefix}-staff-${index}`, ...point(region.x, region.y), width: region.width / 1920 * 100, height: region.height / 1080 * 100, requiredAccess: 'staff' as const, deniedText: '柜台里面是员工区，不能随便进去。' }))],
     accessBoundaries: [...(data.accessBoundaries ?? []), ...trial.regions.map((_, index) => ({ id: `${trial.prefix}-staff-boundary-${index}`, regionId: `${trial.prefix}-staff-${index}`, edge: trial.publicSide }))],
     actorAccess: { ...data.actorAccess, [workerId]: ['public', 'staff'] },
     // The existing counter worker is now the human ordering and recommendation contact.

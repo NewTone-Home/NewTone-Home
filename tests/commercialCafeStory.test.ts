@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  commercialCafeSeatGuideDialogue,
   commercialCafeAnalyticsMilestonePatch,
   commercialCafeAnalyticsMilestonesFromSceneState,
   commercialCafeAnalyticsStageForCursor,
@@ -41,11 +42,11 @@ import { npcRoles } from '../src/center/runtime/npcRoles'
 describe('commercial café story contract', () => {
   it('uses exactly the approved fourteen dialogue ids, speakers, and text', () => {
     const expected = [
-      ['commercial-cafe-lao-zhou-first-xiujie', '修杰', '陈副部长还是没有消息吗？'],
+      ['commercial-cafe-lao-zhou-first-xiujie', '修杰', '陈副部长那边，还是没消息吗？'],
       ['commercial-cafe-lao-zhou-first-lao-zhou', '老周', '还没有。'],
       ['commercial-cafe-coffee-xiujie', '修杰', '你还是不爱喝咖啡。'],
       ['commercial-cafe-coffee-lao-zhou', '老周', '喝不惯。上次就因为喝了杯咖啡，折腾得半宿没睡好。年纪大了，经不起这个。'],
-      ['commercial-cafe-intel-lao-zhou-document', '老周', '说正事儿，昨天我整理文件的时候，无意间翻到一份文件，不过我权限不足，只能看到一部分。'],
+      ['commercial-cafe-intel-lao-zhou-document', '老周', '说正事儿。昨天整理文件时，我无意中看到一份材料，不过权限不够，只看到了其中一部分。'],
       ['commercial-cafe-intel-lao-zhou-camera', '老周', '文件里提到，矿区附近的监控疑似拍到过陈副部长。不过没有照片，我也不能确定是不是真的。'],
       ['commercial-cafe-intel-xiujie-mine', '修杰', '矿区？'],
       ['commercial-cafe-intel-lao-zhou-mine', '老周', '对，按照陈副部长的生活工作范围来推测，不大可能会出现在那边。'],
@@ -62,7 +63,7 @@ describe('commercial café story contract', () => {
 
   it('starts the narrative from a seat without requiring a coffee order', () => {
     const story = initialCommercialCafeStoryState()
-    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: null })).toMatchObject({ kind: 'dialogue', promptSeatId: commercialCafeLaoZhouConversationSeatId })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: null })).toEqual({ kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue })
     expect(story.coffeeStatus).toBe('none')
   })
 
@@ -244,9 +245,7 @@ describe('commercial café story contract', () => {
       commercialCafeLaoZhouDeparture: 'seated',
     })
     expect(story).toMatchObject({ status: 'available', narrativeCursor: 3, laoZhouDeparture: 'seated' })
-    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story })).toMatchObject({
-      kind: 'dialogue', promptSeatId: commercialCafeLaoZhouConversationSeatId,
-    })
+    expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story })).toEqual({ kind: 'dialogue', dialogue: commercialCafeSeatGuideDialogue })
     expect(resolveCommercialCafeNpcInteraction({ sceneId: 'commercial-cafe', npcId: 'lao-zhou', story, playerSeatId: commercialCafeLaoZhouConversationSeatId })).toEqual({ kind: 'start-narrative' })
   })
 
