@@ -27,6 +27,82 @@ test('a runtime render exception leaves a visible recovery screen', async ({ pag
   await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeVisible({ timeout: 15_000 })
   expect(runtimeErrors.get(page)).toEqual([])
 })
+// A removed network route does not invalidate an already evaluated ESM module.
+// Keep the cached wrapper, but explicitly switch its fault off before rechecking.
+test('Check again resumes the unacknowledged ticket after the real render fault is disabled', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(globalThis, '__newtoneQaRuntimeFault', {
+      value: { active: true, throws: 0, healthyRenders: 0 }, configurable: true,
+    })
+  })
+  await page.route(/\/src\/center\/CenterExperience\.jsx(?:\?.*)?$/, async route => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.has('qaRecoveryOriginal')) return route.continue()
+    const original = await route.fetch()
+    const source = await original.text()
+    const reactImport = source.match(/from\s*["']([^"']*\/react\.js(?:\?[^"']*)?)["']/)
+    if (!reactImport) throw Error('QA_HARNESS_REACT_IMPORT_NOT_FOUND')
+    const originalModule = `${url.pathname}?qaRecoveryOriginal=1`
+    await route.fulfill({ response: original, contentType: 'text/javascript', body: `
+      import React from ${JSON.stringify(reactImport[1])};
+      import RealRuntime from ${JSON.stringify(originalModule)};
+      export default function RecoverableRuntime(props) {
+        const fault = globalThis.__newtoneQaRuntimeFault;
+        if (fault.active) { fault.throws++; throw Error('BOUNDARY_RENDER_SENTINEL'); }
+        fault.healthyRenders++;
+        return React.createElement(RealRuntime, props);
+      }
+    ` })
+  })
+  const facts = () => page.evaluate(() => {
+    const authority = JSON.parse(localStorage.getItem('newtone-save-entry-authority-v2')!)
+    const player = JSON.parse(authority.values['newtone-player-save-v1'])
+    const pending = JSON.parse(localStorage.getItem('newtone-save-entry-pending-v2')!)
+    return {
+      generation: authority.generation, receipt: authority.operationReceipt,
+      ticket: pending.ticket,
+      walletBalance: player.walletBalance, shopOrders: player.shopOrders,
+      shopOrderPaymentReceipts: player.shopOrderPaymentReceipts,
+      monthlySalaryReceipts: player.monthlySalaryReceipts,
+      laoZhouCafeSeatId: player.laoZhouCafeSeatId,
+    }
+  })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 15_000 })
+  const recovery = page.locator('[data-runtime-recovery]')
+  await expect(recovery).toBeVisible({ timeout: 15_000 })
+  await expect(recovery).toHaveAttribute('data-recovery-first-reason', 'BOUNDARY_RENDER_SENTINEL')
+  await expect(recovery.getByRole('button', { name: 'Check again', exact: true })).toBeEnabled()
+  const before = await facts()
+  expect(await page.evaluate(() => localStorage.getItem('newtone-save-entry-acknowledged-v2'))).toBeNull()
+  const disabled = await page.evaluate(() => {
+    const fault = (globalThis as typeof globalThis & {
+      __newtoneQaRuntimeFault: { active: boolean; throws: number; healthyRenders: number }
+    }).__newtoneQaRuntimeFault
+    if (!fault.active || fault.throws < 1) throw Error('QA_FAULT_NOT_OBSERVED')
+    fault.active = false
+    return { ...fault }
+  })
+  expect(disabled.active).toBe(false)
+  await recovery.getByRole('button', { name: 'Check again', exact: true }).click()
+  // Commit happened before the render error; no ACK yet. Resolve the SAME
+  // ticket directly into a fresh usable session, rather than demanding Continue.
+  await expect(page.locator('.center-experience').first()).toBeVisible({ timeout: 15_000 })
+  await expect(recovery).toHaveCount(0, { timeout: 15_000 })
+  await expect(page.locator('[data-world-entry-phase]')).toHaveCount(0, { timeout: 15_000 })
+  const after = await facts()
+  expect(after).toEqual(before)
+  const healthy = await page.evaluate(() => ({ ...(globalThis as typeof globalThis & {
+    __newtoneQaRuntimeFault: { active: boolean; throws: number; healthyRenders: number }
+  }).__newtoneQaRuntimeFault }))
+  expect(healthy.throws).toBe(disabled.throws)
+  expect(healthy.healthyRenders).toBeGreaterThan(0)
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('newtone-save-entry-acknowledged-v2')!))).toMatchObject({
+    operationId: before.receipt.operationId, generationId: before.generation.id,
+  })
+  expect(runtimeErrors.get(page)).toEqual([])
+})
+
 test('legacy-source conflict preserves authority and recovers without a blank root', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'Start', exact: true }).click({ timeout: 15_000 })

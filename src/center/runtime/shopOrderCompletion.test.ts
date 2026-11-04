@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { crossShopIds, type CrossShopOrder } from './crossShopOrders'
 import { notifyDueShopOrders } from './shopOrderCompletion'
-import { createInitialPlayerSave, createPositionSaveCoordinator, recordPlayerScenePosition, savePlayerSave, PLAYER_SAVE_STORAGE_KEY, type PlayerSave } from './playerSave'
+import { createInitialPlayerSave, createPositionSaveCoordinator, recordPlayerScenePosition, savePlayerSave, PLAYER_SAVE_STORAGE_KEY, type PlayerSave, type PlayerPoint } from './playerSave'
 import { memoryStorage } from '../../save-session.mjs'
 import type { PhoneNotification } from './phoneNotifications'
 
@@ -54,6 +54,12 @@ function completionSave(): PlayerSave {
     phoneNotifications: [{ ...oldYongheNotice }, { ...unrelatedNotice }],
   }
 }
+// This completion-only coordinator records positions only for its active scene.
+// Validate the broad coordinator argument before passing the typed saved scene.
+function recordCompletionPosition(save: PlayerSave, sceneId: string, position: PlayerPoint): PlayerSave {
+  if (sceneId !== save.currentSceneId) throw new Error('completion-position-scene-mismatch')
+  return recordPlayerScenePosition(save, save.currentSceneId, position)
+}
 function dueUpdate(current: PlayerSave): PlayerSave {
   const completion = notifyDueShopOrders(current.shopOrders, current.phoneNotifications, 300)
   return completion.changed ? { ...current, shopOrders: completion.orders, phoneNotifications: completion.notifications } : current
@@ -105,7 +111,7 @@ describe('completion copy-on-write through the real save coordinator', () => {
     const publish = vi.fn((next: PlayerSave) => { current = next })
     const coordinator = createPositionSaveCoordinator({
       getSave: () => current, setSave: publish, getCurrentSceneId: () => current.currentSceneId,
-      recordPosition: recordPlayerScenePosition, persist: next => savePlayerSave(next, unavailable),
+      recordPosition: recordCompletionPosition, persist: next => savePlayerSave(next, unavailable),
     })
     expect(() => coordinator.commit(dueUpdate)).toThrow('player-save-write-failed')
     expect(failure).toHaveBeenCalledTimes(1)
@@ -133,7 +139,7 @@ describe('completion copy-on-write through the real save coordinator', () => {
     })
     const coordinator = createPositionSaveCoordinator({
       getSave: () => current, setSave: publish, getCurrentSceneId: () => current.currentSceneId,
-      recordPosition: recordPlayerScenePosition, persist,
+      recordPosition: recordCompletionPosition, persist,
     })
     coordinator.commit(dueUpdate)
     expect(persist).toHaveBeenCalledTimes(1)

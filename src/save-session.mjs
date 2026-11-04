@@ -78,7 +78,7 @@ export function createJournalStorage(raw,initial,sourceSnapshot,readSources,onSt
     transaction.changed=true;
   });
   check(); // Reject the verified-write -> facade-construction interleaving.
-  return {
+  const facade = {
     getItem(key){check();const values=transaction?.values??journal.values;return Object.hasOwn(values,key)?values[key]:null;},
     setItem:(key,value)=>write(key,String(value)),removeItem:key=>write(key,null),clear:()=>stop('save-reset-requires-explicit-recovery'),
     key(i){check();return Object.keys(transaction?.values??journal.values)[i]??null;},get length(){check();return Object.keys(transaction?.values??journal.values).length;},
@@ -89,6 +89,10 @@ export function createJournalStorage(raw,initial,sourceSnapshot,readSources,onSt
     setValidator(validate){check();try{validate(journal.values);}catch(error){return stop('save-consistency-failed: '+error.message);}validateValues=validate;},
     check,stop:(reason='save-session-closed')=>stop(reason),get isOpen(){return !stopped;},get stopReason(){return stopReason;},get revision(){return journal.revision;},
   };
+  // React DEV inspects enumerable prop values after error-boundary teardown.
+  // Hide the protected accessor from that enumeration, not from explicit access.
+  Object.defineProperty(facade,'length',{enumerable:false});
+  return facade;
 }
 export function isWritableGameKey(key){return key===PUBLICATION_KEY||key==='newtone-player-save-v1'||/^newtone-(progress-v[1-4]|narrative-progress-v[12]|reader-exit-tutorial-v1|landing-intro-v1)$/.test(key)||key==='newtone-choice-wheel-hint-seen'||key==='newtone-scene-motion-enabled'||key.startsWith('newtone:center:scene-layout:')||key.startsWith('newtone-layout-');}
 export async function acquireSaveSession(locks,run,onFailure){if(!locks?.request)return onFailure('locking-unavailable');try{return await locks.request(SESSION_LOCK,{mode:'exclusive',ifAvailable:true},async lock=>lock?await run():onFailure('another-tab-active'));}catch(error){return onFailure('locking-failed',String(error));}}

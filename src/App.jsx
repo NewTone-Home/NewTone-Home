@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
-import RuntimeRecoveryBoundary from './components/RuntimeRecoveryBoundary'
+import RuntimeRecoveryBoundary, { boundaryRecoveryPresentation, runBoundaryRecoveryAction } from './components/RuntimeRecoveryBoundary'
 import RuntimeRecoveryPanel from './components/RuntimeRecoveryPanel'
 import { trackEvent } from './services/analytics'
 import { createLandingEntryObserver } from './services/landingEntryObserver.mjs'
@@ -147,7 +147,22 @@ export default function App() {
     }) }} />
   return <>
     <RuntimeRecoveryBoundary resetKey={entry.committed?.sessionHandle ?? adopted.current} onError={reportRuntimeFailure}
-      fallback={entry.phase === 'entering' && !recoveringRuntime ? recoveryPanel : null}>
+      renderFallback={boundaryEvidence => {
+        // Render from the captured fault even if React has not committed the
+        // parent's recovery update yet. Never expose stale entering/busy UI.
+        if (recoveringRuntime) return null
+        const current = controller.getState()
+        const presentation = boundaryRecoveryPresentation(current, boundaryEvidence)
+        if (!presentation) return null
+        const fault = presentation.evidence
+        return <RuntimeRecoveryPanel language={language} text={text}
+          phase={presentation.phase} evidence={fault}
+          style={warningStyle} warnings={warningMessages}
+          onBack={() => { runBoundaryRecoveryAction(controller, fault, 'back'); setRecoveringRuntime(false) }}
+          onRecheck={() => { runBoundaryRecoveryAction(controller, fault, 'recheck').then(() => {
+            if (!['failed', 'uncertain', 'probing'].includes(controller.getState().phase)) setRecoveringRuntime(false)
+          }) }} />
+      }}>
     {Runtime && <Runtime key={runtime.sessionHandle.generation} initialSnapshot={runtime.snapshot} sessionHandle={runtime.sessionHandle}
       entryPhase={world.phase} onSceneReady={() => {
         const handle = runtime.sessionHandle

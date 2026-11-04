@@ -277,3 +277,49 @@ test('ACK failure revokes bound cleanup before returning, and another service re
   expect(()=>committed.sessionHandle.check()).toThrow('save-session-stopped');
   runtime.dispose();
 });
+
+function reactDebugProperties(value, properties = []) {
+  if (!value || typeof value !== 'object') return properties;
+  // Same own-enumerable value access as React DEV addObjectToProperties.
+  for (const key in value) if (Object.prototype.hasOwnProperty.call(value,key)) {
+    const child=value[key];
+    properties.push([key,typeof child]);
+    if(child && typeof child==='object')reactDebugProperties(child,properties);
+  }
+  return properties;
+}
+test('real facade debug enumeration and descriptors never read protected data, including after revocation',async()=>{
+  const r=rig(memoryStorage({[PLAYER]:JSON.stringify(save())})),committed=await choose(r,'continue'),facade=committed.sessionHandle.storage;
+  const expectedLength=Object.keys(committed.snapshot.values).length;
+  expect(facade.length).toBe(expectedLength);
+  const originalRead=r.raw.getItem.bind(r.raw);
+  const before=Object.fromEntries(Array.from({length:r.raw.length},(_,i)=>[r.raw.key(i),originalRead(r.raw.key(i))]));
+  const read=vi.spyOn(r.raw,'getItem'),write=vi.spyOn(r.raw,'setItem');
+  expect(()=>reactDebugProperties({sessionHandle:committed.sessionHandle})).not.toThrow();
+  expect(read).not.toHaveBeenCalled();expect(write).not.toHaveBeenCalled();
+  await committed.sessionHandle.close();
+  read.mockClear();write.mockClear();
+  let descriptors;
+  expect(()=>{descriptors=Object.getOwnPropertyDescriptors(facade);reactDebugProperties({sessionHandle:committed.sessionHandle});Object.entries(facade);Object.assign({},facade);JSON.stringify({sessionHandle:committed.sessionHandle});}).not.toThrow();
+  expect(descriptors.length.enumerable).toBe(false);
+  expect(typeof descriptors.length.get).toBe('function');
+  expect(Object.keys(facade)).not.toContain('length');
+  expect(facade.isOpen).toBe(false);expect(facade.stopReason).toBe('session-closed');
+  expect(read).not.toHaveBeenCalled();expect(write).not.toHaveBeenCalled();
+  read.mockRestore();write.mockRestore();
+  expect(Object.fromEntries(Array.from({length:r.raw.length},(_,i)=>[r.raw.key(i),r.raw.getItem(r.raw.key(i))]))).toEqual(before);
+});
+test('revoked real facade still rejects explicit data reads, writes and commits without changing old raw or authority',async()=>{
+  const oldRaw=JSON.stringify(save()),r=rig(memoryStorage({[PLAYER]:oldRaw})),committed=await choose(r,'continue'),facade=committed.sessionHandle.storage;
+  const snapshot=()=>Object.fromEntries(Array.from({length:r.raw.length},(_,i)=>[r.raw.key(i),r.raw.getItem(r.raw.key(i))]));
+  const before=snapshot();
+  await committed.sessionHandle.close();
+  const callback=vi.fn();
+  for(const access of [()=>facade.length,()=>facade.getItem(PLAYER),()=>facade.getItem('missing'),()=>facade.key(0),()=>facade.key(999),()=>facade.setItem(PLAYER,oldRaw),()=>facade.removeItem('newtone-choice-wheel-hint-seen'),()=>facade.transaction(callback),()=>facade.afterCommit('late',callback),()=>facade.setValidator(callback),()=>facade.check()])expect(access).toThrow('save-session-stopped');
+  expect(()=>facade.clear()).toThrow('save-reset-requires-explicit-recovery');
+  expect(()=>Object.getOwnPropertyDescriptor(facade,'length').get.call(facade)).toThrow('save-session-stopped');
+  expect(callback).not.toHaveBeenCalled();
+  expect(facade.stopReason).toBe('session-closed');
+  expect(r.raw.getItem(PLAYER)).toBe(oldRaw);
+  expect(snapshot()).toEqual(before);
+});

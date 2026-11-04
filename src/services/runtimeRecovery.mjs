@@ -1,6 +1,10 @@
 import { closeRuntimeEntryHandle } from './runtimeEntryLifecycle.mjs'
-function evidence(error, info) {
+export function runtimeFailureDetail(error, info = {}) {
   return { message: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack ?? '' : '', stage: info.stage ?? 'runtime', componentStack: info.componentStack ?? '' }
+}
+export function runtimeFailureRecord(error, info = {}) {
+  const first = runtimeFailureDetail(error, info)
+  return { first, events: [first] }
 }
 export function createRuntimeRecovery(onRecover) {
   let owner = null, first = null, events = [], reporting = false
@@ -15,7 +19,7 @@ export function createRuntimeRecovery(onRecover) {
     report(error, info = {}, handle = owner, observer = null) {
       const previous = handle && terminated.get(handle)
       if (previous) { first = previous.first; events = [...previous.events] }
-      const detail = evidence(error, info)
+      const detail = runtimeFailureDetail(error, info)
       first ??= detail
       if (events.length < 12) events.push(detail)
       // Latch before close/onStop/React effect replay can reenter this path.
@@ -30,7 +34,7 @@ export function createRuntimeRecovery(onRecover) {
           } else closeRuntimeEntryHandle(handle)
         }
       } catch (closeError) {
-        if (events.length < 12) events.push(evidence(closeError, { stage: 'runtime-close' }))
+        if (events.length < 12) events.push(runtimeFailureDetail(closeError, { stage: 'runtime-close' }))
       } finally {
         reporting = false
         const record = { first, events: [...events] }

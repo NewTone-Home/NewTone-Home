@@ -8,6 +8,26 @@ function fixture(result = inspection()) {
   return { service, controller: createEntryController(service) }
 }
 describe('entry UI transaction boundary', () => {
+  it('recheck resumes a render-failed committed ticket without another prepare or commit', async () => {
+    const { controller, service } = fixture(inspection('empty'))
+    await controller.start(); await controller.submit('create')
+    const original = controller.getState().committed
+    const error = { message: 'BOUNDARY_RENDER_SENTINEL' }
+    controller.runtimeFailed({ first: error, events: [error] })
+    const newHandle = { check: vi.fn() }
+    service.getRecoveryState.mockResolvedValueOnce({ status: 'operation-found', ticket: original.ticket, phase: 'committed' })
+    service.resolveOperation.mockResolvedValueOnce({ ...original, sessionHandle: newHandle })
+    await controller.recheck()
+    expect(service.resolveOperation).toHaveBeenCalledWith({ ticket: original.ticket })
+    expect(service.prepareEntry).toHaveBeenCalledTimes(1)
+    expect(service.commitEntry).toHaveBeenCalledTimes(1)
+    expect(controller.getState().phase).toBe('entering')
+    expect(controller.getState().committed.sessionHandle).toBe(newHandle)
+    expect(controller.getState().committed.ticket).toBe(original.ticket)
+    expect(controller.getState().committed.snapshot).toBe(original.snapshot)
+    expect(controller.getState().runtimeEvidence).toBeNull()
+  })
+
   it('retains the exact read-only preview without preparing an operation', async () => {
     const preview = { preferences: { themePosition: 1, motionMode: 'reduced' }, landingIntro: { status: 'learned', learned: true } }
     const { controller, service } = fixture({ ...inspection(), preview })
