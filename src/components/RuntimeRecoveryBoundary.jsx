@@ -9,5 +9,5 @@ export default class RuntimeRecoveryBoundary extends Component {
   }
   static getDerivedStateFromError(error) { return { error } }
   componentDidCatch(error, info) { this.props.onError(error, { stage: 'runtime-boundary', componentStack: info.componentStack }) }
-  render() { return this.state.error ? null : this.props.children }
+  render() { return this.state.error ? this.props.fallback ?? null : this.props.children }
 }

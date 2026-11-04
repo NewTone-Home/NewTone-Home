@@ -3,6 +3,7 @@ import RuntimeRecoveryBoundary from './components/RuntimeRecoveryBoundary'
 import RuntimeRecoveryPanel from './components/RuntimeRecoveryPanel'
 import { trackEvent } from './services/analytics'
 import { createLandingEntryObserver } from './services/landingEntryObserver.mjs'
+import { canAdoptRuntime } from './services/runtimeEntryIdentity.mjs'
 import { createRuntimeRecovery } from './services/runtimeRecovery.mjs'
 import EntrySurface from './components/EntrySurface'
 import EntryButtonGroup from './components/EntryButtonGroup'
@@ -54,7 +55,16 @@ export default function App() {
     if (entry.phase !== 'entering' || !result) return
     let live = true
     const handle = result.sessionHandle
-    runtimeRecovery.current.reset(handle)
+    // An old committed render/effect is not permission to revive its handle.
+    if (!canAdoptRuntime(controller.getState(), result, runtimeRecovery.current)) {
+      const current = controller.getState()
+      if (current.phase === 'entering' && current.committed === result && !runtimeRecovery.current.isTerminated(handle) && handle.isOpen === false) {
+        reportRuntimeFailure(handle.stopReason ?? 'save-session-stopped', { stage: 'closed-before-adoption' }, handle)
+      }
+      return
+    }
+    if (!runtimeRecovery.current.reset(handle)) return
+    try { handle.check() } catch (error) { reportRuntimeFailure(error, { stage: 'adoption-check' }, handle); return }
     setRecoveringRuntime(false)
     const lifecycle = observeRuntimeEntry(handle, reason => {
       reportRuntimeFailure(reason, { stage: 'session-stop' }, handle)
@@ -71,6 +81,11 @@ export default function App() {
     }
     import('./center/CenterExperience.jsx').then(module => {
       if (!live) return
+      if (!canAdoptRuntime(controller.getState(), result, runtimeRecovery.current)) {
+        const current = controller.getState()
+        if (current.phase === 'entering' && current.committed === result && !runtimeRecovery.current.isTerminated(handle) && handle.isOpen === false) reportRuntimeFailure(handle.stopReason ?? 'save-session-stopped', { stage: 'closed-before-import-complete' }, handle)
+        return
+      }
       try {
         handle.check()
         setRuntime({ Component: module.default, snapshot: result.snapshot, sessionHandle: handle })
@@ -123,7 +138,7 @@ export default function App() {
     {entries.length > 0 && <EntryButtonGroup key={`${entry.phase}:${entry.epoch}`} groupId={`save-entry:${entry.phase}:${entry.epoch}`}
       entries={entries.map(item => ({ ...item, disabled: ['create', 'continue'].includes(item.id) ? !entry.inspection?.allowedActions?.includes(item.id) : item.id === 'request-replace' ? !entry.inspection?.allowedActions?.includes('request-replace') : false }))} initialFocusId={entry.phase === 'overwrite-confirm' ? 'cancel' : entry.focusTarget ?? null} materialMode="background" className={entry.phase === 'overwrite-confirm' ? 'save-entry-confirm' : ''} onNavigate={onAction} />}
   </section>
-  const Runtime = runtime?.Component
+  const Runtime = entry.phase === 'entering' && !runtimeRecovery.current.isTerminated(runtime?.sessionHandle) ? runtime?.Component : null
   const recoveryPanel = <RuntimeRecoveryPanel language={language} text={text} phase={entry.phase}
     evidence={entry.runtimeEvidence} style={warningStyle} warnings={warningMessages}
     onBack={() => { controller.back(); setRecoveringRuntime(false) }}
@@ -131,7 +146,8 @@ export default function App() {
       if (!['failed', 'uncertain', 'probing'].includes(controller.getState().phase)) setRecoveringRuntime(false)
     }) }} />
   return <>
-    <RuntimeRecoveryBoundary resetKey={entry.committed?.sessionHandle ?? adopted.current} onError={reportRuntimeFailure}>
+    <RuntimeRecoveryBoundary resetKey={entry.committed?.sessionHandle ?? adopted.current} onError={reportRuntimeFailure}
+      fallback={entry.phase === 'entering' && !recoveringRuntime ? recoveryPanel : null}>
     {Runtime && <Runtime key={runtime.sessionHandle.generation} initialSnapshot={runtime.snapshot} sessionHandle={runtime.sessionHandle}
       entryPhase={world.phase} onSceneReady={() => {
         const handle = runtime.sessionHandle
@@ -141,7 +157,7 @@ export default function App() {
             if (observer.lifecycle.abandon(reason, { notifyUI: false }) === false) throw Error('SESSION_CLOSE_FAILED')
           } else closeRuntimeEntryHandle(handle)
         } }).then(ok => {
-          if (ok && controller.getState().committed?.sessionHandle === handle) dispatch({ type: 'scene-ready' })
+          if (ok && controller.getState().phase === 'entering' && controller.getState().committed?.sessionHandle === handle && !runtimeRecovery.current.isTerminated(handle)) dispatch({ type: 'scene-ready' })
         })
       }} onRevealComplete={() => dispatch({ type: 'reveal-complete' })} />}
     </RuntimeRecoveryBoundary>

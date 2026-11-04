@@ -19,7 +19,7 @@ export function notifyDueShopOrders(
   for (const [shopId, order] of Object.entries(orders)) {
     if (order.status !== 'queued' || order.completionNotified === true
       || order.readyAtGameTimeMs === null || gameTimeMs < order.readyAtGameTimeMs) continue
-    if (!changed) nextOrders = { ...orders }
+    if (nextOrders === orders) nextOrders = { ...orders }
     nextOrders[shopId] = { ...order, completionNotified: true }
     // Yonghe is not part of the phone order app; the owner tells the player in person.
     if (shopId !== 'yonghe-eatery') nextNotifications = enqueuePhoneNotification(nextNotifications, {

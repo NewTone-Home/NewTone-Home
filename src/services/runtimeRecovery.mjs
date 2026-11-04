@@ -4,12 +4,22 @@ function evidence(error, info) {
 }
 export function createRuntimeRecovery(onRecover) {
   let owner = null, first = null, events = [], reporting = false
+  const terminated = new WeakMap()
   return {
-    reset(handle) { if (owner !== handle) { owner = handle; first = null; events = [] } },
+    isTerminated(handle) { return Boolean(handle && terminated.has(handle)) },
+    reset(handle) {
+      if (handle && terminated.has(handle)) return false
+      if (owner !== handle) { owner = handle; first = null; events = [] }
+      return true
+    },
     report(error, info = {}, handle = owner, observer = null) {
+      const previous = handle && terminated.get(handle)
+      if (previous) { first = previous.first; events = [...previous.events] }
       const detail = evidence(error, info)
       first ??= detail
       if (events.length < 12) events.push(detail)
+      // Latch before close/onStop/React effect replay can reenter this path.
+      if (handle) terminated.set(handle, { first, events: [...events] })
       if (reporting) return
       reporting = true
       try {
@@ -23,7 +33,9 @@ export function createRuntimeRecovery(onRecover) {
         if (events.length < 12) events.push(evidence(closeError, { stage: 'runtime-close' }))
       } finally {
         reporting = false
-        onRecover({ first, events: [...events] })
+        const record = { first, events: [...events] }
+        if (handle) terminated.set(handle, record)
+        onRecover(record)
       }
     },
   }

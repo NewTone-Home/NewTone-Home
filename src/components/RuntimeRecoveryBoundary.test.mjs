@@ -3,6 +3,12 @@ import Boundary from './RuntimeRecoveryBoundary.jsx'
 import Panel from './RuntimeRecoveryPanel.jsx'
 import { entryPresentation } from '../services/entryPresentation.mjs'
 describe('stable runtime boundary contract',()=>{
+  it('renders a store-independent fallback before deferred parent state updates commit',()=>{
+    const error=Error('BOUNDARY_RENDER_SENTINEL'),fallback='visible-recovery'
+    const boundary=new Boundary({resetKey:{},onError:vi.fn(),children:'broken-runtime',fallback})
+    boundary.state={...boundary.state,...Boundary.getDerivedStateFromError(error)}
+    expect(boundary.render()).toBe(fallback)
+  })
   it('records a real render or cleanup error without removing the surrounding recovery controls',()=>{
     const onError=vi.fn(),handle={},boundary=new Boundary({resetKey:handle,onError,children:'runtime'})
     const error=Error('cleanup-write-after-revoke')

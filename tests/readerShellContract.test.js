@@ -129,7 +129,11 @@ describe('Reader shell contract boundaries', () => {
     expect(readingEntryController).toContain("recordRuntimeAudit('reader-transition-ready'")
     expect(readingEntryController).not.toContain('MIN_READER_MS')
     expect(readingEntryController).not.toContain('RESUME_READER_MS')
-    expect(app).toContain('onTransitionReady={readingEntry.isActive ? readingEntry.handleTransitionReady : undefined}')
+    // Reader transition readiness remains a Reader module concern; public
+    // Center entry now gates reveal on its own acknowledged scene readiness.
+    expect(app).not.toContain('readingEntry.handleTransitionReady')
+    expect(app).toContain('controller.acknowledgeEntered(')
+    expect(read('../src/admin/OwnerReaderPreviewHost.jsx')).toContain("notifyTargetReady('reader')")
     expect(transition).toContain('onAnimationEnd={handleResumeAnimationEnd}')
     expect(transition).toContain("event.animationName === 'reading-transition-resume-blink'")
     expect(titleMark).toContain('onComplete?.()')
