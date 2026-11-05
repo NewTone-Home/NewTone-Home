@@ -1,23 +1,107 @@
 import { registerPhoneTestNetwork } from './phoneTestNetwork'
 registerPhoneTestNetwork()
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
+import { ACKNOWLEDGED, AUTHORITY, SAVE_EPOCH, WRITER_LOCK } from '../src/services/saveEpoch.mjs'
+
+// Every browser case enters through the real UI; no legacy slot or bootstrap override.
+async function waitForEnteredGame(page: Page): Promise<string> {
+  await expect(page.locator('.center-experience--active')).toBeVisible()
+  await expect(page.locator('.entry-surface')).toHaveCount(0)
+  await expect.poll(() => page.evaluate(({ AUTHORITY, ACKNOWLEDGED, SAVE_EPOCH }) => {
+    const authority = JSON.parse(localStorage.getItem(AUTHORITY) ?? 'null')
+    const ack = JSON.parse(localStorage.getItem(ACKNOWLEDGED) ?? 'null')
+    return Boolean(authority?.saveEpoch === SAVE_EPOCH && ack?.saveEpoch === SAVE_EPOCH
+      && ack.generationId === authority.generation.id
+      && ack.operationId === authority.operationReceipt.operationId)
+  }, { AUTHORITY, ACKNOWLEDGED, SAVE_EPOCH })).toBe(true)
+  return page.evaluate(key => JSON.parse(localStorage.getItem(key)!).generation.id, AUTHORITY)
+}
+
+async function continueGame(page: Page, generation: string) {
+  await expect(page.locator('[data-save-entry-phase="choice-ready"]')).toBeVisible()
+  await page.locator('[data-entry-group-entry="continue"]').click()
+  expect(await waitForEnteredGame(page)).toBe(generation)
+}
+
+async function startCompletedCafeGame(page: Page): Promise<string> {
+  await page.goto('/')
+  await expect(page.locator('[data-save-entry-phase="start-ready"]')).toBeVisible()
+  expect(await page.evaluate(key => localStorage.getItem(key), AUTHORITY)).toBeNull()
+  await page.locator('[data-entry-group-entry="create"]').click()
+  const generation = await waitForEnteredGame(page)
+
+  // Leave the mounted game before fixture writes: its cleanup cannot overwrite them.
+  // This test-only blank document has no App. All fixture writes still use the
+  // existing service lock, ticket, validator and bound storage, never raw authority.
+  const fixtureUrl = '/__phone-current-fixture__.html'
+  await page.route('**' + fixtureUrl, route => route.fulfill({
+    contentType: 'text/html', body: '<!doctype html><title>Phone fixture setup</title>',
+  }))
+  await page.goto(fixtureUrl)
+  await page.unroute('**' + fixtureUrl)
+  await expect.poll(() => page.evaluate(async lockName => {
+    const state = await navigator.locks.query()
+    return !(state.held ?? []).some(lock => lock.name === lockName)
+  }, WRITER_LOCK)).toBe(true)
+
+  const fixture = await page.evaluate(async expectedGeneration => {
+    const load = (path: string) => import(/* @vite-ignore */ path)
+    const { getSaveEntryService, PLAYER } = await load('/src/services/saveEntryService.mjs')
+    const { loadPlayerSave, sanitizePlayerSave, savePlayerSave } = await load('/src/center/runtime/playerSave.ts')
+    const { validateNew } = await load('/src/services/saveMigration.mjs')
+    const { commercialCafeStoryStatePatch, commercialCafeNarrativeDialogue } = await load('/src/center/runtime/commercialCafeStory.ts')
+    const { openingGuidancePatch } = await load('/src/center/runtime/openingGuidance.ts')
+    const service = getSaveEntryService()
+    const inspection = await service.inspectSave()
+    if (inspection.classification !== 'generation-current') throw Error('Fixture requires a real current save')
+    const prepared = await service.prepareEntry({ intent: 'continue', snapshotToken: inspection.snapshotToken })
+    if (prepared.status !== 'prepared') throw Error('Fixture prepare: ' + JSON.stringify(prepared))
+    const committed = await service.commitEntry({ ticket: prepared.ticket })
+    if (committed.status !== 'committed') throw Error('Fixture commit: ' + JSON.stringify(committed))
+    const handle = committed.sessionHandle
+    try {
+      if (handle.generation !== expectedGeneration) throw Error('Fixture changed the game generation')
+      const current = validateNew(loadPlayerSave(handle.storage))
+      const completedCafe = commercialCafeStoryStatePatch({
+        status: 'complete', narrativeCursor: commercialCafeNarrativeDialogue.lines.length,
+        coffeeStatus: 'delivered', coffeePreparationStartedAt: null,
+        narrativePhase: 'complete', laoZhouDeparture: 'departed', completedAt: Date.now(),
+      })
+      const candidate = openingGuidancePatch({
+        ...current, currentSceneId: 'commercial-cafe', currentPosition: null,
+        storyClock: { ...current.storyClock, stage: 'cafe' },
+        sceneState: { ...current.sceneState,
+          'commercial-street': { ...current.sceneState['commercial-street'],
+            laoZhouConversationTriggered: true, laoZhouTriggerEvidenceVersion: 1 },
+          'commercial-cafe': { ...current.sceneState['commercial-cafe'], ...completedCafe },
+        },
+      }, { state: 'triggered', evidence: ['test-fixture:completed-cafe'] })
+      // Normalize with the real writer, validate BEFORE writing, then read back.
+      const valid = validateNew(sanitizePlayerSave(candidate, 'commercial-cafe'))
+      const saved = savePlayerSave(valid, handle.storage)
+      validateNew(JSON.parse(handle.storage.getItem(PLAYER)!))
+      if (saved.phoneNotes.some((note: { id: string }) => note.id === 'story-yonghe-lead')) {
+        throw Error('Fixture must not manufacture the runtime-generated Yonghe note')
+      }
+      const ack = await service.acknowledgeEntry({ ticket: prepared.ticket, sessionHandle: handle })
+      if (ack.status !== 'acknowledged') throw Error('Fixture ACK: ' + JSON.stringify(ack))
+      return { balance: saved.walletBalance, epoch: committed.snapshot.saveEpoch,
+        generation: handle.generation, complete: saved.sceneState['commercial-cafe'].commercialCafeStoryStatus }
+    } finally {
+      await handle.close()
+    }
+  }, generation)
+  expect(fixture).toEqual({ balance: 800, epoch: SAVE_EPOCH, generation, complete: 'complete' })
+  expect(await page.evaluate(() => localStorage.getItem('newtone-player-save-v1'))).toBeNull()
+
+  // The fixture is not the acceptance entrance. Re-open and click real Continue.
+  await page.goto('/')
+  await continueGame(page, generation)
+  return generation
+}
 
 test('Notes persist and the contact flow supports details, location cards, and a manually ended call', async ({ page }) => {
-  await page.addInitScript(() => {
-    if (!localStorage.getItem('newtone-public-release-cutover-v1')) localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
-    if (!localStorage.getItem('newtone-player-save-v1')) localStorage.setItem('newtone-player-save-v1', JSON.stringify({
-      _version: 1,
-      currentSceneId: 'commercial-cafe',
-      currentPosition: null,
-      scenePositions: {},
-      phoneDevice: 'inner',
-      storyClock: { dayId: 'story-day-001', stage: 'cafe' },
-      sceneState: { 'commercial-cafe': { commercialCafeStoryStatus: 'complete' } },
-      phoneNotifications: [],
-      updatedAt: 100,
-    }))
-  })
-  await page.goto('/?scene=commercial-cafe')
+  const generation = await startCompletedCafeGame(page)
   const phone = page.locator('.world-phone')
   await page.getByRole('button', { name: '打开手机' }).click()
 
@@ -143,6 +227,7 @@ test('Notes persist and the contact flow supports details, location cards, and a
   await expect(phone.getByRole('region', { name: '老周联系人详情' })).toContainText('已挂断')
 
   await page.reload()
+  await continueGame(page, generation)
   await page.getByRole('button', { name: '打开手机' }).click()
   await expect(phone.locator('.world-phone__pin-candidates button')).toHaveAttribute('aria-pressed','true')
   await phone.locator('.world-phone__memo-open').click()
@@ -163,21 +248,7 @@ for (const width of [411, 360]) {
       body: route.request().method() === 'GET' ? '[]' : '',
     }))
     const page = await context.newPage()
-    await page.addInitScript(() => {
-      localStorage.setItem('newtone-public-release-cutover-v1', 'center-v1')
-      localStorage.setItem('newtone-player-save-v1', JSON.stringify({
-        _version: 1,
-        currentSceneId: 'commercial-cafe',
-        currentPosition: null,
-        scenePositions: {},
-        phoneDevice: 'inner',
-        storyClock: { dayId: 'story-day-001', stage: 'cafe' },
-        sceneState: { 'commercial-cafe': { commercialCafeStoryStatus: 'complete' } },
-        phoneNotifications: [],
-        updatedAt: 100,
-      }))
-    })
-    await page.goto('/?scene=commercial-cafe')
+    await startCompletedCafeGame(page)
     const phone = page.locator('.world-phone')
     await phone.locator('.world-phone__handle').tap()
     await phone.locator('[data-app="contacts"]').tap()

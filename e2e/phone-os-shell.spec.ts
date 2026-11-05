@@ -1,16 +1,31 @@
 import { registerPhoneTestNetwork } from './phoneTestNetwork'
 registerPhoneTestNetwork()
 import { expect, test } from '@playwright/test'
+import { ACKNOWLEDGED, AUTHORITY, SAVE_EPOCH } from '../src/services/saveEpoch.mjs'
 
 test('Phone home uses story time and app navigation returns through the home indicator', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('pageerror', error => consoleErrors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()) })
   await page.route('**/rest/v1/analytics_events**', route => route.fulfill({ status:201, body:'' }))
-  await page.goto('/?scene=jijia-ancestral-home')
+  await page.goto('/')
+  await expect(page.locator('[data-save-entry-phase="start-ready"]')).toBeVisible()
+  expect(await page.evaluate(key => localStorage.getItem(key), AUTHORITY)).toBeNull()
+  await page.locator('[data-entry-group-entry="create"]').click()
+  await expect(page.locator('.center-experience--active')).toBeVisible()
+  await expect(page.locator('.entry-surface')).toHaveCount(0)
+  await expect.poll(() => page.evaluate(({ AUTHORITY, ACKNOWLEDGED, SAVE_EPOCH }) => {
+    const authority = JSON.parse(localStorage.getItem(AUTHORITY) ?? 'null')
+    const ack = JSON.parse(localStorage.getItem(ACKNOWLEDGED) ?? 'null')
+    return Boolean(authority?.saveEpoch === SAVE_EPOCH && ack?.saveEpoch === SAVE_EPOCH
+      && ack.generationId === authority.generation.id
+      && ack.operationId === authority.operationReceipt.operationId)
+  }, { AUTHORITY, ACKNOWLEDGED, SAVE_EPOCH })).toBe(true)
 
   const phone = page.locator('.world-phone')
-  await page.getByRole('button', { name: '打开手机' }).click()
+  // New games open Lao Zhou's message; do not suppress the production prompt.
+  await expect(phone).toHaveAttribute('data-phone-phase', 'open')
+  await phone.getByRole('button', { name: '返回手机首屏' }).click()
   await expect(phone).toHaveAttribute('data-phone-phase', 'open')
   await expect(phone.getByLabel('剧情日历')).toContainText('四月')
   await expect(phone.locator('[aria-current="date"]')).toHaveText('12')
