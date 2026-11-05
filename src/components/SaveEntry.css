@@ -1,6 +1,7 @@
 @import '../styles/dialogueChoiceMotion.css';
 
 .save-entry { display:flex; flex-direction:column; align-items:center; gap:.75rem; width:clamp(132px,11vw,190px); max-width:100%; color:var(--reader-ink,var(--ink-dark)); }
+.save-entry-primary-slot { flex:0 0 auto; }
 .save-entry p { margin:0; text-align:center; white-space:normal; font-size:.875rem; line-height:1.55; }
 .save-entry small { max-width:100%; overflow-wrap:anywhere; text-align:center; opacity:.65; }
 .save-entry-choices { display:flex; flex-direction:column; align-items:center; width:100%; animation:save-entry-options-reveal 320ms ease-out both; }

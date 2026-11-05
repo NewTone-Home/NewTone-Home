@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import EntryButtonGroup from './EntryButtonGroup'
+import EntryButtonSurface from './EntryButtonSurface'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { beginSaveEntry, saveEntryMenuMode } from '../services/saveEntryMenuModel.mjs'
 
@@ -45,9 +46,12 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
       if (mode === 'confirm') onAction('cancel')
       else { setExpandedSnapshot(null); setRevealing(false) }
     }}>
-    {mode === 'primary' && <EntryButtonGroup groupId={`save-entry:begin:${entry.epoch}`}
-      entries={[{ id: 'begin', label: text.create }]} materialMode="background"
-      onNavigate={() => beginSaveEntry(entry, expand, onAction)} />}
+    {['primary', 'choices', 'confirm', 'legacy'].includes(mode) && <div className="save-entry-primary-slot">
+      <EntryButtonSurface entryId="begin" label={text.create} materialMode="background"
+        mobile={typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true}
+        retainOnAction={entry.phase !== 'start-ready'}
+        onActionComplete={() => { if (mode === 'primary') beginSaveEntry(entry, expand, onAction) }} />
+    </div>}
     {['choices', 'confirm'].includes(mode) && <div className="save-entry-choices" data-revealing={revealing}>
       {pureOption('continue', text.continue, mode === 'confirm' || !entry.inspection?.allowedActions?.includes('continue'))}
       <div className="save-entry-new-slot">

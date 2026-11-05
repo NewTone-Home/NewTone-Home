@@ -23,4 +23,11 @@ describe('actual SaveEntryMenu initial render', () => {
     expect(html).toContain('data-entry-id="back"')
     expect(html).toContain('data-entry-id="reinspect"')
   })
+  it('retains Start and both vertical choices with confirm/cancel nested under new-save', () => {
+    const entry = { phase: 'overwrite-confirm', epoch: 2, reasons: [], inspection: { snapshotToken: 'valid-token', allowedActions: ['continue', 'request-replace'] } }
+    const html = renderToStaticMarkup(<SaveEntryMenu entry={entry} language="zh" text={text} warnings={[]} onAction={() => {}} />)
+    for (const id of ['begin', 'continue', 'request-replace', 'replace', 'cancel']) expect(html).toContain(`data-entry-id="${id}"`)
+    expect(html.indexOf('data-entry-id="begin"')).toBeLessThan(html.indexOf('data-entry-id="continue"'))
+    expect(html.indexOf('save-entry-new-slot')).toBeLessThan(html.indexOf('save-entry-confirm'))
+  })
 })

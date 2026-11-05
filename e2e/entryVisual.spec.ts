@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, SAVE_EPOCH } from '../src/services/saveEpoch.mjs'
-type Frame = { at: number; opacity: number; y: number; animation: string }
+type Frame = { at: number; opacity: number; y: number; animation: string; beginVisible: boolean; beginFrame: number; beginText: number }
 type Trace = { frames: Frame[]; done: boolean; error?: string }
-type ObserverWindow = Window & { __entryVisualMotion?: Record<string, Trace>; __entryVisualPointerTypes?: string[] }
+type ObserverWindow = Window & { __entryVisualMotion?: Record<string, Trace>; __entryVisualPointerTypes?: string[]; __entryVisualStartElement?: Element | null }
 
 function expectActiveBreathing(frames: Frame[]) {
   const active = frames.filter(frame => frame.animation.includes('dialogue-choice-breathe'))
@@ -16,8 +16,8 @@ test.use({ locale: 'zh-CN' })
 
 // Real rendered public entry, not the dormant Reader fallback or source strings.
 // QA saves these PNGs locally for the coordinator's approval; no upload here.
-for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 }]) {
-  const touch = viewport.width === 390
+for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }, { width: 1366, height: 768 }]) {
+  const touch = viewport.width <= 390
   test.describe(`actual public entry ${viewport.width}`, () => {
   test.use({ viewport, hasTouch: touch, isMobile: touch })
   test(`Start/menu/confirmation/Updates ${viewport.width}`, async ({ page, context }, testInfo) => {
@@ -51,7 +51,10 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 
         if (node) {
           first ??= now
           const style = getComputedStyle(node)
-          trace.frames.push({ at: now, opacity: Number(style.opacity), y: new DOMMatrixReadOnly(style.transform).m42, animation: style.animationName })
+          const begin = document.querySelector('[data-entry-id="begin"]')
+          trace.frames.push({ at: now, opacity: Number(style.opacity), y: new DOMMatrixReadOnly(style.transform).m42, animation: style.animationName,
+            beginVisible: !!begin && getComputedStyle(begin).visibility !== 'hidden' && begin.getAttribute('data-entry-visible') === 'true',
+            beginFrame: Number(begin?.getAttribute('data-entry-frame-progress')), beginText: Number(begin?.getAttribute('data-entry-text-progress')) })
         }
         if (first !== null && now - first >= duration) trace.done = true
         else if (now - started > 10_000) { trace.error = 'actual element never appeared'; trace.done = true }
@@ -94,6 +97,27 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 
     expect(authority.saveEpoch).toBe(SAVE_EPOCH); expect(authority.protocolVersion).toBe(2)
     expect(authority.values['newtone-player-save-v1']).toBeTruthy()
     await testInfo.attach(`${viewport.width}-snapshot-keys`, { body: JSON.stringify(Object.keys(before), null, 2), contentType: 'application/json' })
+    const anchors = async () => ({
+      start: await begin.boundingBox(),
+      startSlot: await page.locator('.save-entry-primary-slot').boundingBox(),
+      updates: await page.locator('[data-entry-group="landing-updates"]').boundingBox(),
+    })
+    const originalAnchors = await anchors()
+    expect(originalAnchors.start && originalAnchors.startSlot && originalAnchors.updates).toBeTruthy()
+    await page.evaluate(() => { (window as ObserverWindow).__entryVisualStartElement = document.querySelector('[data-entry-id="begin"]') })
+    const expectStartRetained = async (label: string) => {
+      await expect(begin).toBeVisible(); await expect(begin).toContainText('开始游戏')
+      await expect(begin).toHaveAttribute('data-entry-frame-progress', '1.000')
+      await expect(begin).toHaveAttribute('data-entry-text-progress', '1.000')
+      expect(await page.evaluate(() => (window as ObserverWindow).__entryVisualStartElement === document.querySelector('[data-entry-id="begin"]'))).toBe(true)
+      const after = await anchors()
+      for (const key of ['startSlot', 'updates'] as const) {
+        expect(after[key]).not.toBeNull()
+        expect(Math.abs(after[key]!.x - originalAnchors[key]!.x)).toBeLessThan(1)
+        expect(Math.abs(after[key]!.y - originalAnchors[key]!.y)).toBeLessThan(1)
+      }
+      await testInfo.attach(`${viewport.width}-${label}-anchors`, { body: JSON.stringify({ before: originalAnchors, after }, null, 2), contentType: 'application/json' })
+    }
     await screenshot('current-start-before-expansion')
     await startTrace('expand', '.save-entry-choices', 500)
     await activate(begin)
@@ -104,6 +128,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 
     expect(last.opacity - first.opacity).toBeGreaterThan(.2)
     expect(last.y - first.y).toBeGreaterThan(1)
     expect(last.opacity).toBeCloseTo(1, 1); expect(Math.abs(last.y)).toBeLessThan(.2)
+    expect(frames.every(frame => frame.beginVisible && frame.beginFrame === 1 && frame.beginText === 1)).toBe(true)
+    await expectStartRetained('expanded')
     const choices = page.locator('.save-entry-choices')
     await expect(choices).toBeVisible()
     const animation = await choices.evaluate(node => ({ name: getComputedStyle(node).animationName, duration: getComputedStyle(node).animationDuration }))
@@ -111,6 +137,15 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 
     expect(animation.duration).toBe('0.32s')
     const current = page.locator('[data-entry-id="continue"]'), fresh = page.locator('[data-entry-id="request-replace"]')
     await expect(current).toBeEnabled(); await expect(fresh).toBeEnabled()
+    const [startBox, currentBox, freshBox] = await Promise.all([begin.boundingBox(), current.boundingBox(), fresh.boundingBox()])
+    expect(startBox && currentBox && freshBox).toBeTruthy()
+    expect(currentBox!.y).toBeGreaterThanOrEqual(startBox!.y + startBox!.height)
+    expect(freshBox!.y).toBeGreaterThanOrEqual(currentBox!.y + currentBox!.height)
+    expect(Math.abs(currentBox!.x + currentBox!.width / 2 - freshBox!.x - freshBox!.width / 2)).toBeLessThan(1)
+    await activate(begin)
+    await expectStartRetained('repeated-start')
+    await expect(current).toBeEnabled()
+    expect(await facts()).toEqual(before)
     for (const option of [current, fresh]) {
       expect(await option.evaluate(node => ({ border: getComputedStyle(node).borderTopWidth, background: getComputedStyle(node).backgroundColor, shadow: getComputedStyle(node).boxShadow })))
         .toEqual({ border: '0px', background: 'rgba(0, 0, 0, 0)', shadow: 'none' })
@@ -147,11 +182,16 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 
     await activate(fresh)
     const confirm = page.locator('[data-entry-id="replace"]'), cancel = page.locator('[data-entry-id="cancel"]')
     await expect(confirm).toBeEnabled(); await expect(cancel).toBeEnabled()
+    await expectStartRetained('confirmation')
+    await expect(current).toBeVisible(); await expect(fresh).toBeVisible()
+    await activate(begin)
+    await expect(confirm).toBeEnabled(); await expect(cancel).toBeEnabled()
     const [newBox, yesBox, noBox] = await Promise.all([fresh.boundingBox(), confirm.boundingBox(), cancel.boundingBox()])
     expect(newBox && yesBox && noBox).toBeTruthy()
     expect(yesBox!.y).toBeGreaterThanOrEqual(newBox!.y + newBox!.height)
     expect(Math.abs(yesBox!.y - noBox!.y)).toBeLessThan(2)
     expect(noBox!.x).toBeGreaterThan(yesBox!.x)
+    await expect(confirm).toBeInViewport({ ratio: 1 }); await expect(cancel).toBeInViewport({ ratio: 1 })
     expect(await facts()).toEqual(before)
     await screenshot('confirm-cancel-below-new-game')
     await activate(cancel)

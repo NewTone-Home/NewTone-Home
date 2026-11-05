@@ -14,7 +14,7 @@
     },
     "src/components/SaveEntry.css": {
       "beforeSHA256": "b3c9d5e11f0e50f19a99f207b2e07e08b7ffde72748370e84d3b409034795acc",
-      "afterSHA256": "485d47217f820c3a9d00bc56a5e2ca6a599a04de4f6e803e36f664b7f361225a"
+      "afterSHA256": "ab70f5ba0c228511d00db69c20ba5ffcc97d2fc159d904b11a10730c61d52366"
     },
     "src/services/entryPresentation.mjs": {
       "beforeSHA256": "c60e47e0410a38a11f48fc6a5239f9d00eef5d406a6550573cad1fe9b922acc2",
@@ -30,7 +30,7 @@
     },
     "src/components/SaveEntryMenu.jsx": {
       "beforeSHA256": null,
-      "afterSHA256": "72af4ededde55cc0a74c0a824ef6cd17dce75160d9076c05acf51ba824273c18"
+      "afterSHA256": "6f1a00f6dc6e3cd22c682f9071c2a49e6a9944effb922345273a005544a54641"
     },
     "src/services/saveEntryMenuModel.mjs": {
       "beforeSHA256": null,
@@ -46,17 +46,21 @@
     },
     "src/components/SaveEntryMenu.test.jsx": {
       "beforeSHA256": null,
-      "afterSHA256": "1182bea8f918f2827986834347cba862f6fa33f1e012fb61f5fbebaeb5a9a25f"
+      "afterSHA256": "e41f400a8f2f490f6447d5fac455e11d605ef22d7db7c33a3e71f5ab217b4d1b"
     },
     "e2e/entryVisual.spec.ts": {
       "beforeSHA256": null,
-      "afterSHA256": "72a8aa195063d47533d8f54cc41a3f4cc1cb53e5921216bc70514c1e9604c8c1"
+      "afterSHA256": "c67056199bb480e56f59ad9d454245de2187431e051de1b43f0514f1a35f2252"
+    },
+    "src/components/EntryButtonSurface.jsx": {
+      "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
+      "afterSHA256": "0b77aa313e446794feb84c3bda50e97f534d5e1c82d9b25ddbb43c00bddb6cae"
     }
   },
   "checks": {
     "gitDiffCheck": "passed",
     "mjsSyntax": "passed",
-    "jsxTsParseOnly": "5 files passed; no emit",
+    "jsxTsParseOnly": "6 files passed; no emit",
     "tests": "not run",
     "typecheck": "not run",
     "build": "not run",
@@ -67,11 +71,17 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "2e2d9d86f57bbc9f5cb870a2b783650dcf119826ff061635cf90159ddd6a2ecc",
+  "aggregateSHA256": "5f95b8911e4050cf78fe883bdd1fbc0c6c9be0c5b556f202247c0207b7cfa0bf",
   "testReview": {
     "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
     "testRun": false,
     "reviewNote": "docs/entry-visual-test-review-20261105.md",
-    "noteSHA256": "e437e85ea7b290470cfa3efc8649864d1e1217bb9bf1924764372e95806db275"
+    "noteSHA256": "e437e85ea7b290470cfa3efc8649864d1e1217bb9bf1924764372e95806db275",
+    "appliesTo": "9bbdfd8ab4963989a44f706139e15971a9fedd99; historical test-only revision"
+  },
+  "presentationRevision": {
+    "parent": "9bbdfd8ab4963989a44f706139e15971a9fedd99",
+    "requirement": "Keep the exact Start surface mounted in place while choices and confirmation appear below.",
+    "handoff": "docs/entry-start-retained-20261105.md"
   }
 }

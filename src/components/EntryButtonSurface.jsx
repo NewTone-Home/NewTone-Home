@@ -37,6 +37,7 @@ function EntryButtonSurface({
   className = '',
   contentSized = false,
   disabled = false,
+  retainOnAction = false,
   controlledProgress = null,
   dataAttributes = {},
   onActionStart,
@@ -194,8 +195,15 @@ function EntryButtonSurface({
       frameProgress: progressRef.current.frame,
     }))
     onActionStartRef.current?.({ entryId, inputType: inputTypeRef.current, actionScopeId })
+    if (retainOnAction) {
+      // Expanding a menu is not leaving this surface. Keep this exact text and
+      // SVG frame mounted; the host owns an idempotent presentation-only action.
+      try { onActionCompleteRef.current?.({ entryId, inputType: inputTypeRef.current, actionScopeId }) }
+      finally { actionRequestedRef.current = false }
+      return
+    }
     startExit('activate')
-  }, [actionScopeId, auditFields, disabled, entryId, startExit, visible])
+  }, [actionScopeId, auditFields, disabled, entryId, retainOnAction, startExit, visible])
 
   const handlePointerDown = useCallback(event => {
     inputTypeRef.current = event.pointerType || 'pointer'
