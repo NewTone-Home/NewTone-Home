@@ -3,6 +3,15 @@ import { AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, SAVE_EPOCH } from '../src/serv
 type Frame = { at: number; opacity: number; y: number; animation: string }
 type Trace = { frames: Frame[]; done: boolean; error?: string }
 type ObserverWindow = Window & { __entryVisualMotion?: Record<string, Trace>; __entryVisualPointerTypes?: string[] }
+
+function expectActiveBreathing(frames: Frame[]) {
+  const active = frames.filter(frame => frame.animation.includes('dialogue-choice-breathe'))
+  expect(active.length).toBeGreaterThanOrEqual(10)
+  const first = frames.indexOf(active[0]), last = frames.indexOf(active.at(-1)!)
+  expect(last - first + 1).toBe(active.length)
+  expect(active.at(-1)!.at - active[0].at).toBeGreaterThan(300)
+  expect(Math.max(...active.map(f => f.opacity)) - Math.min(...active.map(f => f.opacity))).toBeGreaterThan(.12)
+}
 test.use({ locale: 'zh-CN' })
 
 // Real rendered public entry, not the dormant Reader fallback or source strings.
@@ -120,17 +129,17 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 
       await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.breathe.frames.some(frame => frame.animation.includes('dialogue-choice-breathe') && frame.opacity < .9))
       await screenshot('touch-hold-breathe-in-progress')
       const breath = await finishTrace('breathe')
-      expect(Math.max(...breath.map(f => f.opacity)) - Math.min(...breath.map(f => f.opacity))).toBeGreaterThan(.12)
+      expectActiveBreathing(breath)
       // Cancel a held touch, rather than select Continue and leave the test menu.
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
       await cdp.detach()
       expect(await page.evaluate(() => (window as ObserverWindow).__entryVisualPointerTypes)).toContain('touch')
     } else {
       await current.hover()
-      await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.breathe.frames.some(frame => frame.opacity < .9))
+      await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.breathe.frames.some(frame => frame.animation.includes('dialogue-choice-breathe') && frame.opacity < .9))
       await screenshot('mouse-hover-breathe-in-progress')
       const breath = await finishTrace('breathe')
-      expect(Math.max(...breath.map(f => f.opacity)) - Math.min(...breath.map(f => f.opacity))).toBeGreaterThan(.12)
+      expectActiveBreathing(breath)
       await page.mouse.move(0, 0)
     }
     expect(await facts()).toEqual(before)
