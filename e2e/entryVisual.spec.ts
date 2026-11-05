@@ -106,11 +106,13 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     const originalAnchors = await anchors()
     expect(originalAnchors.start && originalAnchors.startSlot && originalAnchors.updates).toBeTruthy()
     await page.evaluate(() => { (window as ObserverWindow).__entryVisualStartElement = document.querySelector('[data-entry-id="begin"]') })
-    const expectStartRetained = async (label: string) => {
+    const expectStartRetained = async (label: string, requireSameNode = true) => {
       await expect(begin).toBeVisible(); await expect(begin).toContainText('开始游戏')
       await expect(begin).toHaveAttribute('data-entry-frame-progress', '1.000')
       await expect(begin).toHaveAttribute('data-entry-text-progress', '1.000')
+      if (requireSameNode) {
       expect(await page.evaluate(() => (window as ObserverWindow).__entryVisualStartElement === document.querySelector('[data-entry-id="begin"]'))).toBe(true)
+      }
       const after = await anchors()
       for (const key of ['startSlot', 'updates'] as const) {
         expect(after[key]).not.toBeNull()
@@ -229,7 +231,11 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
       await activate(page.locator('[data-entry-id="landing-updates-return"]'))
       await expect(page.locator('.landing[data-updates-phase="landing"]')).toBeVisible({ timeout: 15_000 })
       await expect(begin).toBeEnabled()
-      await expectStartRetained('short-updates-return')
+      // Updates legitimately unmounts the entry controls; validate the NEW
+      // mounted Start against the same layout/safety contract, not old identity.
+      await expectStartRetained('short-updates-return', false)
+      expect(await page.locator('.landing').evaluate(node => node.scrollTop)).toBe(0)
+      await page.evaluate(() => { (window as ObserverWindow).__entryVisualStartElement = document.querySelector('[data-entry-id="begin"]') })
       expect(await facts()).toEqual(before)
       await activate(begin)
       await expect(current).toBeEnabled()

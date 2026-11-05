@@ -50,7 +50,7 @@
     },
     "e2e/entryVisual.spec.ts": {
       "beforeSHA256": null,
-      "afterSHA256": "5ed6f1ffe631041cb8940d1aee093e81eebe2e603467f6019356181cdc058c8e"
+      "afterSHA256": "4b01768cbe1ba194067513e42d8d933e3d577db6a50cbb23ce7efebc3e1ebf10"
     },
     "src/components/EntryButtonSurface.jsx": {
       "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
@@ -79,7 +79,7 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "76e761260dac89b2d7da6fc76462c1d4cae641b590dba769348119eb04f7ba9f",
+  "aggregateSHA256": "1b5716c268307f603f8a909a625def53363090a878a81f344d11ee19b39bff9c",
   "testReview": {
     "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
     "testRun": false,
@@ -102,5 +102,15 @@
     "parent": "b456ce65e9c824be6ad1e23e59b2b4c9eb6466dc",
     "scope": "max-width560px and max-height720px; world idle plus updates landing only",
     "testsRun": false
+  },
+  "announcementReturnTestFix": {
+    "base": "f5b7be09e92675ecfe578806afc4f216e11e1e50",
+    "productDirectory": "src/",
+    "baseProductGitTree": "252d4f2f4aae3e462e81072c443479152d9e0426",
+    "filesCompared": 376,
+    "rawBytesBeforeAfterEqual": true,
+    "rawSourceFilesAggregateSHA256": "2d0eb24611eb582a0ee9434644e276e62e22c3c7531d794f3bec7be5eabbccac",
+    "gitProductDiff": "empty",
+    "scope": "test-only; no rebuild or browser run"
   }
 }
