@@ -256,18 +256,27 @@ function Landing({
 
           {landingEntriesVisible && worldEntryPhase === 'idle' && (
             <>
-              {entryUI ?? <EntryButtonGroup
-                groupId="landing-entries"
-                entries={landingEntries}
-                onNavigate={handleEntryNavigate}
-                className="landing-entry-button-group"
-              />}
-              {entryUI && <button type="button" className="landing-entry-updates-link" onClick={onEnterUpdates}>{copy[landingLanguage]?.updates || copy.zh.updates}</button>}
+              {entryUI ? <div className="landing-entry-button-group landing-entry-area">
+                <div className="landing-entry-row">
+                  <EntryButtonGroup groupId="landing-updates"
+                    entries={landingEntries.filter(entry => entry.id === 'updates')}
+                    onNavigate={handleEntryNavigate} />
+                  {entryUI}
+                </div>
               {worldMode && (
                 <p className="landing-device-hint" data-world-mode="true" role="note">
                   当前仍处于开发阶段，电脑或 iPad 体验更佳
                 </p>
               )}
+              </div> : <>
+                <EntryButtonGroup groupId="landing-entries" entries={landingEntries}
+                  onNavigate={handleEntryNavigate} className="landing-entry-button-group" />
+              {worldMode && (
+                <p className="landing-device-hint" data-world-mode="true" role="note">
+                  当前仍处于开发阶段，电脑或 iPad 体验更佳
+                </p>
+              )}
+              </>}
             </>
           )}
         </div>

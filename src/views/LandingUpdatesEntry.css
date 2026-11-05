@@ -56,3 +56,10 @@
     animation-duration: 1ms !important;
   }
 }
+
+/* Keep the original title-relative anchor and framed Updates surface. Only the
+   right-hand Start slot expands; the title and announcement do not re-anchor. */
+.landing-entry-button-group.landing-entry-area { flex-direction:column; align-items:center; gap:0; }
+.landing-entry-row { display:flex; align-items:flex-start; justify-content:center; gap:clamp(.75rem,4vw,3rem); }
+.landing-entry-area .landing-device-hint { width:min(320px,calc(100vw - 2rem)); margin:1rem auto 0; }
+@media (max-width:560px) { .landing-entry-row { gap:1rem; } }

@@ -1,0 +1,71 @@
+{
+  "base": "7d55a84ec1f785e08f25a999e86937647ed37440",
+  "baseTree": "91ba22933caa465ace86959d422485ea7472a4a7",
+  "branch": "fix/entry-visual-20261105",
+  "originalStyleSource": "33ba1d3e570d07505833f9a8a9a136dd8d27104b",
+  "files": {
+    "src/App.jsx": {
+      "beforeSHA256": "0e98962335dd6da0115c7768a80c6abcd7fd858349da288bf6c85f8ec6018284",
+      "afterSHA256": "917921f8e4c957c5f3b1c2740d518b57315dde66d99243614b3608f6a0175dfe"
+    },
+    "src/center/runtime/DialogueChoiceWheel.css": {
+      "beforeSHA256": "1ab7a99c2ddfa61eee1f99ca31eedb05c813688d3aa3af5e4aa9a2be4a642e2c",
+      "afterSHA256": "e1c0cb1aa0a967af99b9ca592716edc6d849d5630e43a56883550e381af04796"
+    },
+    "src/components/SaveEntry.css": {
+      "beforeSHA256": "b3c9d5e11f0e50f19a99f207b2e07e08b7ffde72748370e84d3b409034795acc",
+      "afterSHA256": "485d47217f820c3a9d00bc56a5e2ca6a599a04de4f6e803e36f664b7f361225a"
+    },
+    "src/services/entryPresentation.mjs": {
+      "beforeSHA256": "c60e47e0410a38a11f48fc6a5239f9d00eef5d406a6550573cad1fe9b922acc2",
+      "afterSHA256": "557ea7fc499c3b1cba3ef7d317fd542eb1cbea8ae96c993b64e7bac2f57c720b"
+    },
+    "src/views/Landing.jsx": {
+      "beforeSHA256": "61b1bbcc5ead8ceb524af216e3e001f7a08870748dd5d55a5791033308144ac1",
+      "afterSHA256": "a9226ef1310e43e0d045ca79fb8850c32ecfb1d0977198038191d94335b3b639"
+    },
+    "src/views/LandingUpdatesEntry.css": {
+      "beforeSHA256": "e9e3eef03c87f6f5c81efbe112e22c78396a6d03e91257af2ffe935dbcc7bfcc",
+      "afterSHA256": "84fddc76407a49f822b97b477dca0c95565885a2fc2672d26aec946f7a351453"
+    },
+    "src/components/SaveEntryMenu.jsx": {
+      "beforeSHA256": null,
+      "afterSHA256": "72af4ededde55cc0a74c0a824ef6cd17dce75160d9076c05acf51ba824273c18"
+    },
+    "src/services/saveEntryMenuModel.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "f6a3ea2647b485916820e8f5ce5e21f6d187aaeb4f174ee0cb23548fb699115d"
+    },
+    "src/styles/dialogueChoiceMotion.css": {
+      "beforeSHA256": null,
+      "afterSHA256": "c5208d813c31afbcd00ae658d6efd5cd77db6feaaae05629c38e0574c0a4fdb8"
+    },
+    "src/services/saveEntryMenuModel.test.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "11d6d16b1fa0f214381691658d0d131d161fb47eeb5832bba8ea83a71a982eed"
+    },
+    "src/components/SaveEntryMenu.test.jsx": {
+      "beforeSHA256": null,
+      "afterSHA256": "1182bea8f918f2827986834347cba862f6fa33f1e012fb61f5fbebaeb5a9a25f"
+    },
+    "e2e/entryVisual.spec.ts": {
+      "beforeSHA256": null,
+      "afterSHA256": "75aab600590f4f39ca809e69e1bc046cb78222d58f584b86d48c615bbbceaf06"
+    }
+  },
+  "checks": {
+    "gitDiffCheck": "passed",
+    "mjsSyntax": "passed",
+    "jsxTsParseOnly": "5 files passed; no emit",
+    "tests": "not run",
+    "typecheck": "not run",
+    "build": "not run",
+    "browser": "not run"
+  },
+  "screenshot": {
+    "libraryId": "libfile_bca4384a52788191bcbf571d8861ceea",
+    "viewed": false,
+    "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
+  },
+  "aggregateSHA256": "a9a4366ffd500b5f5a15321e285077a17a720b48843126e3f551617d33fee469"
+}
