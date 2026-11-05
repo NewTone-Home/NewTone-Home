@@ -12,6 +12,26 @@ test('Phone home uses story time and app navigation returns through the home ind
   await expect(page.locator('[data-save-entry-phase="start-ready"]')).toBeVisible()
   expect(await page.evaluate(key => localStorage.getItem(key), AUTHORITY)).toBeNull()
   await page.locator('[data-entry-group-entry="create"]').click()
+  // Traces show ~5.1s entry handoffs, including lazy runtime loading and
+  // cover/scene/ACK/reveal. Give only this composite boundary 10s, within the
+  // unchanged 45s test budget. Keep the active, surface and ACK assertions below.
+  await expect.poll(() => page.evaluate(({ AUTHORITY, ACKNOWLEDGED, SAVE_EPOCH }) => {
+    const authority = JSON.parse(localStorage.getItem(AUTHORITY) ?? 'null')
+    const ack = JSON.parse(localStorage.getItem(ACKNOWLEDGED) ?? 'null')
+    return {
+      active: document.querySelector('.center-experience--active') !== null,
+      surfaceGone: document.querySelector('.entry-surface') === null,
+      acknowledged: Boolean(authority?.saveEpoch === SAVE_EPOCH && ack?.saveEpoch === SAVE_EPOCH
+        && ack.generationId === authority.generation.id
+        && ack.operationId === authority.operationReceipt.operationId),
+      entryPhase: document.querySelector('[data-save-entry-phase]')?.getAttribute('data-save-entry-phase') ?? null,
+      worldPhase: document.querySelector('[data-world-entry-phase]')?.getAttribute('data-world-entry-phase') ?? null,
+      reasons: document.querySelector('[data-save-entry-reasons]')?.textContent ?? null,
+    }
+  }, { AUTHORITY, ACKNOWLEDGED, SAVE_EPOCH }), {
+    timeout: 10_000,
+    message: 'Entry handoff must reach active, remove its surface and acknowledge the current save; last phases/reasons follow',
+  }).toMatchObject({ active: true, surfaceGone: true, acknowledged: true })
   await expect(page.locator('.center-experience--active')).toBeVisible()
   await expect(page.locator('.entry-surface')).toHaveCount(0)
   await expect.poll(() => page.evaluate(({ AUTHORITY, ACKNOWLEDGED, SAVE_EPOCH }) => {
