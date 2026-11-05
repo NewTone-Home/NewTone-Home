@@ -14,7 +14,7 @@
     },
     "src/components/SaveEntry.css": {
       "beforeSHA256": "b3c9d5e11f0e50f19a99f207b2e07e08b7ffde72748370e84d3b409034795acc",
-      "afterSHA256": "ab70f5ba0c228511d00db69c20ba5ffcc97d2fc159d904b11a10730c61d52366"
+      "afterSHA256": "e89dbf188d9a9e839ac9d2c834d60328f9243bcea3c6cc7ff0787159f369270a"
     },
     "src/services/entryPresentation.mjs": {
       "beforeSHA256": "c60e47e0410a38a11f48fc6a5239f9d00eef5d406a6550573cad1fe9b922acc2",
@@ -22,7 +22,7 @@
     },
     "src/views/Landing.jsx": {
       "beforeSHA256": "61b1bbcc5ead8ceb524af216e3e001f7a08870748dd5d55a5791033308144ac1",
-      "afterSHA256": "afce020daa29802d244815d5c74a6178e86bff22a4f480b6b46e022c05a7c62a"
+      "afterSHA256": "5d952f0b62d406aa0788e2f76826ac4050987609b6c1f1dd50f457faed549c9a"
     },
     "src/views/LandingUpdatesEntry.css": {
       "beforeSHA256": "e9e3eef03c87f6f5c81efbe112e22c78396a6d03e91257af2ffe935dbcc7bfcc",
@@ -30,7 +30,7 @@
     },
     "src/components/SaveEntryMenu.jsx": {
       "beforeSHA256": null,
-      "afterSHA256": "17b43bcf6edb0c969130c98bb6c8305113f1c8974e164d0f52f8f503b2a30a01"
+      "afterSHA256": "06daa24bc68eb7e4673ee683f0c87f7e31758f2ce963cc981803ebc90a65ac3a"
     },
     "src/services/saveEntryMenuModel.mjs": {
       "beforeSHA256": null,
@@ -46,11 +46,11 @@
     },
     "src/components/SaveEntryMenu.test.jsx": {
       "beforeSHA256": null,
-      "afterSHA256": "e41f400a8f2f490f6447d5fac455e11d605ef22d7db7c33a3e71f5ab217b4d1b"
+      "afterSHA256": "0a44a8795edf13fb59f8249222fa2da8b84a07f37b3523a9cec73ef282b7fc0e"
     },
     "e2e/entryVisual.spec.ts": {
       "beforeSHA256": null,
-      "afterSHA256": "4b01768cbe1ba194067513e42d8d933e3d577db6a50cbb23ce7efebc3e1ebf10"
+      "afterSHA256": "4f70ecedd021e27b11312c63c7052234cb73745990d149e15e306bbf5c9a46cc"
     },
     "src/components/EntryButtonSurface.jsx": {
       "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
@@ -63,6 +63,18 @@
     "src/components/EntrySurface.css": {
       "beforeSHA256": "441ae3c922d6649d11126119c3da2cffb8c73013a0cb17c008895f3d4d6dc5ff",
       "afterSHA256": "44d3a7b329b8051f3c1f422d776443edc952f53cd791bd1928bc2c4457bf0ab4"
+    },
+    "tests/landingUpdatesEntry.test.js": {
+      "beforeSHA256": "f49526b98b06405f2374e2bae403918aa32654c33d4b8074593adbb111b6d1ff",
+      "afterSHA256": "e0dfc0ed5b74a376ec86c7f5906ed5895baaada78262dfd66f3759002f225d98"
+    },
+    "src/services/entryMenuOutsideTap.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "e4fe20301b7f323170bcf48b4459eea6ebee719e1e05ef5eb8a51857c670be90"
+    },
+    "src/services/entryMenuOutsideTap.test.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "8bb44eecc5ed77ae6fe8237e388228a5d083eb4c95ade2f10c3993a2798fe9aa"
     }
   },
   "checks": {
@@ -79,7 +91,7 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "1b5716c268307f603f8a909a625def53363090a878a81f344d11ee19b39bff9c",
+  "aggregateSHA256": "ad72fb70cc6f64d0b907fe695a043f009f25645f89c75afede5120d186dfa389",
   "testReview": {
     "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
     "testRun": false,
@@ -112,5 +124,10 @@
     "rawSourceFilesAggregateSHA256": "2d0eb24611eb582a0ee9434644e276e62e22c3c7531d794f3bec7be5eabbccac",
     "gitProductDiff": "empty",
     "scope": "test-only; no rebuild or browser run"
+  },
+  "dismissRevision": {
+    "parent": "7b0dc2d84288307e5a4ecae9e4d9b9234d76ec67",
+    "scope": "local presentation only; no preview/server/publication action",
+    "testsRun": false
   }
 }

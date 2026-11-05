@@ -11,10 +11,10 @@
 .save-entry-option:focus-visible { outline:none; text-decoration:underline; text-underline-offset:5px; }
 .save-entry-option:focus-visible:not(:disabled), .save-entry-option.is-touched:not(:disabled) { animation:dialogue-choice-breathe 1.2s ease-in-out infinite; }
 @media (hover:hover) and (pointer:fine) { .save-entry-option:hover:not(:disabled) { animation:dialogue-choice-breathe 1.2s ease-in-out infinite; } }
-.save-entry-confirm { display:flex; flex-direction:row; flex-wrap:nowrap; align-items:center; justify-content:center; gap:clamp(.5rem,2vw,1rem); width:100%; }
+.save-entry-confirm { display:flex; flex-direction:row; flex-wrap:nowrap; align-items:center; justify-content:center; gap:clamp(.5rem,2vw,1rem); width:100%; animation:save-entry-options-reveal 320ms ease-out both; }
 @keyframes save-entry-options-reveal { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
-@media (prefers-reduced-motion:reduce) { .save-entry-choices, .save-entry-option { animation:none!important; } }
-[data-motion-mode="reduced"] .save-entry-choices, [data-motion-mode="reduced"] .save-entry-option { animation:none!important; }
+@media (prefers-reduced-motion:reduce) { .save-entry-choices, .save-entry-confirm, .save-entry-option { animation:none!important; } }
+[data-motion-mode="reduced"] .save-entry-choices, [data-motion-mode="reduced"] .save-entry-confirm, [data-motion-mode="reduced"] .save-entry-option { animation:none!important; }
 
 .save-entry-warning { font-size:.875rem; line-height:1.55; margin:0; color:var(--reader-ink); }
 .save-entry-warning-overlay { position:fixed; top:max(12px,env(safe-area-inset-top)); right:max(12px,env(safe-area-inset-right)); width:min(22rem,calc(100vw - 24px)); z-index:100; padding:10px 12px; box-sizing:border-box; background:var(--reader-paper); border:1px solid var(--reader-border); pointer-events:none; }

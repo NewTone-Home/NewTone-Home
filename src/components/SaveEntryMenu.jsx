@@ -3,6 +3,7 @@ import EntryButtonGroup from './EntryButtonGroup'
 import EntryButtonSurface from './EntryButtonSurface'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { beginSaveEntry, saveEntryMenuMode } from '../services/saveEntryMenuModel.mjs'
+import { isOutsideMenuTap } from '../services/entryMenuOutsideTap.mjs'
 
 const REVEAL_MS = 320
 
@@ -11,8 +12,40 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
   const [revealing, setRevealing] = useState(false)
   const [touched, setTouched] = useState(null)
   const root = useRef(null)
+  const live = useRef(null)
+  const [readyConfirmation, setReadyConfirmation] = useState(null)
   const reduced = useReducedMotion() || motionMode === 'reduced'
   const mode = saveEntryMenuMode(entry, expandedSnapshot)
+  const confirmationRevealing = mode === 'confirm' && !reduced && readyConfirmation !== entry.epoch
+  live.current = { mode, onAction }
+  const expandable = ['choices', 'confirm', 'legacy'].includes(mode)
+  useEffect(() => {
+    if (!expandable) return undefined
+    let start = null
+    const point = event => ({ pointerId: event.pointerId, x: event.clientX, y: event.clientY,
+      at: event.timeStamp, outside: !root.current?.contains(event.target) })
+    const down = event => { start = event.isPrimary && event.button === 0 ? point(event) : null }
+    const up = event => {
+      const dismiss = isOutsideMenuTap(start, point(event)); start = null
+      if (!dismiss || !['choices', 'confirm', 'legacy'].includes(live.current.mode)) return
+      if (live.current.mode === 'confirm') live.current.onAction('cancel')
+      setExpandedSnapshot(null); setRevealing(false); setTouched(null)
+    }
+    const cancel = () => { start = null }
+    document.addEventListener('pointerdown', down, { capture: true, passive: true })
+    document.addEventListener('pointerup', up, { capture: true, passive: true })
+    document.addEventListener('pointercancel', cancel, { capture: true, passive: true })
+    return () => {
+      document.removeEventListener('pointerdown', down, true)
+      document.removeEventListener('pointerup', up, true)
+      document.removeEventListener('pointercancel', cancel, true)
+    }
+  }, [expandable])
+  useEffect(() => {
+    if (mode !== 'confirm' || reduced) return undefined
+    const timer = setTimeout(() => setReadyConfirmation(entry.epoch), REVEAL_MS)
+    return () => clearTimeout(timer)
+  }, [mode, entry.epoch, reduced])
   useEffect(() => {
     if (!['choice-ready', 'overwrite-confirm', 'legacy-ready'].includes(entry.phase)) setExpandedSnapshot(null)
   }, [entry.phase])
@@ -24,15 +57,18 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
   useEffect(() => {
     const target = mode === 'confirm' ? 'cancel' : entry.focusTarget
     if (target) root.current?.querySelector(`[data-entry-id="${target}"]`)?.focus()
-  }, [mode, entry.focusTarget, entry.epoch])
+  }, [mode, entry.focusTarget, entry.epoch, confirmationRevealing])
   const expand = token => { setRevealing(!reduced); setExpandedSnapshot(token) }
-  const pureOption = (id, label, disabled = false) => <button type="button" key={id}
+  const pureOption = (id, label, disabled = false) => {
+    const blocked = disabled || revealing || (['replace', 'cancel'].includes(id) && confirmationRevealing)
+    return <button type="button" key={id}
     className={`save-entry-option${touched === id ? ' is-touched' : ''}`}
-    data-entry-id={id} disabled={disabled || revealing}
+    data-entry-id={id} disabled={blocked}
     onPointerDown={() => setTouched(id)} onPointerUp={() => setTouched(null)}
     onPointerCancel={() => setTouched(null)} onBlur={() => setTouched(null)}
-    onClick={() => { if (!revealing && !disabled) { setTouched(null); onAction(id) } }}>{label}</button>
-  const message = mode === 'confirm' ? text.overwrite : mode === 'legacy' ? text['legacy-ready']
+    onClick={() => { if (!blocked) { setTouched(null); onAction(id) } }}>{label}</button>
+  }
+  const message = mode === 'legacy' ? text['legacy-ready']
     : mode === 'status' ? text[entry.phase] ?? '' : ''
   const statusEntries = entry.phase === 'uncertain' ? [{ id: 'reinspect', label: text.resolve }]
     : ['failed', 'unknown'].includes(entry.phase) ? [{ id: 'back', label: text.back }, { id: 'reinspect', label: text.reinspect }]

@@ -29,5 +29,6 @@ describe('actual SaveEntryMenu initial render', () => {
     for (const id of ['begin', 'continue', 'request-replace', 'replace', 'cancel']) expect(html).toContain(`data-entry-id="${id}"`)
     expect(html.indexOf('data-entry-id="begin"')).toBeLessThan(html.indexOf('data-entry-id="continue"'))
     expect(html.indexOf('save-entry-new-slot')).toBeLessThan(html.indexOf('save-entry-confirm'))
+    expect(html).not.toContain('<p role="status"')
   })
 })

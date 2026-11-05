@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, SAVE_EPOCH } from '../src/services/saveEpoch.mjs'
+import { AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, SAVE_EPOCH, EPOCH_PREFIX, BACKUP_PREFIX, WRITER_LOCK } from '../src/services/saveEpoch.mjs'
 type Frame = { at: number; opacity: number; y: number; animation: string; beginVisible: boolean; beginFrame: number; beginText: number }
 type Trace = { frames: Frame[]; done: boolean; error?: string }
 type ObserverWindow = Window & { __entryVisualMotion?: Record<string, Trace>; __entryVisualPointerTypes?: string[]; __entryVisualStartElement?: Element | null }
@@ -68,6 +68,26 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
       await testInfo.attach(`${viewport.width}-${key}-frames`, { body: JSON.stringify(trace, null, 2), contentType: 'application/json' })
       expect(trace.error).toBeUndefined(); expect(trace.frames.length).toBeGreaterThan(8)
       return trace.frames
+    }
+    const observeBreathing = async (selector: string, key: string) => {
+      const option = page.locator(selector)
+      await startTrace(key, selector, 700)
+      if (touch) {
+        const box = (await option.boundingBox())!, cdp = await context.newCDPSession(page)
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] })
+        await page.waitForFunction(key => (window as ObserverWindow).__entryVisualMotion?.[key].frames.some(frame => frame.animation.includes('dialogue-choice-breathe') && frame.opacity < .9), key)
+        await screenshot(`${key}-touch-in-progress`)
+        expectActiveBreathing(await finishTrace(key))
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
+        await cdp.detach()
+        expect(await page.evaluate(() => (window as ObserverWindow).__entryVisualPointerTypes)).toContain('touch')
+      } else {
+        await option.hover()
+        await page.waitForFunction(key => (window as ObserverWindow).__entryVisualMotion?.[key].frames.some(frame => frame.animation.includes('dialogue-choice-breathe') && frame.opacity < .9), key)
+        await screenshot(`${key}-hover-in-progress`)
+        expectActiveBreathing(await finishTrace(key))
+        await page.mouse.move(0, 0)
+      }
     }
     await page.goto('/')
     const begin = page.locator('[data-entry-id="begin"]')
@@ -160,29 +180,17 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
       host.__entryVisualPointerTypes = []
       document.addEventListener('pointerdown', event => host.__entryVisualPointerTypes!.push(event.pointerType), { capture: true })
     })
-    await startTrace('breathe', '[data-entry-id="continue"]', 700)
-    if (touch) {
-      const box = (await current.boundingBox())!, cdp = await context.newCDPSession(page)
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }] })
-      await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.breathe.frames.some(frame => frame.animation.includes('dialogue-choice-breathe') && frame.opacity < .9))
-      await screenshot('touch-hold-breathe-in-progress')
-      const breath = await finishTrace('breathe')
-      expectActiveBreathing(breath)
-      // Cancel a held touch, rather than select Continue and leave the test menu.
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] })
-      await cdp.detach()
-      expect(await page.evaluate(() => (window as ObserverWindow).__entryVisualPointerTypes)).toContain('touch')
-    } else {
-      await current.hover()
-      await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.breathe.frames.some(frame => frame.animation.includes('dialogue-choice-breathe') && frame.opacity < .9))
-      await screenshot('mouse-hover-breathe-in-progress')
-      const breath = await finishTrace('breathe')
-      expectActiveBreathing(breath)
-      await page.mouse.move(0, 0)
-    }
+    await observeBreathing('[data-entry-id="continue"]', 'continue-breathe')
     expect(await facts()).toEqual(before)
     await screenshot('current-expanded-pure-text')
+    await startTrace('confirmation-enter', '.save-entry-confirm', 500)
     await activate(fresh)
+    await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.['confirmation-enter'].frames.some(frame => frame.opacity > .05 && frame.opacity < .95 && frame.y < -.2))
+    await screenshot('confirmation-in-progress', '.save-entry-confirm')
+    const confirmFrames = await finishTrace('confirmation-enter')
+    expect(confirmFrames.some(frame => frame.opacity > .05 && frame.opacity < .95 && frame.y < -.2)).toBe(true)
+    expect(confirmFrames.at(-1)!.opacity - confirmFrames[0].opacity).toBeGreaterThan(.2)
+    expect(confirmFrames.at(-1)!.y - confirmFrames[0].y).toBeGreaterThan(1)
     const confirm = page.locator('[data-entry-id="replace"]'), cancel = page.locator('[data-entry-id="cancel"]')
     await expect(confirm).toBeEnabled(); await expect(cancel).toBeEnabled()
     await expectStartRetained('confirmation')
@@ -197,37 +205,40 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     await expect(confirm).toBeInViewport({ ratio: 1 }); await expect(cancel).toBeInViewport({ ratio: 1 })
     expect(await facts()).toEqual(before)
     await screenshot('confirm-cancel-below-new-game')
-    if (viewport.width === 375) {
-      const landing = page.locator('.landing'), hint = page.locator('.landing-device-hint[data-world-mode="true"]')
-      expect(await landing.evaluate(node => getComputedStyle(node).overflowY)).toBe('auto')
-      const cdp = await context.newCDPSession(page)
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 12, y: 600 }] })
-      for (const y of [580, 560, 540]) {
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 12, y }] })
-        await page.waitForTimeout(30) // real input spacing, not a fake clock or programmatic scroll
-      }
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-      await cdp.detach()
-      await expect.poll(() => landing.evaluate(node => node.scrollTop)).toBeGreaterThan(0)
-      await expect(hint).toBeInViewport({ ratio: 1 })
-      await expect.poll(async () => { const visible = await hint.boundingBox(); return visible!.y + visible!.height })
-        .toBeLessThanOrEqual(viewport.height - 10)
-      expect(await facts()).toEqual(before)
-      await screenshot('short-touch-scrolled-complete-device-note')
-    }
+    await expect(page.locator('.landing-device-hint')).toHaveCount(0)
+    await expect(page.locator('.save-entry > p[role="status"]')).toHaveCount(0)
+    await observeBreathing('[data-entry-id="replace"]', 'confirm-breathe')
+    await observeBreathing('[data-entry-id="cancel"]', 'cancel-breathe')
+    expect(await facts()).toEqual(before)
     await activate(cancel)
     await expect(fresh).toBeFocused()
+    await expect(page.locator('[data-save-entry-menu="choices"]')).toBeVisible()
     expect(await facts()).toEqual(before)
     await page.keyboard.press('Escape')
     await expect(begin).toBeEnabled()
     await expect.poll(() => page.locator('.landing').evaluate(node => node.scrollTop)).toBe(0)
-    await expectStartRetained('collapsed-after-scroll')
+    await expectStartRetained('collapsed-after-cancel')
+    const outsideTap = async () => touch ? page.touchscreen.tap(12, 120) : page.mouse.click(12, 120)
+    await activate(begin)
+    await expect(current).toBeEnabled()
+    await outsideTap()
+    await expect(page.locator('.save-entry-choices')).toHaveCount(0)
+    await expectStartRetained('outside-choices-collapse')
+    expect(await facts()).toEqual(before)
+    await activate(begin)
+    await expect(fresh).toBeEnabled(); await activate(fresh)
+    await expect(confirm).toBeEnabled()
+    await outsideTap()
+    await expect(page.locator('.save-entry-choices')).toHaveCount(0)
+    await expect(page.locator('.save-entry-confirm')).toHaveCount(0)
+    await expect(page.locator('[data-save-entry-phase="choice-ready"]')).toBeVisible()
+    await expectStartRetained('outside-confirmation-collapse')
     expect(await facts()).toEqual(before)
     await activate(updates)
     await expect(page.locator('.landing-updates-page[data-updates-phase="updates"]')).toBeVisible({ timeout: 15_000 })
     expect(await page.locator('.landing').evaluate(node => node.scrollTop)).toBe(0)
     await screenshot('updates-open')
-    if (viewport.width === 375) {
+    if (touch) {
       await activate(page.locator('[data-entry-id="landing-updates-return"]'))
       await expect(page.locator('.landing[data-updates-phase="landing"]')).toBeVisible({ timeout: 15_000 })
       await expect(begin).toBeEnabled()
@@ -237,11 +248,30 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
       expect(await page.locator('.landing').evaluate(node => node.scrollTop)).toBe(0)
       await page.evaluate(() => { (window as ObserverWindow).__entryVisualStartElement = document.querySelector('[data-entry-id="begin"]') })
       expect(await facts()).toEqual(before)
-      await activate(begin)
-      await expect(current).toBeEnabled()
-      await activate(current)
-      await expect(page.locator('.center-experience')).toBeVisible({ timeout: 25_000 })
-      await expect(page.locator('[data-world-entry-phase]')).toHaveCount(0, { timeout: 20_000 })
+      if (viewport.width === 375) {
+        await activate(begin); await expect(current).toBeEnabled(); await activate(current)
+        await expect(page.locator('.center-experience')).toBeVisible({ timeout: 25_000 })
+        await expect(page.locator('[data-world-entry-phase]')).toHaveCount(0, { timeout: 20_000 })
+      } else {
+        await activate(begin); await expect(fresh).toBeEnabled(); await activate(fresh)
+        await expect(confirm).toBeEnabled()
+        const box = (await confirm.boundingBox())!
+        // Real repeated taps at the verified confirmation point, not direct service calls.
+        await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+        await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+        await expect(page.locator('.center-experience')).toBeVisible({ timeout: 25_000 })
+        await expect(page.locator('[data-world-entry-phase]')).toHaveCount(0, { timeout: 20_000 })
+        const after = await facts(), replaced = JSON.parse(after[AUTHORITY]!)
+        expect(replaced.generation.sequence).toBe(authority.generation.sequence + 1)
+        expect(replaced.generation.id).not.toBe(authority.generation.id)
+        expect(JSON.parse(replaced.values['newtone-player-save-v1']).walletBalance).toBe(800)
+        const newBackups = Object.keys(after).filter(key => key.startsWith(BACKUP_PREFIX) && !(key in before))
+        expect(newBackups).toHaveLength(1)
+        expect(JSON.parse(after[newBackups[0]]!).authorityRaw).toBe(before[AUTHORITY])
+        for (const [key, value] of Object.entries(before)) {
+          if (!key.startsWith(EPOCH_PREFIX) && key !== WRITER_LOCK) expect(after[key]).toBe(value)
+        }
+      }
     }
   })
   })
