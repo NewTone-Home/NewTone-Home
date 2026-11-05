@@ -41,7 +41,7 @@ function EntryButtonSurface({
   retainOnAction = false,
   textTransition = 'flip',
   textMotionReduced = false,
-  onTextSettled,
+  onTextSettled = undefined,
   controlledProgress = null,
   dataAttributes = {},
   onActionStart,

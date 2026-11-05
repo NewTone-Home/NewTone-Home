@@ -54,7 +54,7 @@
     },
     "src/components/EntryButtonSurface.jsx": {
       "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
-      "afterSHA256": "6057371a80b531962c67ab3259ddecfec16a991f2b5caede75f9452c0d7dd9f1"
+      "afterSHA256": "da8a48c7557845f13e05c4651991ec13781fd009d2f7e8dac412b3a57a45bb00"
     },
     "src/components/SaveEntryMenuVisibility.test.mjs": {
       "beforeSHA256": null,
@@ -97,8 +97,8 @@
     "gitDiffCheck": "passed",
     "mjsSyntax": "passed",
     "jsxTsParseOnly": "7 files passed; no emit",
-    "tests": "not run",
-    "typecheck": "not run",
+    "tests": "27 targeted passed; full suite not run",
+    "typecheck": "passed",
     "build": "not run",
     "browser": "not run"
   },
@@ -107,7 +107,7 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "fa60c2b998b8792565b9b52154bcff81f6fb95aa445af0ac02398286c218a468",
+  "aggregateSHA256": "1e7cd0f628a2fefae2ec0f5eb7e5de985482443dbdcedd7ef33d8cc51088f3db",
   "testReview": {
     "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
     "testRun": false,
@@ -157,5 +157,17 @@
     "motionInvariantAssertions": 6,
     "browserTestsRun": false,
     "buildRun": false
+  },
+  "optionalCaptionCallbackFix": {
+    "parent": "10947c2ea331a14822862374cd797c014d4e2eae",
+    "sourceDiff": "onTextSettled -> onTextSettled = undefined",
+    "typecheck": "passed",
+    "targetedTests": "4 files / 27 passed",
+    "logs": {
+      "typecheck.log": "97acba52be37513654b2e861adb115862633bc093a2d3e45da34113b6e41df11",
+      "regression-approved.log": "3b7d83ebed9017e4db6f2fc85b66f305545842451d6c36e0fd00ad024bac500d"
+    },
+    "buildRun": false,
+    "browserRun": false
   }
 }
