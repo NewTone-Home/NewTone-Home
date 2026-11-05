@@ -50,7 +50,7 @@
     },
     "e2e/entryVisual.spec.ts": {
       "beforeSHA256": null,
-      "afterSHA256": "75aab600590f4f39ca809e69e1bc046cb78222d58f584b86d48c615bbbceaf06"
+      "afterSHA256": "21a48bbe42906d475378e3b11ef1d89188d19014bb48a2fd34ffe1e30f12cedb"
     }
   },
   "checks": {
@@ -67,5 +67,11 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "a9a4366ffd500b5f5a15321e285077a17a720b48843126e3f551617d33fee469"
+  "aggregateSHA256": "fe2f9e1e649e8c7cdb3b849b5fea5a6c1a6dc63fd3cc80b208b12dc5e10b8553",
+  "testReview": {
+    "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
+    "testRun": false,
+    "reviewNote": "docs/entry-visual-test-review-20261105.md",
+    "noteSHA256": "503b662abb0c9ec5301ec45d3767201eb79d4a749dd711d997ced079a6ed5d8c"
+  }
 }
