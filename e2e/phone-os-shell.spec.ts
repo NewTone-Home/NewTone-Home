@@ -47,7 +47,7 @@ test('Phone home uses story time and app navigation returns through the home ind
   await expect(phone).toHaveAttribute('data-phone-phase', 'open')
   await phone.getByRole('button', { name: '返回手机主屏', exact: true }).click()
   await expect(phone).toHaveAttribute('data-phone-phase', 'open')
-  await expect(phone.getByLabel('剧情日历')).toContainText('四月')
+  await expect(phone.getByLabel('剧情日历').locator(':scope > strong')).toHaveText('4月')
   await expect(phone.locator('[aria-current="date"]')).toHaveText('12')
   await expect(phone.getByLabel('剧情日历')).not.toContainText('故事日')
   await expect(phone.locator('.world-phone__world-status')).toContainText('10:00')

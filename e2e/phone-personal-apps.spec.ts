@@ -121,6 +121,10 @@ async function startCompletedCafeGame(page: Page): Promise<string> {
 }
 
 test('Notes persist and the contact flow supports details, location cards, and a manually ended call', async ({ page }) => {
+  // R2 trace used ~45s before refresh; real reload/Continue plus final persistence
+  // checks need ~14s more. Allow this long flow 65s, not a global timeout increase.
+  // Each entry handoff still has its independent 10s active/ACK deadline.
+  test.setTimeout(65_000)
   const generation = await startCompletedCafeGame(page)
   const phone = page.locator('.world-phone')
   await page.getByRole('button', { name: '打开手机' }).click()
