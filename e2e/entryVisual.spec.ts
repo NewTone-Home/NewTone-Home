@@ -2,7 +2,8 @@ import { test, expect } from '@playwright/test'
 import { AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, SAVE_EPOCH, EPOCH_PREFIX, BACKUP_PREFIX, WRITER_LOCK } from '../src/services/saveEpoch.mjs'
 type Frame = { at: number; opacity: number; y: number; animation: string; beginVisible: boolean; beginFrame: number; beginText: number }
 type Trace = { frames: Frame[]; done: boolean; error?: string }
-type ObserverWindow = Window & { __entryVisualMotion?: Record<string, Trace>; __entryVisualPointerTypes?: string[]; __entryVisualStartElement?: Element | null }
+type GesturePoint = { type: string; x: number; y: number; at: number; pointerId: number }
+type ObserverWindow = Window & { __entryVisualMotion?: Record<string, Trace>; __entryVisualPointerTypes?: string[]; __entryVisualStartElement?: Element | null; __entryVisualPath?: GesturePoint[]; __entryVisualPathAbort?: AbortController }
 
 function expectActiveBreathing(frames: Frame[]) {
   const active = frames.filter(frame => frame.animation.includes('dialogue-choice-breathe'))
@@ -219,8 +220,49 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     await expect.poll(() => page.locator('.landing').evaluate(node => node.scrollTop)).toBe(0)
     await expectStartRetained('collapsed-after-cancel')
     const outsideTap = async () => touch ? page.touchscreen.tap(12, 120) : page.mouse.click(12, 120)
+    const outsideOutAndBack = async (label: string) => {
+      // Exact endpoint-return proof uses a real mouse path: touch scrolling can
+      // legitimately emit pointercancel, which is a different guard, not proof
+      // that the sticky movement threshold handled an endpoint-return gesture.
+      await page.mouse.move(12, 120)
+      await page.evaluate(() => {
+        const host = window as ObserverWindow
+        host.__entryVisualPathAbort?.abort()
+        const controller = new AbortController(), points: GesturePoint[] = []
+        host.__entryVisualPathAbort = controller; host.__entryVisualPath = points
+        for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
+          document.addEventListener(type, event => {
+            const pointer = event as PointerEvent
+            points.push({ type, x: pointer.clientX, y: pointer.clientY, at: pointer.timeStamp, pointerId: pointer.pointerId })
+          }, { capture: true, passive: true, signal: controller.signal })
+        }
+      })
+      await page.mouse.down()
+      await page.mouse.move(82, 120, { steps: 3 })
+      await page.mouse.move(12, 120, { steps: 3 })
+      await page.mouse.up()
+      const path = await page.evaluate(() => {
+        const host = window as ObserverWindow
+        host.__entryVisualPathAbort?.abort()
+        return host.__entryVisualPath!
+      })
+      await testInfo.attach(`${viewport.width}-${label}-actual-pointer-path`, { body: JSON.stringify(path, null, 2), contentType: 'application/json' })
+      const down = path.find(p => p.type === 'pointerdown')!, up = path.find(p => p.type === 'pointerup')!
+      expect(down && up).toBeTruthy()
+      expect(up.pointerId).toBe(down.pointerId)
+      expect(up.x).toBe(down.x); expect(up.y).toBe(down.y)
+      expect(up.at - down.at).toBeLessThanOrEqual(700)
+      expect(path.some(p => p.type === 'pointermove' && p.pointerId === down.pointerId && Math.hypot(p.x - down.x, p.y - down.y) > 10)).toBe(true)
+      expect(path.some(p => p.type === 'pointercancel')).toBe(false)
+    }
     await activate(begin)
     await expect(current).toBeEnabled()
+    if (!touch) {
+      await outsideOutAndBack('choices-out-and-back')
+      await expect(current).toBeEnabled()
+      await expectStartRetained('choices-preserved-after-path')
+      expect(await facts()).toEqual(before)
+    }
     await outsideTap()
     await expect(page.locator('.save-entry-choices')).toHaveCount(0)
     await expectStartRetained('outside-choices-collapse')
@@ -228,6 +270,12 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     await activate(begin)
     await expect(fresh).toBeEnabled(); await activate(fresh)
     await expect(confirm).toBeEnabled()
+    if (!touch) {
+      await outsideOutAndBack('confirmation-out-and-back')
+      await expect(confirm).toBeEnabled(); await expect(cancel).toBeEnabled()
+      await expectStartRetained('confirmation-preserved-after-path')
+      expect(await facts()).toEqual(before)
+    }
     await outsideTap()
     await expect(page.locator('.save-entry-choices')).toHaveCount(0)
     await expect(page.locator('.save-entry-confirm')).toHaveCount(0)

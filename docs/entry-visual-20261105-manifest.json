@@ -30,7 +30,7 @@
     },
     "src/components/SaveEntryMenu.jsx": {
       "beforeSHA256": null,
-      "afterSHA256": "06daa24bc68eb7e4673ee683f0c87f7e31758f2ce963cc981803ebc90a65ac3a"
+      "afterSHA256": "b91adb8a2ab5f546e983fa7bdd07cb53d06165f42445051b4b83ab9ab51311df"
     },
     "src/services/saveEntryMenuModel.mjs": {
       "beforeSHA256": null,
@@ -50,7 +50,7 @@
     },
     "e2e/entryVisual.spec.ts": {
       "beforeSHA256": null,
-      "afterSHA256": "4f70ecedd021e27b11312c63c7052234cb73745990d149e15e306bbf5c9a46cc"
+      "afterSHA256": "6bb56d6b529123c19fb995ab6486e340e065f586e4ffaf503b3b00ccfc984988"
     },
     "src/components/EntryButtonSurface.jsx": {
       "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
@@ -70,11 +70,11 @@
     },
     "src/services/entryMenuOutsideTap.mjs": {
       "beforeSHA256": null,
-      "afterSHA256": "e4fe20301b7f323170bcf48b4459eea6ebee719e1e05ef5eb8a51857c670be90"
+      "afterSHA256": "c200020072506b475371b556fc66aa7ecb31b05b11ec8fcf6036de16561ab39b"
     },
     "src/services/entryMenuOutsideTap.test.mjs": {
       "beforeSHA256": null,
-      "afterSHA256": "8bb44eecc5ed77ae6fe8237e388228a5d083eb4c95ade2f10c3993a2798fe9aa"
+      "afterSHA256": "290ef4f61b6ad85e09be116703df79d812a0c8376d24ecb60aff89530b416b7e"
     }
   },
   "checks": {
@@ -91,7 +91,7 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "ad72fb70cc6f64d0b907fe695a043f009f25645f89c75afede5120d186dfa389",
+  "aggregateSHA256": "738e69121046caddc9e87f3d088fee8bc48b2d6704a52f0b0060e1b1614e9b72",
   "testReview": {
     "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
     "testRun": false,
@@ -128,6 +128,11 @@
   "dismissRevision": {
     "parent": "7b0dc2d84288307e5a4ecae9e4d9b9234d76ec67",
     "scope": "local presentation only; no preview/server/publication action",
+    "testsRun": false
+  },
+  "outsidePathFix": {
+    "parent": "41f85eb4bee583ef0b6d04c91e67fbe522b32e25",
+    "scope": "sticky same-pointer movement threshold; no other UI or save change",
     "testsRun": false
   }
 }

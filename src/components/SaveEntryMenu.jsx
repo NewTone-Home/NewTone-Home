@@ -3,7 +3,7 @@ import EntryButtonGroup from './EntryButtonGroup'
 import EntryButtonSurface from './EntryButtonSurface'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { beginSaveEntry, saveEntryMenuMode } from '../services/saveEntryMenuModel.mjs'
-import { isOutsideMenuTap } from '../services/entryMenuOutsideTap.mjs'
+import { isOutsideMenuTap, trackOutsideMenuMove } from '../services/entryMenuOutsideTap.mjs'
 
 const REVEAL_MS = 320
 
@@ -25,6 +25,10 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
     const point = event => ({ pointerId: event.pointerId, x: event.clientX, y: event.clientY,
       at: event.timeStamp, outside: !root.current?.contains(event.target) })
     const down = event => { start = event.isPrimary && event.button === 0 ? point(event) : null }
+    const move = event => {
+      for (const sample of event.getCoalescedEvents?.() ?? []) start = trackOutsideMenuMove(start, point(sample))
+      start = trackOutsideMenuMove(start, point(event))
+    }
     const up = event => {
       const dismiss = isOutsideMenuTap(start, point(event)); start = null
       if (!dismiss || !['choices', 'confirm', 'legacy'].includes(live.current.mode)) return
@@ -34,10 +38,12 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
     const cancel = () => { start = null }
     document.addEventListener('pointerdown', down, { capture: true, passive: true })
     document.addEventListener('pointerup', up, { capture: true, passive: true })
+    document.addEventListener('pointermove', move, { capture: true, passive: true })
     document.addEventListener('pointercancel', cancel, { capture: true, passive: true })
     return () => {
       document.removeEventListener('pointerdown', down, true)
       document.removeEventListener('pointerup', up, true)
+      document.removeEventListener('pointermove', move, true)
       document.removeEventListener('pointercancel', cancel, true)
     }
   }, [expandable])
