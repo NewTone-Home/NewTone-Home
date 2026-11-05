@@ -1,3 +1,4 @@
+@import '../../styles/dialogueChoiceMotion.css';
 .dialogue-choice-wheel {
   --dialogue-wheel-gap: 62px;
   position: absolute;
@@ -257,7 +258,7 @@
 
 /* ---- Desktop: all choices visible, in the conversation flow (no wheel) ---- */
 @keyframes dialogue-choice-appear { from { opacity: 0; } to { opacity: 1; } }
-@keyframes dialogue-choice-breathe { 0%, 100% { opacity: .62; } 50% { opacity: 1; } }
+
 
 .dialogue-choice-bubbles,
 .dialogue-choice-menu {

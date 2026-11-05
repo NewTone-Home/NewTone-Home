@@ -1,0 +1,10 @@
+{
+  "base": "f5b7be09e92675ecfe578806afc4f216e11e1e50",
+  "productDirectory": "src/",
+  "baseProductGitTree": "252d4f2f4aae3e462e81072c443479152d9e0426",
+  "filesCompared": 376,
+  "rawBytesBeforeAfterEqual": true,
+  "rawSourceFilesAggregateSHA256": "2d0eb24611eb582a0ee9434644e276e62e22c3c7531d794f3bec7be5eabbccac",
+  "gitProductDiff": "empty",
+  "scope": "test-only; no rebuild or browser run"
+}

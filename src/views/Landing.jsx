@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { copy } from '../i18n/copy'
 import { landingIntroState } from '../services/entryPresentation.mjs'
 import { getReaderEntryIntent, hasStableReaderProgress } from '../reader/readerEntry'
@@ -52,6 +52,14 @@ function Landing({
   const landingRef = useRef(null)
   const landingLeaveRetractStartedRef = useRef(false)
   const worldCoverCompleteRef = useRef(false)
+
+  useLayoutEffect(() => {
+    // A user may have scrolled the short idle menu. Restore the original origin
+    // before either existing transition paints; never persist UI scroll in save.
+    if (worldEntryPhase !== 'idle' || updatesPhase !== UPDATES_PHASE.LANDING) {
+      if (landingRef.current) landingRef.current.scrollTop = 0
+    }
+  }, [worldEntryPhase, updatesPhase])
 
   const reducedMotion = useReducedMotion()
   const [landingScene] = useState(() => resolveLandingScene(window.location.search))
@@ -256,18 +264,17 @@ function Landing({
 
           {landingEntriesVisible && worldEntryPhase === 'idle' && (
             <>
-              {entryUI ?? <EntryButtonGroup
-                groupId="landing-entries"
-                entries={landingEntries}
-                onNavigate={handleEntryNavigate}
-                className="landing-entry-button-group"
-              />}
-              {entryUI && <button type="button" className="landing-entry-updates-link" onClick={onEnterUpdates}>{copy[landingLanguage]?.updates || copy.zh.updates}</button>}
-              {worldMode && (
-                <p className="landing-device-hint" data-world-mode="true" role="note">
-                  当前仍处于开发阶段，电脑或 iPad 体验更佳
-                </p>
-              )}
+              {entryUI ? <div className="landing-entry-button-group landing-entry-area">
+                <div className="landing-entry-row">
+                  <EntryButtonGroup groupId="landing-updates"
+                    entries={landingEntries.filter(entry => entry.id === 'updates')}
+                    onNavigate={handleEntryNavigate} />
+                  {entryUI}
+                </div>
+              </div> : <>
+                <EntryButtonGroup groupId="landing-entries" entries={landingEntries}
+                  onNavigate={handleEntryNavigate} className="landing-entry-button-group" />
+              </>}
             </>
           )}
         </div>

@@ -29,6 +29,21 @@
   z-index: 0;
 }
 
+/* Only the short, stationary public Landing may scroll. Keep its original
+   100vh positioning basis and hide horizontal overflow; transition surfaces
+   and every other page retain their existing clipping/animation contract. */
+@media (max-width: 560px) and (max-height: 720px) {
+  .entry-surface[data-world-entry-phase="idle"] > .landing[data-updates-phase="landing"] {
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
+  }
+  .entry-surface[data-world-entry-phase="idle"] > .landing[data-updates-phase="landing"] .landing-entry-area {
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+}
+
 .entry-surface > .reading-transition {
   position: absolute;
   inset: 0;
