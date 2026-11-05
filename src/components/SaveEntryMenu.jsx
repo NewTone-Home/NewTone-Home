@@ -47,7 +47,7 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
       else { setExpandedSnapshot(null); setRevealing(false) }
     }}>
     {['primary', 'choices', 'confirm', 'legacy'].includes(mode) && <div className="save-entry-primary-slot">
-      <EntryButtonSurface entryId="begin" label={text.create} materialMode="background"
+      <EntryButtonSurface visible={true} entryId="begin" label={text.create} materialMode="background"
         mobile={typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true}
         retainOnAction={entry.phase !== 'start-ready'}
         onActionComplete={() => { if (mode === 'primary') beginSaveEntry(entry, expand, onAction) }} />

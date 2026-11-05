@@ -30,7 +30,7 @@
     },
     "src/components/SaveEntryMenu.jsx": {
       "beforeSHA256": null,
-      "afterSHA256": "6f1a00f6dc6e3cd22c682f9071c2a49e6a9944effb922345273a005544a54641"
+      "afterSHA256": "17b43bcf6edb0c969130c98bb6c8305113f1c8974e164d0f52f8f503b2a30a01"
     },
     "src/services/saveEntryMenuModel.mjs": {
       "beforeSHA256": null,
@@ -55,6 +55,10 @@
     "src/components/EntryButtonSurface.jsx": {
       "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
       "afterSHA256": "0b77aa313e446794feb84c3bda50e97f534d5e1c82d9b25ddbb43c00bddb6cae"
+    },
+    "src/components/SaveEntryMenuVisibility.test.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "1bcb46188096d181688ab4cc065f1704fc89be1ee360bb12a742abc35e4c2437"
     }
   },
   "checks": {
@@ -71,7 +75,7 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "5f95b8911e4050cf78fe883bdd1fbc0c6c9be0c5b556f202247c0207b7cfa0bf",
+  "aggregateSHA256": "899b8a4d61f466d96f316242f96b22bef8943766e45e0c42cf489c0e4d1d145d",
   "testReview": {
     "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
     "testRun": false,
@@ -83,5 +87,11 @@
     "parent": "9bbdfd8ab4963989a44f706139e15971a9fedd99",
     "requirement": "Keep the exact Start surface mounted in place while choices and confirmation appear below.",
     "handoff": "docs/entry-start-retained-20261105.md"
+  },
+  "visibilityFix": {
+    "parent": "8a157f6d1733614b5d116566e05dddcaa266bc8c",
+    "scope": "explicit visible=true at Start call site only; shared default unchanged",
+    "test": "src/components/SaveEntryMenuVisibility.test.mjs",
+    "testsRun": false
   }
 }
