@@ -1,7 +1,7 @@
 import { registerPhoneTestNetwork } from './phoneTestNetwork'
 registerPhoneTestNetwork()
 import { expect, test } from '@playwright/test'
-import { ACKNOWLEDGED, AUTHORITY, SAVE_EPOCH } from '../src/services/saveEpoch.mjs'
+import { ACKNOWLEDGED, AUTHORITY, PENDING, SAVE_EPOCH } from '../src/services/saveEpoch.mjs'
 
 test('Phone home uses story time and app navigation returns through the home indicator', async ({ page }) => {
   const consoleErrors: string[] = []
@@ -42,6 +42,29 @@ test('Phone home uses story time and app navigation returns through the home ind
       && ack.operationId === authority.operationReceipt.operationId)
   }, { AUTHORITY, ACKNOWLEDGED, SAVE_EPOCH })).toBe(true)
 
+  // The immutable create candidate is the initial time, not the already-ticking
+  // live authority. Tie it to this committed operation and verify its fingerprint.
+  const start = await page.evaluate(async ({ AUTHORITY, PENDING, SAVE_EPOCH }) => {
+    const authority = JSON.parse(localStorage.getItem(AUTHORITY)!)
+    const pending = JSON.parse(localStorage.getItem(PENDING)!)
+    const candidate = JSON.parse(pending.candidateRaw)
+    const player = JSON.parse(candidate.values['newtone-player-save-v1'])
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pending.candidateRaw))
+    const fingerprint = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+    return {
+      linked: authority.saveEpoch === SAVE_EPOCH && pending.saveEpoch === SAVE_EPOCH
+        && candidate.saveEpoch === SAVE_EPOCH && candidate.generation.id === authority.generation.id
+        && pending.ticket.operationId === authority.operationReceipt.operationId
+        && pending.ticket.requestHash === authority.operationReceipt.requestHash
+        && fingerprint === pending.candidateSHA256,
+      intent: pending.intent, generation: candidate.generation.id,
+      year: player.storyClock.year, month: player.storyClock.month, day: player.storyClock.day,
+      hour: player.storyClock.hour, minute: player.storyClock.minute, gameTimeMs: player.gameTimeMs,
+    }
+  }, { AUTHORITY, PENDING, SAVE_EPOCH })
+  expect(start).toMatchObject({ linked: true, intent: 'create',
+    year: 2025, month: 4, day: 12, hour: 10, minute: 0, gameTimeMs: 36_000_000 })
+
   const phone = page.locator('.world-phone')
   // New games open Lao Zhou's message; do not suppress the production prompt.
   await expect(phone).toHaveAttribute('data-phone-phase', 'open')
@@ -50,7 +73,29 @@ test('Phone home uses story time and app navigation returns through the home ind
   await expect(phone.getByLabel('剧情日历').locator(':scope > strong')).toHaveText('4月')
   await expect(phone.locator('[aria-current="date"]')).toHaveText('12')
   await expect(phone.getByLabel('剧情日历')).not.toContainText('故事日')
-  await expect(phone.locator('.world-phone__world-status')).toContainText('10:00')
+  // Normal gameplay persists its session clock every 10s. Observe a newer
+  // authoritative checkpoint and its matching displayed minute in ONE JS turn.
+  // A checkpoint/render minute boundary can disagree briefly; no +/- minute
+  // tolerance, system clock, synthetic mode, pause or state mutation is used.
+  await expect.poll(() => page.evaluate(({ AUTHORITY, SAVE_EPOCH, generation, initialTimeMs }) => {
+    const authority = JSON.parse(localStorage.getItem(AUTHORITY)!)
+    const player = JSON.parse(authority.values['newtone-player-save-v1'])
+    const gameTimeMs = player.gameTimeMs
+    const validTime = Number.isFinite(gameTimeMs) && gameTimeMs >= initialTimeMs
+    const minuteOfDay = validTime ? Math.floor(gameTimeMs / 60_000) % (24 * 60) : null
+    const expected = minuteOfDay === null ? null
+      : `${String(Math.floor(minuteOfDay / 60)).padStart(2, '0')}:${String(minuteOfDay % 60).padStart(2, '0')}`
+    const displayed = document.querySelector('.world-phone__world-status')?.textContent?.split('　')[0] ?? null
+    return {
+      currentGeneration: authority.saveEpoch === SAVE_EPOCH && authority.generation.id === generation,
+      advanced: validTime && gameTimeMs > initialTimeMs,
+      matches: expected !== null && displayed === expected,
+      savedGameTimeMs: gameTimeMs, expected, displayed,
+    }
+  }, { AUTHORITY, SAVE_EPOCH, generation: start.generation, initialTimeMs: start.gameTimeMs }), {
+    timeout: 12_000,
+    message: 'Live phone time must match an advanced normal game-clock checkpoint (10s persistence cadence)',
+  }).toMatchObject({ currentGeneration: true, advanced: true, matches: true })
   await expect(phone.locator('.world-phone__apps button')).toHaveText(['地图', '叫车', '联系人', '反馈'])
 
   await phone.locator('[data-app="contacts"]').click()
