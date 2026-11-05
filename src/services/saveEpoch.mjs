@@ -9,3 +9,4 @@ export const GUARD = EPOCH_PREFIX + 'guard';
 export const BACKUP_PREFIX = EPOCH_PREFIX + 'backup:';
 // Keep the existing cooperating-writer lock through the cutover.
 export const WRITER_LOCK = 'newtone-save-entry-writer-v2';
+export const RETIRED_PREFIX = EPOCH_PREFIX + 'retired:';

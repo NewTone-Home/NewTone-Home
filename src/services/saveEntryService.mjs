@@ -4,8 +4,8 @@ import { validateNew, rewindUnfinished } from './saveMigration.mjs';
 import { createJournalStorage, installGameStorage } from '../save-session.mjs';
 import { openingGuidancePatch } from '../center/runtime/openingGuidance';
 
-import { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX, WRITER_LOCK } from './saveEpoch.mjs';
-export { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX };
+import { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX, RETIRED_PREFIX, WRITER_LOCK } from './saveEpoch.mjs';
+export { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX, RETIRED_PREFIX };
 export const PLAYER='newtone-player-save-v1';
 const LOCK=WRITER_LOCK;
 const PREF_FIELDS={language:v=>['zh','en'].includes(v),hasInitializedLanguage:v=>typeof v==='boolean',hasInitializedReadingMode:v=>typeof v==='boolean',readingMode:v=>v==='standard',themePosition:v=>Number.isFinite(v)&&v>=0&&v<=1,standardTheme:v=>['soft','light','dark'].includes(v),motionMode:v=>['full','reduced'].includes(v)};
@@ -18,10 +18,30 @@ const readerKey=k=>/^newtone-(?:isolated-)?(?:progress-|narrative-progress-|read
 // Retired data is immutable evidence, not an active runtime dependency.
 const legacyExact=new Set([PLAYER,'newtone-player-save-release2','newtone-isolated-save-journal-v1','newtone-save-migration-v1-raw','newtone-save-migration-v1-done','newtone-public-release-cutover-v1','newtone.mainline.carried-phone.v1','newtone.mainline.carried-phone.v2','newtone.mainline.scene-positions.v1','newtone.mainline.scene-positions.v2','newtone-save-entry-authority-v2','newtone-save-entry-pending-v2','newtone-save-entry-acknowledged-v2','newtone-landing-intro-v1','newtone-isolated-landing-intro-v1','newtone-choice-wheel-hint-seen','newtone-scene-motion-enabled']);
 const legacyKey=k=>legacyExact.has(k)||readerKey(k)||k.startsWith('newtone-save-entry-backup-v2:')||k.startsWith('newtone:center:scene-layout:')||k.startsWith('newtone-layout-');
-const newKey=k=>[AUTHORITY,PENDING,ACKNOWLEDGED,GUARD].includes(k)||k.startsWith(BACKUP_PREFIX);
+const newKey=k=>[AUTHORITY,PENDING,ACKNOWLEDGED,GUARD].includes(k)||k.startsWith(BACKUP_PREFIX)||k.startsWith(RETIRED_PREFIX);
 function physicalKeys(raw){return Array.from({length:raw.length},(_,i)=>raw.key(i)).filter(k=>k!==null).sort();}
 function assertKnownNamespace(raw){for(const k of physicalKeys(raw))requireThat(!(k.startsWith('newtone-persistence:')&&!newKey(k))&&!(k.startsWith('newtone-player-save-')&&!legacyKey(k))&&!(k.startsWith('newtone.mainline.')&&!legacyKey(k)),'UNKNOWN_SAVE_NAMESPACE');}
-function readGuard(raw){const text=raw.getItem(GUARD);if(text===null)return null;const g=parse(text);requireThat(g.saveEpoch===SAVE_EPOCH&&typeof g.firstOperationId==='string'&&g.firstOperationId.length>0&&['prepared','committed'].includes(g.phase)&&Object.keys(g).every(k=>['saveEpoch','firstOperationId','phase'].includes(k)),'INVALID_EPOCH_GUARD');return g;}
+function retirements(raw){
+  return physicalKeys(raw).filter(k=>k.startsWith(RETIRED_PREFIX)).map(key=>{
+    const record=parse(raw.getItem(key));
+    requireThat(record.schema===1&&record.saveEpoch===SAVE_EPOCH&&object(record.ticket)&&['operationId','requestHash','baseSnapshotHash'].every(k=>typeof record.ticket[k]==='string'&&record.ticket[k].length>0)&&key===RETIRED_PREFIX+record.ticket.operationId&&typeof record.recordHash==='string'&&typeof record.pendingRaw==='string'&&(record.guardRaw===null||typeof record.guardRaw==='string')&&(record.backupRaw===null||typeof record.backupRaw==='string')&&record.backupKey===BACKUP_PREFIX+record.ticket.operationId&&record.reason==='source-changed-before-first-commit','INVALID_RETIREMENT');
+    const prior=parse(record.pendingRaw);
+    requireThat(prior.schema===2&&prior.saveEpoch===SAVE_EPOCH&&typeof prior.candidateRaw==='string'&&typeof prior.candidateSHA256==='string'&&prior.backupRequired===true&&['create','restart'].includes(prior.intent)&&prior.backup?.authorityRaw===null&&ticketEqual(prior.ticket,record.ticket)&&prior.backupKey===record.backupKey,'INVALID_RETIREMENT');
+    if(record.guardRaw!==null){const g=parse(record.guardRaw);requireThat(g.saveEpoch===SAVE_EPOCH&&g.phase==='prepared'&&g.firstOperationId===record.ticket.operationId,'INVALID_RETIREMENT');}
+    if(record.backupRaw!==null)requireThat(record.backupRaw===JSON.stringify(prior.backup),'INVALID_RETIREMENT');
+    return record;
+  });
+}
+function readGuard(raw){
+  const text=raw.getItem(GUARD);if(text===null)return null;
+  const g=parse(text);requireThat(g.saveEpoch===SAVE_EPOCH&&typeof g.firstOperationId==='string'&&g.firstOperationId.length>0&&['prepared','committed'].includes(g.phase)&&Object.keys(g).every(k=>['saveEpoch','firstOperationId','phase'].includes(k)),'INVALID_EPOCH_GUARD');
+  // A committed witness is never retired. Exact prepared evidence remains in its record.
+  if(g.phase==='prepared'&&retirements(raw).some(r=>r.guardRaw===text))return null;
+  return g;
+}
+function activePendingRaw(raw){const text=raw.getItem(PENDING);return text!==null&&retirements(raw).some(r=>r.pendingRaw===text)?null:text;}
+function hasActiveBackup(raw){const records=retirements(raw);return physicalKeys(raw).some(k=>k.startsWith(BACKUP_PREFIX)&&!records.some(r=>r.backupKey===k&&r.backupRaw===raw.getItem(k)));}
+
 
 export function isServiceLogicalKey(k){return k===PLAYER||/^newtone-(?:progress-v[1-4]|narrative-progress-v[12]|reader-exit-tutorial-v1|landing-intro-v1|choice-wheel-hint-seen|scene-motion-enabled)$/.test(k)||k==='newtone-reader-publication-v1'||k.startsWith('newtone:center:scene-layout:');}
 function validateValues(values){requireThat(object(values)&&Object.keys(values).every(isServiceLogicalKey),'UNSUPPORTED_FORMAT');requireThat(Object.values(values).every(v=>typeof v==='string'),'INVALID_INVARIANT');validateNew(parse(values[PLAYER]));}
@@ -85,20 +105,21 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
   function stop(reason){const h=activeHandle;activeHandle=null;if(h)h.revoke(reason);}
   async function inspectInternal(){
     const r=raw();assertKnownNamespace(r);
+    for(const record of retirements(r)){const {recordHash,...payload}=record;requireThat(await digest(canonical(payload))===recordHash,'INVALID_RETIREMENT_INTEGRITY');}
     const authorityRaw=r.getItem(AUTHORITY),guard=readGuard(r);let authority=null,physical={};
     if(authorityRaw!==null){
       authority=validateAuthority(parse(authorityRaw));requireThat(guard!==null,'EPOCH_GUARD_MISSING');
     }else{
-      const hasBackup=physicalKeys(r).some(k=>k.startsWith(BACKUP_PREFIX));
+      const hasBackup=hasActiveBackup(r);
       requireThat(r.getItem(ACKNOWLEDGED)===null,'RECOVERY_EVIDENCE_WITHOUT_SAVE');
       requireThat(guard?.phase!=='committed','COMMITTED_SAVE_MISSING');
-      requireThat(!(guard||hasBackup)||r.getItem(PENDING)!==null,'RECOVERY_EVIDENCE_WITHOUT_SAVE');
+      requireThat(!(guard||hasBackup)||activePendingRaw(r)!==null,'RECOVERY_EVIDENCE_WITHOUT_SAVE');
       physical=sources(r);
     }
     const baseSnapshotHash=await digest(canonical({saveEpoch:SAVE_EPOCH,authorityRaw,guard:authority?guard:null,legacy:authority?null:physical}));
     return {physical,authorityRaw,authority,guard,baseSnapshotHash};
   }
-  function pending(){const text=raw().getItem(PENDING);if(text===null)return null;const p=parse(text);requireThat(p.schema===2&&p.saveEpoch===SAVE_EPOCH&&['create','restart','continue','replace'].includes(p.intent)&&object(p.ticket)&&typeof p.ticket.operationId==='string'&&typeof p.ticket.requestHash==='string'&&typeof p.ticket.baseSnapshotHash==='string'&&typeof p.candidateRaw==='string'&&object(p.backup),'INVALID_PENDING_OPERATION');requireThat(p.backupRequired===(p.backup.authorityRaw===null||p.intent==='replace'),'INVALID_PENDING_BACKUP');requireThat(p.backupKey===BACKUP_PREFIX+p.ticket.operationId&&p.backup.operationId===p.ticket.operationId&&object(p.backup.sourceRaw)&&(p.backup.authorityRaw===null||typeof p.backup.authorityRaw==='string'),'INVALID_PENDING_BACKUP');const guard=readGuard(raw());if(raw().getItem(AUTHORITY)===null&&guard)requireThat(guard.firstOperationId===p.ticket.operationId,'PENDING_GUARD_CONFLICT');const c=validateAuthority(parse(p.candidateRaw));requireThat(canonical(c.sources)===canonical(p.backup.sourceRaw),'INVALID_PENDING_BACKUP');return p;}
+  function pending(){const text=activePendingRaw(raw());if(text===null)return null;const p=parse(text);requireThat(p.schema===2&&p.saveEpoch===SAVE_EPOCH&&['create','restart','continue','replace'].includes(p.intent)&&object(p.ticket)&&typeof p.ticket.operationId==='string'&&typeof p.ticket.requestHash==='string'&&typeof p.ticket.baseSnapshotHash==='string'&&typeof p.candidateRaw==='string'&&object(p.backup),'INVALID_PENDING_OPERATION');requireThat(p.backupRequired===(p.backup.authorityRaw===null||p.intent==='replace'),'INVALID_PENDING_BACKUP');requireThat(p.backupKey===BACKUP_PREFIX+p.ticket.operationId&&p.backup.operationId===p.ticket.operationId&&object(p.backup.sourceRaw)&&(p.backup.authorityRaw===null||typeof p.backup.authorityRaw==='string'),'INVALID_PENDING_BACKUP');const guard=readGuard(raw());if(raw().getItem(AUTHORITY)===null&&guard)requireThat(guard.firstOperationId===p.ticket.operationId,'PENDING_GUARD_CONFLICT');const c=validateAuthority(parse(p.candidateRaw));requireThat(canonical(c.sources)===canonical(p.backup.sourceRaw),'INVALID_PENDING_BACKUP');return p;}
   async function inspectSave(){try{
     const i=await inspectInternal(),p=pending();
     if(p&&i.authority?.operationReceipt.operationId!==p.ticket.operationId)return {status:'ready',classification:'conflict',allowedActions:['back','reinspect'],reasonCodes:['PENDING_OPERATION'],snapshotToken:null};
@@ -109,8 +130,10 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     if(preparing)return failure('busy','OPERATION_ACTIVE');preparing=true;let ticketForRecovery=null,prepareWriteAttempted=false,warningsForRecovery=[];
     try{
       requireThat(['create','restart','continue','replace'].includes(intent),'INVALID_INTENT');const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');
-      const i=await inspectInternal();requireThat(snapshotToken===i.baseSnapshotHash,'SNAPSHOT_STALE');
+      const i=await inspectInternal();
+      // An unreadable/active pending record is a protected operation, not a stale UI token.
       const prior=pending();requireThat(!prior||i.authority?.operationReceipt.operationId===prior.ticket.operationId,'PENDING_OPERATION');
+      requireThat(snapshotToken===i.baseSnapshotHash,'SNAPSHOT_STALE');
       requireThat(intent!=='create'||(!i.authority&&Object.keys(i.physical).length===0),'RESTART_NOTICE_REQUIRED');requireThat(intent!=='restart'||(!i.authority&&Object.keys(i.physical).length>0),'NO_LEGACY_SAVE');requireThat(intent!=='continue'||i.authority,'NO_CURRENT_SAVE');requireThat(intent!=='replace'||(i.authority&&overwriteConfirmed===true),'OVERWRITE_CONFIRMATION_REQUIRED');
       // Only the service revokes handles. No old cleanup callback may write.
       stop('entry-operation-preparing');
@@ -143,11 +166,11 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     if(globalThis.window){const target=globalThis.window;const check=()=>{try{handle.check();}catch{}};const timer=target.setInterval(check,250);target.addEventListener('storage',check);target.document?.addEventListener('visibilitychange',check);cleanup=()=>{target.clearInterval(timer);target.removeEventListener('storage',check);target.document?.removeEventListener('visibilitychange',check);};}
     return handle;
   }
-  async function committed(p){const j=validateAuthority(parse(raw().getItem(AUTHORITY)));requireThat(ticketEqual(j.operationReceipt,p.ticket),'OPERATION_SUPERSEDED');const guard=readGuard(raw());requireThat(guard!==null,'EPOCH_GUARD_MISSING');if(guard.phase!=='committed'){const witness=JSON.stringify({...guard,phase:'committed'});raw().setItem(GUARD,witness);requireThat(raw().getItem(GUARD)===witness,'EPOCH_GUARD_WRITE_FAILED');}const i=await inspectInternal();requireThat(i.authorityRaw===JSON.stringify(j),'AUTHORITY_CONFLICT');const sessionHandle=openHandle(j);const warnings=guidanceWarnings(parse(j.values[PLAYER]));return {status:'committed',ticket:p.ticket,receipt:j.operationReceipt,snapshot:structuredClone(j),sessionHandle,warnings};}
+  async function committed(p){await inspectInternal();const j=validateAuthority(parse(raw().getItem(AUTHORITY)));requireThat(ticketEqual(j.operationReceipt,p.ticket),'OPERATION_SUPERSEDED');const guard=readGuard(raw());requireThat(guard!==null,'EPOCH_GUARD_MISSING');if(guard.phase!=='committed'){const witness=JSON.stringify({...guard,phase:'committed'});raw().setItem(GUARD,witness);requireThat(raw().getItem(GUARD)===witness,'EPOCH_GUARD_WRITE_FAILED');}const i=await inspectInternal();requireThat(i.authorityRaw===JSON.stringify(j),'AUTHORITY_CONFLICT');const sessionHandle=openHandle(j);const warnings=guidanceWarnings(parse(j.values[PLAYER]));return {status:'committed',ticket:p.ticket,receipt:j.operationReceipt,snapshot:structuredClone(j),sessionHandle,warnings};}
   async function verifyPending(p){requireThat(await digest(p.candidateRaw)===p.candidateSHA256,'INVALID_PENDING_INTEGRITY');const c=parse(p.candidateRaw);requireThat(await digest(canonical({saveEpoch:SAVE_EPOCH,intent:p.intent,baseSnapshotHash:p.ticket.baseSnapshotHash,generation:c.generation,values:c.values,placement:c.placement,origin:c.origin}))===p.ticket.requestHash,'INVALID_OPERATION_TICKET');}
   async function commitEntry({ticket}){
     if(preparing)return failure('busy','OPERATION_ACTIVE');preparing=true;let attempted=false;
-    try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');const p=pending();requireThat(p&&ticketEqual(p.ticket,ticket),'INVALID_OPERATION_TICKET');
+    try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');await inspectInternal();const p=pending();requireThat(p&&ticketEqual(p.ticket,ticket),'INVALID_OPERATION_TICKET');
       await verifyPending(p);const current=raw().getItem(AUTHORITY);if(current!==null&&ticketEqual(parse(current).operationReceipt,ticket))return await committed(p);
       const i=await inspectInternal();requireThat(i.baseSnapshotHash===ticket.baseSnapshotHash,'SNAPSHOT_STALE');stop('entry-operation-committing');
       if(p.backupRequired){const previousBackup=raw().getItem(p.backupKey);requireThat(previousBackup===null||previousBackup===JSON.stringify(p.backup),'BACKUP_CONFLICT');
@@ -183,11 +206,32 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     return {status:'operation-found',ticket:p.ticket,phase:committed?'committed':'prepared',warnings:guidanceWarnings(parse((committed?parse(a):parse(p.candidateRaw)).values[PLAYER]))};
   }catch(e){return failure('blocked',e);}}
 
+  async function retireUncommitted(p){
+    requireThat(activeLease,'SESSION_NOT_OWNED');
+    const r=raw();
+    requireThat(['create','restart'].includes(p.intent)&&p.backup.authorityRaw===null,'RETIREMENT_NOT_PROVEN');
+    requireThat(r.getItem(AUTHORITY)===null&&r.getItem(ACKNOWLEDGED)===null,'RETIREMENT_NOT_PROVEN');
+    requireThat(r.getItem(PENDING)===JSON.stringify(p),'PENDING_OPERATION_CHANGED');
+    const guardRaw=r.getItem(GUARD),guard=readGuard(r);
+    requireThat(guard===null||(guard.phase==='prepared'&&guard.firstOperationId===p.ticket.operationId),'RETIREMENT_NOT_PROVEN');
+    // An older already-retired prepared guard belongs to its own record, not this ticket.
+    const ownedGuard=guard===null?null:guardRaw;
+    const backupRaw=r.getItem(p.backupKey);
+    requireThat(backupRaw===null||backupRaw===JSON.stringify(p.backup),'BACKUP_CONFLICT');
+    const payload={schema:1,saveEpoch:SAVE_EPOCH,ticket:p.ticket,pendingRaw:JSON.stringify(p),guardRaw:ownedGuard,backupKey:p.backupKey,backupRaw,reason:'source-changed-before-first-commit'};
+    const record=JSON.stringify({...payload,recordHash:await digest(canonical(payload))});
+    // Recheck after asynchronous hashing. No handle was ever published for a prepared guard.
+    requireThat(r.getItem(AUTHORITY)===null&&r.getItem(ACKNOWLEDGED)===null&&r.getItem(PENDING)===payload.pendingRaw&&r.getItem(GUARD)===guardRaw&&r.getItem(p.backupKey)===backupRaw,'RETIREMENT_NOT_PROVEN');
+    const key=RETIRED_PREFIX+p.ticket.operationId,previous=r.getItem(key);
+    requireThat(previous===null||previous===record,'RETIREMENT_CONFLICT');
+    r.setItem(key,record);requireThat(r.getItem(key)===record,'RETIREMENT_OUTCOME_UNCERTAIN');
+    // No credential/raw/backup deletion: logical retirement is one durable write.
+  }
   async function resolveOperation({ticket}){
     if(preparing)return failure('busy','OPERATION_ACTIVE');preparing=true;
-    try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');const p=pending();if(!p||!ticketEqual(p.ticket,ticket)){await release();return {status:'superseded',ticket};}
+    try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');await inspectInternal();const p=pending();if(!p||!ticketEqual(p.ticket,ticket)){await release();return {status:'superseded',ticket};}
       await verifyPending(p);const a=raw().getItem(AUTHORITY);if(a!==null&&ticketEqual(parse(a).operationReceipt,ticket))return await committed(p);
-      const i=await inspectInternal();await release();const same=i.baseSnapshotHash===ticket.baseSnapshotHash;return {status:same?'not-committed':'superseded',ticket,resumeAllowed:same,warnings:same?guidanceWarnings(parse(parse(p.candidateRaw).values[PLAYER])):[]};
+      const i=await inspectInternal();const same=i.baseSnapshotHash===ticket.baseSnapshotHash;if(!same){await retireUncommitted(p);await release();return {status:'superseded',ticket,resumeAllowed:false,reasonCodes:['UNCOMMITTED_OPERATION_RETIRED'],warnings:[]};}await release();return {status:'not-committed',ticket,resumeAllowed:true,warnings:guidanceWarnings(parse(parse(p.candidateRaw).values[PLAYER]))};
     }catch(e){await release();return {...failure('unresolved',e),ticket};}finally{preparing=false;}
   }
   return {inspectSave,prepareEntry,commitEntry,getRecoveryState,resolveOperation,acknowledgeEntry};
