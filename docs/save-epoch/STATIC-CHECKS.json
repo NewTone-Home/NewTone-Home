@@ -1,0 +1,28 @@
+{
+  "checks": [
+    {
+      "kind": "TypeScript createSourceFile parseDiagnostics only",
+      "files": 11,
+      "diagnostics": 0,
+      "moduleExecution": false
+    },
+    {
+      "kind": "git diff --check",
+      "exitCode": 0
+    },
+    {
+      "kind": "historical synthetic raw fixtures SHA256 verification",
+      "files": 5,
+      "matched": true
+    }
+  ],
+  "notRun": [
+    "Vitest regressions",
+    "full typecheck",
+    "Vite build",
+    "browser acceptance",
+    "independent Sol review"
+  ],
+  "dependencies": "Existing 5f node_modules via junction; no install/download/changes",
+  "originalCandidate": "5f114a46fc65872a8b69336d1c52ef0cfe7603a9"
+}

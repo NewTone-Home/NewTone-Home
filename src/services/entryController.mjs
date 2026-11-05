@@ -14,7 +14,8 @@ export function createEntryController(service) {
     const result = await service.inspectSave()
     const phase = result.status !== 'ready' || result.classification == null ? 'failed'
       : result.classification === 'empty' ? 'start-ready'
-      : ['historical-supported', 'generation-current'].includes(result.classification) ? 'choice-ready'
+      : result.classification === 'legacy-reset-required' ? 'legacy-ready'
+      : result.classification === 'generation-current' ? 'choice-ready'
       : 'unknown'
     publish({ phase, inspection: result, reasons: reason(result), committed: null, focusTarget: null, inspectionWarnings: warnings(result), operationWarnings: [], committedWarnings: [], warningSource: 'inspection' })
   }
@@ -70,17 +71,18 @@ export function createEntryController(service) {
       publish({ phase: 'choice-ready', focusTarget: 'request-replace' }); return true
     },
     back() {
-      if (locked || !['unknown', 'failed'].includes(state.phase)) return false
+      if (locked || !['unknown', 'failed', 'legacy-ready'].includes(state.phase)) return false
       publish({ phase: 'back' }); return true
     },
     submit(intent) {
       const valid = intent === 'create' ? state.phase === 'start-ready' && permitted('create')
+        : intent === 'restart' ? state.phase === 'legacy-ready' && permitted('restart')
         : intent === 'continue' ? state.phase === 'choice-ready' && permitted('continue')
         : intent === 'replace' && state.phase === 'overwrite-confirm' && permitted('request-replace')
       if (!valid || locked) return Promise.resolve(false)
       const snapshotToken = state.inspection.snapshotToken
       return run(async () => {
-        publish({ phase: 'committing', reasons: [], ...(intent === 'create' || intent === 'replace' ? { operationWarnings: [], committedWarnings: [], warningSource: 'operation' } : {}) })
+        publish({ phase: 'committing', reasons: [], ...(intent === 'create' || intent === 'restart' || intent === 'replace' ? { operationWarnings: [], committedWarnings: [], warningSource: 'operation' } : {}) })
         const prepared = await service.prepareEntry({ intent, snapshotToken, overwriteConfirmed: intent === 'replace' })
         captureOperationWarnings(prepared)
         if (prepared.status !== 'prepared') {

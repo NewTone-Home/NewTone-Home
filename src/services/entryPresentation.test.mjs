@@ -23,3 +23,9 @@ describe('entry preference consumption', () => {
     expect(entryPreferences({ themePosition: 2, motionMode: 'invalid', hasInitializedLanguage: 'yes' })).toEqual({})
   })
 })
+
+it('shows explicit previous-test restart copy in both languages without promising cloud/permanent storage',()=>{
+ const zh=entryPresentation({language:'zh',hasInitializedLanguage:true}).text;
+ const en=entryPresentation({language:'en',hasInitializedLanguage:true}).text;
+ expect(zh.restart).toBe('开始新游戏');expect(zh['legacy-ready']).toContain('此前测试进度本次不沿用');expect(en.restart).toBe('Start new game');expect(en['legacy-ready']).toContain('will not carry over');
+})

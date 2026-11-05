@@ -1,18 +1,13 @@
 import { createInitialPlayerSave } from '../center/runtime/playerSave.ts';
 import { selectLaoZhouCafeSeat } from '../center/runtime/commercialCafeSeatSelection.ts';
-import { mainlineScenes } from '../center/runtime/mainlineScenes.ts';
-import { validateNew, convert, convertAncient, rewindUnfinished } from './saveMigration.mjs';
-import { memoryStorage, createJournalStorage, installGameStorage } from '../save-session.mjs';
-import { classifyLaoZhouConversation, openingGuidancePatch } from '../center/runtime/openingGuidance';
+import { validateNew, rewindUnfinished } from './saveMigration.mjs';
+import { createJournalStorage, installGameStorage } from '../save-session.mjs';
+import { openingGuidancePatch } from '../center/runtime/openingGuidance';
 
-export const AUTHORITY='newtone-save-entry-authority-v2';
-export const PENDING='newtone-save-entry-pending-v2';
-export const ACKNOWLEDGED='newtone-save-entry-acknowledged-v2';
+import { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX, WRITER_LOCK } from './saveEpoch.mjs';
+export { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX };
 export const PLAYER='newtone-player-save-v1';
-const OLD_JOURNAL='newtone-isolated-save-journal-v1';
-const LOCK='newtone-save-entry-writer-v2';
-const BACKUP_PREFIX='newtone-save-entry-backup-v2:';
-const FOUR=new Set(['jijia-ancestral-home','jijia-ancestral-interior','zhongshuyuan-passage','zhongshuyuan-office']);
+const LOCK=WRITER_LOCK;
 const PREF_FIELDS={language:v=>['zh','en'].includes(v),hasInitializedLanguage:v=>typeof v==='boolean',hasInitializedReadingMode:v=>typeof v==='boolean',readingMode:v=>v==='standard',themePosition:v=>Number.isFinite(v)&&v>=0&&v<=1,standardTheme:v=>['soft','light','dark'].includes(v),motionMode:v=>['full','reduced'].includes(v)};
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const canonical=v=>JSON.stringify(sort(v));
@@ -20,62 +15,57 @@ function sort(v){return Array.isArray(v)?v.map(sort):object(v)?Object.fromEntrie
 function requireThat(ok,reason){if(!ok)throw Error(reason);}
 function parse(raw){let value;try{value=JSON.parse(raw);}catch{throw Error('INVALID_JSON');}requireThat(object(value),'INVALID_INVARIANT');return value;}
 const readerKey=k=>/^newtone-(?:isolated-)?(?:progress-|narrative-progress-|reader-exit-tutorial-|reader-publication-)/.test(k);
-const protectedSources=s=>Object.fromEntries(Object.entries(s).filter(([k])=>!readerKey(k)).sort(([a],[b])=>a.localeCompare(b)));
+// Retired data is immutable evidence, not an active runtime dependency.
+const legacyExact=new Set([PLAYER,'newtone-player-save-release2','newtone-isolated-save-journal-v1','newtone-save-migration-v1-raw','newtone-save-migration-v1-done','newtone-public-release-cutover-v1','newtone.mainline.carried-phone.v1','newtone.mainline.carried-phone.v2','newtone.mainline.scene-positions.v1','newtone.mainline.scene-positions.v2','newtone-save-entry-authority-v2','newtone-save-entry-pending-v2','newtone-save-entry-acknowledged-v2','newtone-landing-intro-v1','newtone-isolated-landing-intro-v1','newtone-choice-wheel-hint-seen','newtone-scene-motion-enabled']);
+const legacyKey=k=>legacyExact.has(k)||readerKey(k)||k.startsWith('newtone-save-entry-backup-v2:')||k.startsWith('newtone:center:scene-layout:')||k.startsWith('newtone-layout-');
+const newKey=k=>[AUTHORITY,PENDING,ACKNOWLEDGED,GUARD].includes(k)||k.startsWith(BACKUP_PREFIX);
+function physicalKeys(raw){return Array.from({length:raw.length},(_,i)=>raw.key(i)).filter(k=>k!==null).sort();}
+function assertKnownNamespace(raw){for(const k of physicalKeys(raw))requireThat(!(k.startsWith('newtone-persistence:')&&!newKey(k))&&!(k.startsWith('newtone-player-save-')&&!legacyKey(k))&&!(k.startsWith('newtone.mainline.')&&!legacyKey(k)),'UNKNOWN_SAVE_NAMESPACE');}
+function readGuard(raw){const text=raw.getItem(GUARD);if(text===null)return null;const g=parse(text);requireThat(g.saveEpoch===SAVE_EPOCH&&typeof g.firstOperationId==='string'&&g.firstOperationId.length>0&&['prepared','committed'].includes(g.phase)&&Object.keys(g).every(k=>['saveEpoch','firstOperationId','phase'].includes(k)),'INVALID_EPOCH_GUARD');return g;}
+
 export function isServiceLogicalKey(k){return k===PLAYER||/^newtone-(?:progress-v[1-4]|narrative-progress-v[12]|reader-exit-tutorial-v1|landing-intro-v1|choice-wheel-hint-seen|scene-motion-enabled)$/.test(k)||k==='newtone-reader-publication-v1'||k.startsWith('newtone:center:scene-layout:');}
 function validateValues(values){requireThat(object(values)&&Object.keys(values).every(isServiceLogicalKey),'UNSUPPORTED_FORMAT');requireThat(Object.values(values).every(v=>typeof v==='string'),'INVALID_INVARIANT');validateNew(parse(values[PLAYER]));}
 function validateAuthority(j){
-  requireThat(j.protocolVersion===2,'UNSUPPORTED_FORMAT');
+  requireThat(j.protocolVersion===2&&j.saveEpoch===SAVE_EPOCH,'UNSUPPORTED_SAVE_EPOCH');
   requireThat(Number.isSafeInteger(j.revision)&&j.revision>=0&&object(j.generation)&&typeof j.generation.id==='string'&&j.generation.id.length>0&&Number.isSafeInteger(j.generation.sequence)&&j.generation.sequence>=1,'INVALID_INVARIANT');
-  requireThat(object(j.origin)&&['new','historical'].includes(j.origin.kind)&&typeof j.origin.sourceSetHash==='string'&&object(j.placement)&&j.placement.ruleId==='legacy-four-scenes-v1'&&['new-exempt','applied','not-applicable'].includes(j.placement.result),'INVALID_INVARIANT');
+  requireThat(object(j.origin)&&j.origin.kind==='new'&&['service-epoch-1','retired-test-data'].includes(j.origin.sourceFormatId)&&(j.origin.parentGenerationId===null||typeof j.origin.parentGenerationId==='string')&&typeof j.origin.sourceSetHash==='string'&&object(j.placement)&&j.placement.ruleId==='new-epoch-start-v1'&&j.placement.result==='new-exempt','INVALID_INVARIANT');
   requireThat(object(j.sources)&&object(j.archive)&&object(j.operationReceipt)&&typeof j.operationReceipt.operationId==='string'&&typeof j.operationReceipt.requestHash==='string','INVALID_INVARIANT');
+  requireThat(j.operationReceipt.resultingGenerationId===j.generation.id&&Number.isSafeInteger(j.operationReceipt.resultingRevision)&&j.operationReceipt.resultingRevision<=j.revision,'INVALID_OPERATION_RECEIPT');
   requireThat(Array.isArray(j.recoveryHolds)&&j.recoveryHolds.every(h=>object(h)&&h.domain==='cafe'&&h.release==='verified-return-to-cafe-space'),'INVALID_INVARIANT');
   requireThat(Object.values(j.sources).every(v=>v===null||typeof v==='string'),'INVALID_INVARIANT');
-  requireThat(j.placement.result!=='applied'||(j.origin.kind==='historical'&&FOUR.has(j.placement.evaluatedSourceScene)&&j.placement.evaluatedSourcePhone==='surface'),'INVALID_INVARIANT');
-  requireThat(j.placement.result!=='new-exempt'||j.origin.kind==='new','INVALID_INVARIANT');
-  requireThat(Object.keys(j).every(k=>['protocolVersion','revision','generation','origin','placement','operationReceipt','sources','archive','values','recoveryHolds'].includes(k)),'UNSUPPORTED_FORMAT');validateValues(j.values);return j;
+  requireThat(Object.keys(j).every(k=>['saveEpoch','protocolVersion','revision','generation','origin','placement','operationReceipt','sources','archive','values','recoveryHolds'].includes(k)),'UNSUPPORTED_FORMAT');validateValues(j.values);return j;
 }
-function sources(raw){
-  const keys=new Set([PLAYER,'newtone-player-save-release2',OLD_JOURNAL,'newtone-save-migration-v1-raw','newtone-save-migration-v1-done','newtone-public-release-cutover-v1','newtone.mainline.carried-phone.v1','newtone.mainline.carried-phone.v2','newtone.mainline.scene-positions.v1','newtone.mainline.scene-positions.v2','newtone-landing-intro-v1','newtone-choice-wheel-hint-seen','newtone-scene-motion-enabled']);
-  for(let i=0;i<raw.length;i++){const k=raw.key(i);if(k&&(readerKey(k)||/^newtone-(?:isolated-)?landing-intro-/.test(k)||/^newtone-player-save-/.test(k)||k.startsWith('newtone.mainline.')||k.startsWith('newtone:center:scene-layout:')||k.startsWith('newtone-layout-')))keys.add(k);}
-  return Object.fromEntries([...keys].sort().map(k=>[k,raw.getItem(k)]));
-}
+function sources(raw){assertKnownNamespace(raw);return Object.fromEntries(physicalKeys(raw).filter(legacyKey).map(k=>[k,raw.getItem(k)]));}
 function preferences(s){const prefs={};for(const family of ['newtone-isolated-progress-v','newtone-progress-v'])for(const v of [4,3,2,1]){try{const x=JSON.parse(s[family+v]??'null');if(!object(x))continue;for(const [k,valid] of Object.entries(PREF_FIELDS))if(!Object.hasOwn(prefs,k)&&valid(x[k]))prefs[k]=x[k];}catch{}}return prefs;}
 function startupPreview(i){
-  const data=i.authority?.values??{...i.physical,...(i.old?.priorArchive?.values??{}),...(i.old?.auxiliary??{})};
+  const data=i.authority?.values??preferenceInputs(i.physical);
   const found=preferences(data),defaults={language:'zh',readingMode:'standard',themePosition:0.5,standardTheme:'soft',motionMode:'full',hasInitializedLanguage:false,hasInitializedReadingMode:false};
   const effective={...defaults,...found},derived=[];
   if(!Object.hasOwn(found,'themePosition')&&Object.hasOwn(found,'standardTheme')){effective.themePosition={light:0,soft:0.5,dark:1}[found.standardTheme];derived.push('themePosition');}
-  let value=data['newtone-landing-intro-v1'];if((value===null||value===undefined)&&i.authority){const original=i.authority.sources['newtone-landing-intro-v1'];if(original!==null&&original!==undefined&&!['true','false'].includes(original))value=original;}
+  let value=data['newtone-landing-intro-v1'];if((value===null||value===undefined)&&i.authority){const original=preferenceInputs(i.authority.sources)['newtone-landing-intro-v1'];if(original!==null&&original!==undefined&&!['true','false'].includes(original))value=original;}
   const landingIntro=value===null||value===undefined?{status:'not-learned',learned:false,source:'absent'}:value==='true'||value==='false'?{status:value==='true'?'learned':'not-learned',learned:value==='true',source:i.authority?'journal':'physical'}:{status:'unknown',learned:null,source:'invalid'};
   return {preferences:effective,preferenceEvidence:{preservedFields:Object.keys(found),defaultedFields:Object.keys(defaults).filter(k=>!Object.hasOwn(found,k)&&!derived.includes(k)),derivedFields:derived},landingIntro};
 }
+function preferenceInputs(s){
+  // Read only known preference/independent guidance values from old envelopes.
+  // Never import their player/Reader state or replay old pending operations.
+  const result={};
+  for(const key of ['newtone-isolated-save-journal-v1','newtone-save-entry-authority-v2']){
+    try{const old=JSON.parse(s[key]??'null');if(object(old?.values))for(const [k,v] of Object.entries(old.values)){
+      if(typeof v!=='string')continue;
+      if(/^newtone-(?:isolated-)?progress-v[1-4]$/.test(k))result[k]=v;
+      if(k==='newtone-isolated-landing-intro-v1'||k==='newtone-landing-intro-v1')result['newtone-landing-intro-v1']=v;
+    }}catch{}
+  }
+  return {...s,...result};
+}
 function initialAux(s){
-  const prefs=preferences(s),values={'newtone-progress-v4':JSON.stringify({_version:4,currentView:'landing',committedLocation:{phaseId:'M1',pageId:'',beatIndex:0},furthestLocation:{phaseId:'M1',pageId:'',beatIndex:0},readerStarted:false,readerCompleted:false,resumeRequested:false,readerExitGestureLearned:false,chapterTrialEnded:false,readerScrollOffset:0,...prefs})};
-  for(const k of ['newtone-landing-intro-v1','newtone-choice-wheel-hint-seen','newtone-scene-motion-enabled'])if(s[k]!==null&&s[k]!==undefined){if(k==='newtone-landing-intro-v1'){if(['true','false'].includes(s[k]))values[k]=s[k];}else{requireThat(['true','false','1','0'].includes(s[k]),'INVALID_INVARIANT');values[k]=s[k];}}
-  for(const [k,v] of Object.entries(s))if(v!==null&&k.startsWith('newtone:center:scene-layout:')){const x=parse(v);requireThat(x.version===3&&typeof x.sceneId==='string'&&k===`newtone:center:scene-layout:${x.sceneId}:v3`&&object(x.items)&&Object.values(x.items).every(p=>object(p)&&Number.isFinite(p.x)&&Number.isFinite(p.y)),'UNSUPPORTED_FORMAT');values[k]=v;}
+  const data=preferenceInputs(s),prefs=preferences(data),values={'newtone-progress-v4':JSON.stringify({_version:4,currentView:'landing',committedLocation:{phaseId:'M1',pageId:'',beatIndex:0},furthestLocation:{phaseId:'M1',pageId:'',beatIndex:0},readerStarted:false,readerCompleted:false,resumeRequested:false,readerExitGestureLearned:false,chapterTrialEnded:false,readerScrollOffset:0,...prefs})};
+  if(['true','false'].includes(data['newtone-landing-intro-v1']))values['newtone-landing-intro-v1']=data['newtone-landing-intro-v1'];
   return values;
 }
-function knownPlayer(raw){const p=parse(raw);if(p._version===1)return {source:p,save:convert(raw),format:'website-player-v1'};if(p._version===2){const withoutHistory=!Object.hasOwn(p,'shopOrderHistory');const candidate=withoutHistory?{...p,shopOrderHistory:[]}:p;return {source:p,save:rewindUnfinished(validateNew(candidate)),format:withoutHistory?'bddf-player-v2-before-order-history':'candidate-player-v2'};}throw Error('UNSUPPORTED_FORMAT');}
-function historical(s){
-  const unknown=Object.entries(s).some(([k,v])=>v!==null&&!readerKey(k)&&((k.startsWith('newtone-player-save-')&&![PLAYER,'newtone-player-save-release2'].includes(k))||k.startsWith('newtone-layout-')));
-  requireThat(!unknown,'UNSUPPORTED_FORMAT');
-  if(s[OLD_JOURNAL]!==null){
-    const j=parse(s[OLD_JOURNAL]);requireThat(j.schema===1&&Number.isSafeInteger(j.revision)&&j.revision>=0&&object(j.values)&&object(j.sources),'INVALID_INVARIANT');requireThat(Object.keys(j).every(k=>['schema','revision','sources','values','readerDisposition'].includes(k)),'UNSUPPORTED_FORMAT');
-    const result=knownPlayer(j.values['newtone-player-save-release2']);
-    // Known prototype lineage must still match all indispensable physical inputs.
-    for(const [k,v] of Object.entries(j.sources))if(!readerKey(k))requireThat((s[k]??null)===v,'SOURCE_CONFLICT');
-    const auxiliary={};for(const [k,v] of Object.entries(j.values)){if(k==='newtone-player-save-release2'||readerKey(k))continue;const target=k.replace('newtone-isolated-landing-intro-','newtone-landing-intro-');requireThat(isServiceLogicalKey(target)&&typeof v==='string','UNSUPPORTED_FORMAT');auxiliary[target]=v;}
-    return {...result,format:'prototype-schema1/'+result.format,priorArchive:j,auxiliary};
-  }
-  if(s[PLAYER]!==null&&s['newtone-player-save-release2']!==null)requireThat(s[PLAYER]===s['newtone-player-save-release2'],'SOURCE_CONFLICT');
-  const raw=s[PLAYER]??s['newtone-player-save-release2'];
-  if(raw!==null)return knownPlayer(raw);
-  if(s['newtone.mainline.carried-phone.v2']!==null){const phone=parse(s['newtone.mainline.carried-phone.v2']);requireThat(typeof phone.sceneId==='string','INSUFFICIENT_LEGACY_EVIDENCE');return {source:{currentSceneId:phone.sceneId,phoneDevice:phone.device,sceneState:{}},save:convertAncient(s),format:'ancient-phone-v2-with-explicit-scene'};}
-  if(Object.entries(protectedSources(s)).some(([k,v])=>v!==null&&(k.startsWith('newtone.mainline.')||k.startsWith('newtone-save-migration-'))))throw Error('INSUFFICIENT_LEGACY_EVIDENCE');
-  return null;
-}
-function guidanceWarnings(player){return player?.sceneState?.['commercial-street']?.laoZhouOpeningPromptStatus==='unknown'?['LAO_ZHOU_TRIGGER_UNKNOWN']:[];}
-function inspectionWarnings(i){return i.authority?guidanceWarnings(parse(i.authority.values[PLAYER])):i.old&&classifyLaoZhouConversation(i.old.source.sceneState).state==='unknown'?['LAO_ZHOU_TRIGGER_UNKNOWN']:[];}
+const guidanceWarnings=()=>[];
+const inspectionWarnings=()=>[];
 function ticketEqual(a,b){return a&&b&&a.operationId===b.operationId&&a.requestHash===b.requestHash&&a.baseSnapshotHash===b.baseSnapshotHash;}
 export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID(),digest=async text=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}}={}){
   let activeLease=null,activeHandle=null,preparing=false,releasing=Promise.resolve();
@@ -94,68 +84,67 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
   const release=()=>{stop('lease-released');installGameStorage(null);return activeLease?.release()??releasing;};
   function stop(reason){const h=activeHandle;activeHandle=null;if(h)h.revoke(reason);}
   async function inspectInternal(){
-    const r=raw(),physical=sources(r),authorityRaw=r.getItem(AUTHORITY);let authority=null,old=null;
-    if(authorityRaw!==null){authority=validateAuthority(parse(authorityRaw));requireThat(canonical(protectedSources(physical))===canonical(protectedSources(authority.sources)),'SOURCE_CONFLICT');}
-    else {
+    const r=raw();assertKnownNamespace(r);
+    const authorityRaw=r.getItem(AUTHORITY),guard=readGuard(r);let authority=null,physical={};
+    if(authorityRaw!==null){
+      authority=validateAuthority(parse(authorityRaw));requireThat(guard!==null,'EPOCH_GUARD_MISSING');
+    }else{
+      const hasBackup=physicalKeys(r).some(k=>k.startsWith(BACKUP_PREFIX));
       requireThat(r.getItem(ACKNOWLEDGED)===null,'RECOVERY_EVIDENCE_WITHOUT_SAVE');
-      const hasBackup=Array.from({length:r.length},(_,n)=>r.key(n)).some(k=>k?.startsWith(BACKUP_PREFIX));
-      requireThat(!hasBackup||r.getItem(PENDING)!==null,'RECOVERY_EVIDENCE_WITHOUT_SAVE');
-      requireThat(physical[OLD_JOURNAL]!==null||(physical['newtone-save-migration-v1-raw']===null&&physical['newtone-save-migration-v1-done']===null),'RECOVERY_EVIDENCE_WITHOUT_SAVE');
-      old=historical(physical);
+      requireThat(guard?.phase!=='committed','COMMITTED_SAVE_MISSING');
+      requireThat(!(guard||hasBackup)||r.getItem(PENDING)!==null,'RECOVERY_EVIDENCE_WITHOUT_SAVE');
+      physical=sources(r);
     }
-    const baseSnapshotHash=await digest(canonical({authorityRaw,protectedSources:protectedSources(physical)}));
-    return {physical,authorityRaw,authority,old,baseSnapshotHash};
+    const baseSnapshotHash=await digest(canonical({saveEpoch:SAVE_EPOCH,authorityRaw,guard:authority?guard:null,legacy:authority?null:physical}));
+    return {physical,authorityRaw,authority,guard,baseSnapshotHash};
   }
-  function pending(){const text=raw().getItem(PENDING);if(text===null)return null;const p=parse(text);requireThat(p.schema===2&&object(p.ticket)&&typeof p.ticket.operationId==='string'&&typeof p.ticket.requestHash==='string'&&typeof p.ticket.baseSnapshotHash==='string'&&typeof p.candidateRaw==='string'&&object(p.backup),'INVALID_PENDING_OPERATION');requireThat(p.backupRequired===(p.backup.authorityRaw===null||p.intent==='replace'),'INVALID_PENDING_BACKUP');requireThat(p.backupKey===BACKUP_PREFIX+p.ticket.operationId&&p.backup.operationId===p.ticket.operationId&&object(p.backup.sourceRaw)&&(p.backup.authorityRaw===null||typeof p.backup.authorityRaw==='string'),'INVALID_PENDING_BACKUP');validateAuthority(parse(p.candidateRaw));return p;}
+  function pending(){const text=raw().getItem(PENDING);if(text===null)return null;const p=parse(text);requireThat(p.schema===2&&p.saveEpoch===SAVE_EPOCH&&['create','restart','continue','replace'].includes(p.intent)&&object(p.ticket)&&typeof p.ticket.operationId==='string'&&typeof p.ticket.requestHash==='string'&&typeof p.ticket.baseSnapshotHash==='string'&&typeof p.candidateRaw==='string'&&object(p.backup),'INVALID_PENDING_OPERATION');requireThat(p.backupRequired===(p.backup.authorityRaw===null||p.intent==='replace'),'INVALID_PENDING_BACKUP');requireThat(p.backupKey===BACKUP_PREFIX+p.ticket.operationId&&p.backup.operationId===p.ticket.operationId&&object(p.backup.sourceRaw)&&(p.backup.authorityRaw===null||typeof p.backup.authorityRaw==='string'),'INVALID_PENDING_BACKUP');const guard=readGuard(raw());if(raw().getItem(AUTHORITY)===null&&guard)requireThat(guard.firstOperationId===p.ticket.operationId,'PENDING_GUARD_CONFLICT');const c=validateAuthority(parse(p.candidateRaw));requireThat(canonical(c.sources)===canonical(p.backup.sourceRaw),'INVALID_PENDING_BACKUP');return p;}
   async function inspectSave(){try{
     const i=await inspectInternal(),p=pending();
     if(p&&i.authority?.operationReceipt.operationId!==p.ticket.operationId)return {status:'ready',classification:'conflict',allowedActions:['back','reinspect'],reasonCodes:['PENDING_OPERATION'],snapshotToken:null};
-    const classification=i.authority?'generation-current':i.old?'historical-supported':'empty';
-    return {status:'ready',classification,allowedActions:classification==='empty'?['create']:['continue','request-replace'],reasonCodes:[],preview:startupPreview(i),warnings:inspectionWarnings(i),preferences:startupPreview(i).preferences,snapshotToken:i.baseSnapshotHash};
-  }catch(e){const reason=e.message;const classification=/CONFLICT|PENDING|RECOVERY_EVIDENCE/.test(reason)?'conflict':/UNSUPPORTED|INSUFFICIENT|unknown.*field|unknown.*version/i.test(reason)?'unknown':/JSON|INVARIANT|missing|invalid|unsupported|unknown|noncanonical/i.test(reason)?'corrupt':null;return {status:classification?'ready':'unavailable',classification,allowedActions:['back','reinspect'],reasonCodes:[reason],snapshotToken:null,preview:(()=>{try{return startupPreview({physical:sources(raw())});}catch{return startupPreview({physical:{}});}})()};}}
+    const classification=i.authority?'generation-current':Object.keys(i.physical).length?'legacy-reset-required':'empty';
+    return {status:'ready',classification,allowedActions:classification==='empty'?['create']:classification==='legacy-reset-required'?['restart','back']:['continue','request-replace'],reasonCodes:[],preview:startupPreview(i),warnings:inspectionWarnings(i),preferences:startupPreview(i).preferences,snapshotToken:i.baseSnapshotHash};
+  }catch(e){const reason=e.message;const classification=/CONFLICT|PENDING|RECOVERY_EVIDENCE|COMMITTED_SAVE_MISSING|GUARD_MISSING/.test(reason)?'conflict':/UNSUPPORTED|INSUFFICIENT|UNKNOWN_SAVE_NAMESPACE|unknown.*field|unknown.*version/i.test(reason)?'unknown':/JSON|INVARIANT|missing|invalid|unsupported|unknown|noncanonical/i.test(reason)?'corrupt':null;return {status:classification?'ready':'unavailable',classification,allowedActions:['back','reinspect'],reasonCodes:[reason],snapshotToken:null,preview:(()=>{try{return startupPreview({physical:sources(raw())});}catch{return startupPreview({physical:{}});}})()};}}
   async function prepareEntry({intent,snapshotToken,overwriteConfirmed=false}){
     if(preparing)return failure('busy','OPERATION_ACTIVE');preparing=true;let ticketForRecovery=null,prepareWriteAttempted=false,warningsForRecovery=[];
     try{
-      requireThat(['create','continue','replace'].includes(intent),'INVALID_INTENT');const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');
+      requireThat(['create','restart','continue','replace'].includes(intent),'INVALID_INTENT');const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');
       const i=await inspectInternal();requireThat(snapshotToken===i.baseSnapshotHash,'SNAPSHOT_STALE');
       const prior=pending();requireThat(!prior||i.authority?.operationReceipt.operationId===prior.ticket.operationId,'PENDING_OPERATION');
-      requireThat(intent!=='create'||(!i.authority&&!i.old),'OVERWRITE_CONFIRMATION_REQUIRED');requireThat(intent!=='continue'||i.authority||i.old,'NO_SAVE');requireThat(intent!=='replace'||overwriteConfirmed===true,'OVERWRITE_CONFIRMATION_REQUIRED');
+      requireThat(intent!=='create'||(!i.authority&&Object.keys(i.physical).length===0),'RESTART_NOTICE_REQUIRED');requireThat(intent!=='restart'||(!i.authority&&Object.keys(i.physical).length>0),'NO_LEGACY_SAVE');requireThat(intent!=='continue'||i.authority,'NO_CURRENT_SAVE');requireThat(intent!=='replace'||(i.authority&&overwriteConfirmed===true),'OVERWRITE_CONFIRMATION_REQUIRED');
       // Only the service revokes handles. No old cleanup callback may write.
       stop('entry-operation-preparing');
       requireThat((await inspectInternal()).baseSnapshotHash===i.baseSnapshotHash,'SNAPSHOT_STALE');
       const newGame=intent!=='continue',generation=newGame?{id:uuid(),sequence:(i.authority?.generation.sequence??0)+1}:i.authority?.generation??{id:uuid(),sequence:1};
-      let values=i.authority?{...i.authority.values}:{...initialAux({...i.physical,...(i.old?.priorArchive?.values??{})}),...(i.old?.auxiliary??{})},player,placement,origin;
-      if(newGame){player={...createInitialPlayerSave(),laoZhouCafeSeatId:selectLaoZhouCafeSeat(),updatedAt:Date.now()};placement={ruleId:'legacy-four-scenes-v1',result:'new-exempt'};origin={kind:'new',sourceFormatId:'service-v2',sourceSetHash:i.baseSnapshotHash,parentGenerationId:i.authority?.generation.id??null};delete values['newtone-choice-wheel-hint-seen'];}
-      else if(i.authority){player=rewindUnfinished(validateNew(parse(values[PLAYER])));placement=i.authority.placement;origin=i.authority.origin;}
-      else{
-        player=structuredClone(i.old.save);const original=i.old.source;
-        const move=FOUR.has(original.currentSceneId)&&original.phoneDevice==='surface';
-        if(move){const spawn={...mainlineScenes['commercial-street'].initialPlayerPosition};player={...player,currentSceneId:'commercial-street',currentPosition:spawn,scenePositions:{...player.scenePositions,'commercial-street':spawn},phoneDevice:'inner'};if(Object.values(player.cafeStoryDeliveries).some(d=>d.presentation==='pending')||Object.values(player.sceneState).some(st=>['dialogue','coffee-delivery','coffee-returning'].includes(st.commercialCafeNarrativePhase)||typeof st.commercialCafeTableDeliverySeatId==='string')){player.sceneState={...player.sceneState,'commercial-street':{...player.sceneState['commercial-street'],saveEntrySpatialHold:true,saveEntryPreviousSeatId:player.sceneState['commercial-street']?.commercialCafeTableDeliverySeatId??player.sceneState['commercial-cafe']?.commercialCafeTableDeliverySeatId??null}};}}
-        placement={ruleId:'legacy-four-scenes-v1',result:move?'applied':'not-applicable',evaluatedSourceScene:original.currentSceneId,evaluatedSourcePhone:original.phoneDevice};origin={kind:'historical',sourceFormatId:i.old.format,sourceSetHash:i.baseSnapshotHash,parentGenerationId:null};
+      let values=newGame?initialAux(i.authority?i.authority.values:i.physical):{...i.authority.values},player,placement,origin;
+      if(newGame){
+        player={...createInitialPlayerSave(),laoZhouCafeSeatId:selectLaoZhouCafeSeat(),updatedAt:Date.now()};
+        player=openingGuidancePatch(player,{state:'not-triggered',evidence:['new-generation']},true);
+        placement={ruleId:'new-epoch-start-v1',result:'new-exempt'};
+        origin={kind:'new',sourceFormatId:intent==='restart'?'retired-test-data':'service-epoch-1',sourceSetHash:i.baseSnapshotHash,parentGenerationId:i.authority?.generation.id??null};
+      }else{
+        player=rewindUnfinished(validateNew(parse(values[PLAYER])));placement=i.authority.placement;origin=i.authority.origin;
       }
-      // Preserve original trigger evidence before conversion/defaults can obscure it.
-      const evidence=newGame?{state:'not-triggered',evidence:['new-generation']}:i.authority?null:classifyLaoZhouConversation(i.old.source.sceneState);
-      if(evidence)player=openingGuidancePatch(player,evidence,newGame);
       values[PLAYER]=JSON.stringify(validateNew(player));warningsForRecovery=guidanceWarnings(player);
-      const operationId=uuid(),requestHash=await digest(canonical({intent,baseSnapshotHash:i.baseSnapshotHash,generation,values,placement,origin})),ticket={operationId,requestHash,baseSnapshotHash:i.baseSnapshotHash};
-      const candidate={recoveryHolds:player.sceneState['commercial-street']?.saveEntrySpatialHold===true?[{domain:'cafe',release:'verified-return-to-cafe-space'}]:[],protocolVersion:2,revision:(i.authority?.revision??-1)+1,generation,origin,placement,sources:i.authority?.sources??i.physical,archive:i.authority?.archive??{readerPolicy:'not-imported',originalSources:'sources',prototype:i.old?.priorArchive??null},values,operationReceipt:{...ticket,resultingGenerationId:generation.id,resultingRevision:(i.authority?.revision??-1)+1}};
+      const operationId=uuid(),requestHash=await digest(canonical({saveEpoch:SAVE_EPOCH,intent,baseSnapshotHash:i.baseSnapshotHash,generation,values,placement,origin})),ticket={operationId,requestHash,baseSnapshotHash:i.baseSnapshotHash};
+      const candidate={saveEpoch:SAVE_EPOCH,recoveryHolds:player.sceneState['commercial-street']?.saveEntrySpatialHold===true?[{domain:'cafe',release:'verified-return-to-cafe-space'}]:[],protocolVersion:2,revision:(i.authority?.revision??-1)+1,generation,origin,placement,sources:i.authority?.sources??i.physical,archive:i.authority?.archive??{policy:'pre-epoch-test-data-not-imported',originalSources:'sources'},values,operationReceipt:{...ticket,resultingGenerationId:generation.id,resultingRevision:(i.authority?.revision??-1)+1}};
       validateAuthority(candidate);
-      const record={schema:2,ticket,intent,backupRequired:!i.authority||intent==='replace',candidateSHA256:await digest(JSON.stringify(candidate)),candidateRaw:JSON.stringify(candidate),backup:{operationId,authorityRaw:i.authorityRaw,sourceRaw:i.authority?.sources??i.physical},backupKey:BACKUP_PREFIX+operationId};
+      const record={schema:2,saveEpoch:SAVE_EPOCH,ticket,intent,backupRequired:!i.authority||intent==='replace',candidateSHA256:await digest(JSON.stringify(candidate)),candidateRaw:JSON.stringify(candidate),backup:{operationId,authorityRaw:i.authorityRaw,sourceRaw:i.authority?.sources??i.physical},backupKey:BACKUP_PREFIX+operationId};
       ticketForRecovery=ticket;prepareWriteAttempted=true;raw().setItem(PENDING,JSON.stringify(record));requireThat(raw().getItem(PENDING)===JSON.stringify(record),'PREPARE_OUTCOME_UNCERTAIN');
       return {status:'prepared',ticket,warnings:warningsForRecovery};
     }catch(e){await release();return {...failure(prepareWriteAttempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'blocked',e),...(ticketForRecovery?{ticket:ticketForRecovery,warnings:warningsForRecovery}:{})};}finally{preparing=false;}
   }
   function openHandle(j){
     stop('session-replaced');const listeners=new Set();let stopped=false,stopReason=null,cleanup=()=>{};
-    const r=raw(),baseline=canonical(protectedSources(j.sources));
+    const r=raw(),baseline=r.getItem(GUARD);requireThat(baseline!==null,'EPOCH_GUARD_MISSING');
     const handle={generation:j.generation.id,storage:null,get isOpen(){return !stopped;},get stopReason(){return stopReason;},check(){handle.storage.check();},onStop(fn){if(stopped){fn(stopReason);return()=>{};}listeners.add(fn);return()=>listeners.delete(fn);},revoke(reason){if(stopped)return;stopped=true;stopReason=reason;try{cleanup();}catch{}try{handle.storage?.stop(reason);}catch{}for(const fn of listeners){try{fn(reason);}catch{}}},close(){handle.revoke('session-closed');if(activeHandle===handle){activeHandle=null;installGameStorage(null);return release();}return releasing;}};
-    handle.storage=createJournalStorage(r,j,baseline,store=>canonical(protectedSources(sources(store))),reason=>{handle.revoke(reason);if(activeHandle===handle){activeHandle=null;installGameStorage(null);release();}});
+    handle.storage=createJournalStorage(r,j,baseline,store=>store.getItem(GUARD),reason=>{handle.revoke(reason);if(activeHandle===handle){activeHandle=null;installGameStorage(null);release();}});
     handle.storage.setValidator(validateValues);installGameStorage(handle.storage);activeHandle=handle;
     if(globalThis.window){const target=globalThis.window;const check=()=>{try{handle.check();}catch{}};const timer=target.setInterval(check,250);target.addEventListener('storage',check);target.document?.addEventListener('visibilitychange',check);cleanup=()=>{target.clearInterval(timer);target.removeEventListener('storage',check);target.document?.removeEventListener('visibilitychange',check);};}
     return handle;
   }
-  async function committed(p){const j=validateAuthority(parse(raw().getItem(AUTHORITY)));requireThat(ticketEqual(j.operationReceipt,p.ticket),'OPERATION_SUPERSEDED');const i=await inspectInternal();requireThat(i.authorityRaw===JSON.stringify(j),'AUTHORITY_CONFLICT');const sessionHandle=openHandle(j);const warnings=guidanceWarnings(parse(j.values[PLAYER]));return {status:'committed',ticket:p.ticket,receipt:j.operationReceipt,snapshot:structuredClone(j),sessionHandle,warnings};}
-  async function verifyPending(p){requireThat(await digest(p.candidateRaw)===p.candidateSHA256,'INVALID_PENDING_INTEGRITY');const c=parse(p.candidateRaw);requireThat(await digest(canonical({intent:p.intent,baseSnapshotHash:p.ticket.baseSnapshotHash,generation:c.generation,values:c.values,placement:c.placement,origin:c.origin}))===p.ticket.requestHash,'INVALID_OPERATION_TICKET');}
+  async function committed(p){const j=validateAuthority(parse(raw().getItem(AUTHORITY)));requireThat(ticketEqual(j.operationReceipt,p.ticket),'OPERATION_SUPERSEDED');const guard=readGuard(raw());requireThat(guard!==null,'EPOCH_GUARD_MISSING');if(guard.phase!=='committed'){const witness=JSON.stringify({...guard,phase:'committed'});raw().setItem(GUARD,witness);requireThat(raw().getItem(GUARD)===witness,'EPOCH_GUARD_WRITE_FAILED');}const i=await inspectInternal();requireThat(i.authorityRaw===JSON.stringify(j),'AUTHORITY_CONFLICT');const sessionHandle=openHandle(j);const warnings=guidanceWarnings(parse(j.values[PLAYER]));return {status:'committed',ticket:p.ticket,receipt:j.operationReceipt,snapshot:structuredClone(j),sessionHandle,warnings};}
+  async function verifyPending(p){requireThat(await digest(p.candidateRaw)===p.candidateSHA256,'INVALID_PENDING_INTEGRITY');const c=parse(p.candidateRaw);requireThat(await digest(canonical({saveEpoch:SAVE_EPOCH,intent:p.intent,baseSnapshotHash:p.ticket.baseSnapshotHash,generation:c.generation,values:c.values,placement:c.placement,origin:c.origin}))===p.ticket.requestHash,'INVALID_OPERATION_TICKET');}
   async function commitEntry({ticket}){
     if(preparing)return failure('busy','OPERATION_ACTIVE');preparing=true;let attempted=false;
     try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');const p=pending();requireThat(p&&ticketEqual(p.ticket,ticket),'INVALID_OPERATION_TICKET');
@@ -164,6 +153,8 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
       if(p.backupRequired){const previousBackup=raw().getItem(p.backupKey);requireThat(previousBackup===null||previousBackup===JSON.stringify(p.backup),'BACKUP_CONFLICT');
         raw().setItem(p.backupKey,JSON.stringify(p.backup));requireThat(raw().getItem(p.backupKey)===JSON.stringify(p.backup),'BACKUP_FAILED');}
       const final=await inspectInternal();requireThat(final.baseSnapshotHash===ticket.baseSnapshotHash,'SNAPSHOT_STALE');
+      if(!final.guard){const guard=JSON.stringify({saveEpoch:SAVE_EPOCH,firstOperationId:ticket.operationId,phase:'prepared'});raw().setItem(GUARD,guard);requireThat(raw().getItem(GUARD)===guard,'EPOCH_GUARD_WRITE_FAILED');}
+      requireThat((await inspectInternal()).baseSnapshotHash===ticket.baseSnapshotHash,'SNAPSHOT_STALE');
       attempted=true;raw().setItem(AUTHORITY,p.candidateRaw);requireThat(raw().getItem(AUTHORITY)===p.candidateRaw,'COMMIT_OUTCOME_UNCERTAIN');return await committed(p);
     }catch(e){await release();return {...failure(attempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'not-committed',e),ticket};}finally{preparing=false;}
   }
@@ -171,7 +162,7 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     const ownedAtStart=Boolean(sessionHandle&&activeHandle===sessionHandle);let attempted=false;try{
       requireThat(activeLease&&activeHandle===sessionHandle,'SESSION_NOT_OWNED');sessionHandle.check();
       const j=validateAuthority(parse(raw().getItem(AUTHORITY)));requireThat(ticketEqual(j.operationReceipt,ticket)&&j.generation.id===sessionHandle.generation,'OPERATION_SUPERSEDED');
-      const acknowledgement={schema:2,...ticket,generationId:j.generation.id};
+      const acknowledgement={schema:2,saveEpoch:SAVE_EPOCH,...ticket,generationId:j.generation.id};
       const existing=raw().getItem(ACKNOWLEDGED);
       if(existing!==null&&canonical(parse(existing))===canonical(acknowledgement))return {status:'acknowledged',ticket};
       attempted=true;raw().setItem(ACKNOWLEDGED,JSON.stringify(acknowledgement));
@@ -185,10 +176,10 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     }
   }
   async function getRecoveryState(){try{
-    const p=pending();if(!p)return {status:'no-pending-operation'};
+    await inspectInternal();const p=pending();if(!p)return {status:'no-pending-operation'};
     const a=raw().getItem(AUTHORITY),committed=a!==null&&ticketEqual(parse(a).operationReceipt,p.ticket);
     const ack=raw().getItem(ACKNOWLEDGED);requireThat(a!==null||ack===null,'RECOVERY_EVIDENCE_WITHOUT_SAVE');
-    if(committed&&ack!==null){const value=parse(ack);requireThat(value.schema===2,'INVALID_ACKNOWLEDGEMENT');if(ticketEqual(value,p.ticket)&&value.generationId===parse(a).generation.id)return {status:'no-pending-operation'};}
+    if(committed&&ack!==null){const value=parse(ack);requireThat(value.schema===2&&value.saveEpoch===SAVE_EPOCH,'INVALID_ACKNOWLEDGEMENT');if(ticketEqual(value,p.ticket)&&value.generationId===parse(a).generation.id)return {status:'no-pending-operation'};}
     return {status:'operation-found',ticket:p.ticket,phase:committed?'committed':'prepared',warnings:guidanceWarnings(parse((committed?parse(a):parse(p.candidateRaw)).values[PLAYER]))};
   }catch(e){return failure('blocked',e);}}
 

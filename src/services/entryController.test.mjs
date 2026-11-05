@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createEntryController } from './entryController.mjs'
-const inspection = (classification = 'historical-supported') => ({ status: 'ready', classification, snapshotToken: 'opaque', allowedActions: classification === 'empty' ? ['create'] : ['continue', 'request-replace'] })
+const inspection = (classification = 'generation-current') => ({ status: 'ready', classification, snapshotToken: 'opaque', allowedActions: classification === 'empty' ? ['create'] : ['continue', 'request-replace'] })
 function fixture(result = inspection()) {
   const handle = { check: vi.fn() }
   const committed = { status: 'committed', ticket: { opaque: true }, snapshot: { values: {} }, receipt: {}, sessionHandle: handle }

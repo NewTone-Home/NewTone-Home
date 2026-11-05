@@ -1,4 +1,5 @@
-export const JOURNAL = 'newtone-save-entry-authority-v2';
+import { AUTHORITY } from './services/saveEpoch.mjs';
+export const JOURNAL = AUTHORITY;
 export const SESSION_LOCK = 'newtone-prototype-migration-v2';
 export const PUBLICATION_KEY = 'newtone-reader-publication-v1';
 let activeStorage=null;

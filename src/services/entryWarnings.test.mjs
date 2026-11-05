@@ -4,7 +4,7 @@ import { currentEntryWarnings, entryWarningMessages } from './entryPresentation.
 const warning = 'LAO_ZHOU_TRIGGER_UNKNOWN'
 function fixture({ inspectionWarnings = [], committedWarnings = [] } = {}) {
   const committed = { status:'committed', ticket:{ opaque:true }, receipt:{}, snapshot:{ values:{} }, sessionHandle:{ check(){} }, warnings:committedWarnings }
-  const service = { inspectSave:vi.fn(async()=>({status:'ready',classification:'historical-supported',allowedActions:['continue','request-replace'],snapshotToken:'opaque',warnings:inspectionWarnings})), getRecoveryState:vi.fn(async()=>({status:'no-pending-operation'})), prepareEntry:vi.fn(async()=>({status:'prepared',ticket:committed.ticket})), commitEntry:vi.fn(async()=>committed), resolveOperation:vi.fn(async()=>committed) }
+  const service = { inspectSave:vi.fn(async()=>({status:'ready',classification:'generation-current',allowedActions:['continue','request-replace'],snapshotToken:'opaque',warnings:inspectionWarnings})), getRecoveryState:vi.fn(async()=>({status:'no-pending-operation'})), prepareEntry:vi.fn(async()=>({status:'prepared',ticket:committed.ticket})), commitEntry:vi.fn(async()=>committed), resolveOperation:vi.fn(async()=>committed) }
   return { service, controller:createEntryController(service) }
 }
 describe('entry warning evidence and visible copy', () => {

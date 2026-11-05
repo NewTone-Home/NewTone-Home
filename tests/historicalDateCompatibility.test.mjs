@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from 'vitest';
 import { createHash } from 'node:crypto';
 import { convert, validateNew } from '../src/services/saveMigration.mjs';
-import { createSaveEntryService, AUTHORITY, PLAYER } from '../src/services/saveEntryService.mjs';
+import { createSaveEntryService, AUTHORITY, PLAYER, BACKUP_PREFIX } from '../src/services/saveEntryService.mjs';
 import { memoryStorage } from '../src/save-session.mjs';
 import { createInitialPlayerSave, savePlayerSave, sanitizePlayerSave } from '../src/center/runtime/playerSave.ts';
 
@@ -45,21 +45,21 @@ test('registered v1 extensions retain valid simulation time, money and non-date 
   expect(JSON.stringify(source)).toBe(raw);
 });
 
-test('yearless public v1 continues through real prepare/commit/ACK without changing original raw or reissuing money',async()=>{
+test('yearless public v1 now restarts once through prepare/commit/ACK, preserving original raw',async()=>{
   const source={...websiteSave(),walletBalance:650};
   const oldRaw=JSON.stringify(source,null,2),raw=memoryStorage({[PLAYER]:oldRaw,'newtone-progress-v4':'{retired Reader'}),locks=lockManager(),service=serviceFor(raw,locks);
   const before=snapshot(raw),inspection=await service.inspectSave();
-  expect(inspection).toMatchObject({classification:'historical-supported',allowedActions:['continue','request-replace']});
+  expect(inspection).toMatchObject({classification:'legacy-reset-required',allowedActions:['restart','back']});
   expect(snapshot(raw)).toEqual(before);
-  const prepared=await service.prepareEntry({intent:'continue',snapshotToken:inspection.snapshotToken});
+  const prepared=await service.prepareEntry({intent:'restart',snapshotToken:inspection.snapshotToken});
   expect(prepared.status).toBe('prepared');
   const committed=await service.commitEntry({ticket:prepared.ticket});
   expect(committed.status).toBe('committed');handles.push(committed.sessionHandle);
-  expect(committed.snapshot.origin.sourceFormatId).toBe('website-player-v1');
+  expect(committed.snapshot.origin.sourceFormatId).toBe('retired-test-data');
   const next=JSON.parse(committed.snapshot.values[PLAYER]);
-  expect(next.storyClock).toMatchObject({year:2025,month:4,day:12});expect(next.walletBalance).toBe(650);
+  expect(next.storyClock).toMatchObject({year:2025,month:4,day:12});expect(next.walletBalance).toBe(800);
   expect(committed.snapshot.sources[PLAYER]).toBe(oldRaw);
-  const backups=Object.keys(snapshot(raw)).filter(key=>key.startsWith('newtone-save-entry-backup-v2:'));
+  const backups=Object.keys(snapshot(raw)).filter(key=>key.startsWith(BACKUP_PREFIX));
   expect(backups).toHaveLength(1);expect(JSON.parse(raw.getItem(backups[0])).sourceRaw[PLAYER]).toBe(oldRaw);
   savePlayerSave({...next,walletBalance:640},committed.sessionHandle.storage);
   expect((await service.acknowledgeEntry({ticket:committed.ticket,sessionHandle:committed.sessionHandle})).status).toBe('acknowledged');
@@ -72,7 +72,7 @@ test('yearless public v1 continues through real prepare/commit/ACK without chang
   expect(c.status).toBe('committed');handles.push(c.sessionHandle);
   expect(c.snapshot.generation).toEqual(committed.snapshot.generation);
   expect(JSON.parse(c.snapshot.values[PLAYER]).walletBalance).toBe(640);
-  expect(Object.keys(snapshot(raw)).filter(key=>key.startsWith('newtone-save-entry-backup-v2:'))).toEqual(backups);
+  expect(Object.keys(snapshot(raw)).filter(key=>key.startsWith(BACKUP_PREFIX))).toEqual(backups);
   expect(raw.getItem(PLAYER)).toBe(oldRaw);expect(raw.getItem('newtone-progress-v4')).toBe('{retired Reader');
 });
 
@@ -83,13 +83,13 @@ const invalidDates=[
  ['year above limit',{year:10000}],['boolean year',{year:false}],['array year',{year:[]}],['object year',{year:{value:2025}}],
  ['string month',{month:'4'}],['fractional day',{day:12.5}],['conflicting weekday',{weekday:5}],
 ];
-test.each(invalidDates)('unsafe v1 date %s remains protected and creates no authority',async(_name,patch)=>{
+test.each(invalidDates)('unsafe v1 date %s remains rejected by converter but is only archived by the restart service',async(_name,patch)=>{
   const source=websiteSave();Object.assign(source.storyClock,patch);
   const oldRaw=JSON.stringify(source),raw=memoryStorage({[PLAYER]:oldRaw}),service=serviceFor(raw),before=snapshot(raw);
   expect(()=>convert(oldRaw)).toThrow();
   const inspection=await service.inspectSave();
-  expect(inspection.allowedActions).toEqual(['back','reinspect']);
-  expect(['unknown','corrupt']).toContain(inspection.classification);
+  expect(inspection.allowedActions).toEqual(['restart','back']);
+  expect(inspection.classification).toBe('legacy-reset-required');
   expect(raw.getItem(AUTHORITY)).toBeNull();expect(snapshot(raw)).toEqual(before);
 });
 
@@ -105,17 +105,17 @@ test('pre-month/day v1 still uses its already registered day-001 baseline',()=>{
   const source=websiteSave();source.storyClock={dayId:'story-day-001',stage:'commercial-street'};
   expect(convert(JSON.stringify(source)).storyClock).toMatchObject({year:2025,month:4,day:12});
 });
-test.each([2,3,undefined])('missing year does not promote an unregistered or current schema %s into historical v1',async version=>{
+test.each([2,3,undefined])('missing year never promotes schema %s through converter; retired source is not imported',async version=>{
   const source={...createInitialPlayerSave('commercial-street'),_version:version};delete source.storyClock.year;
   const text=JSON.stringify(source),raw=memoryStorage({[PLAYER]:text}),service=serviceFor(raw),before=snapshot(raw);
   expect(()=>convert(text)).toThrow('unsupported player save version');
-  const i=await service.inspectSave();expect(i.allowedActions).toEqual(['back','reinspect']);
+  const i=await service.inspectSave();expect(i.allowedActions).toEqual(['restart','back']);
   expect(snapshot(raw)).toEqual(before);expect(raw.getItem(AUTHORITY)).toBeNull();
 });
-test('unknown v1 fields stay rejected even when the old date matches',async()=>{
+test('unknown v1 fields stay rejected by converter; old slot only offers explicit restart',async()=>{
   const source={...websiteSave(),futureDateSchema:1},text=JSON.stringify(source),raw=memoryStorage({[PLAYER]:text});
   expect(()=>convert(text)).toThrow('unknown legacy player fields');
-  expect((await serviceFor(raw).inspectSave()).allowedActions).toEqual(['back','reinspect']);
+  expect((await serviceFor(raw).inspectSave()).allowedActions).toEqual(['restart','back']);
   expect(raw.getItem(PLAYER)).toBe(text);expect(raw.getItem(AUTHORITY)).toBeNull();
 });
 test('canonical v2 leap dates remain strict and unchanged; missing year never uses the v1 bridge',()=>{
@@ -127,16 +127,16 @@ test('canonical v2 leap dates remain strict and unchanged; missing year never us
 });
 test('an existing authority with a missing year cannot fall back to the still-present public v1 raw',async()=>{
   const oldRaw=JSON.stringify(websiteSave()),raw=memoryStorage({[PLAYER]:oldRaw}),locks=lockManager(),service=serviceFor(raw,locks);
-  const i=await service.inspectSave(),p=await service.prepareEntry({intent:'continue',snapshotToken:i.snapshotToken}),c=await service.commitEntry({ticket:p.ticket});
+  const i=await service.inspectSave(),p=await service.prepareEntry({intent:'restart',snapshotToken:i.snapshotToken}),c=await service.commitEntry({ticket:p.ticket});
   expect(c.status).toBe('committed');handles.push(c.sessionHandle);await c.sessionHandle.close();
   const broken=JSON.parse(raw.getItem(AUTHORITY)),player=JSON.parse(broken.values[PLAYER]);delete player.storyClock.year;broken.values[PLAYER]=JSON.stringify(player);raw.setItem(AUTHORITY,JSON.stringify(broken));
   const before=snapshot(raw),result=await serviceFor(raw,locks).inspectSave();
   expect(result.allowedActions).toEqual(['back','reinspect']);expect(snapshot(raw)).toEqual(before);expect(raw.getItem(PLAYER)).toBe(oldRaw);
 });
 
-test('date compatibility does not repair a malformed simulation time extension',async()=>{
+test('converter does not repair malformed simulation time; restart does not import it',async()=>{
   const source={...websiteSave(),gameTimeMs:'55321000'},text=JSON.stringify(source),raw=memoryStorage({[PLAYER]:text});
   expect(()=>convert(text)).toThrow('unsupported legacy extension: gameTimeMs');
-  expect((await serviceFor(raw).inspectSave()).allowedActions).toEqual(['back','reinspect']);
+  expect((await serviceFor(raw).inspectSave()).allowedActions).toEqual(['restart','back']);
   expect(raw.getItem(PLAYER)).toBe(text);expect(raw.getItem(AUTHORITY)).toBeNull();
 });

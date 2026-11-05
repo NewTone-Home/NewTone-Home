@@ -114,6 +114,7 @@ export default function App() {
   const warningMessages = entryWarningMessages(currentEntryWarnings(entry), language)
   const warningStyle = getReaderThemeVariables(migrateThemePosition(displayedPreferences.themePosition, displayedPreferences.standardTheme))
   const entries = entry.phase === 'start-ready' ? [{ id: 'create', label: text.create }]
+    : entry.phase === 'legacy-ready' ? [{ id: 'restart', label: text.restart }, { id: 'back', label: text.back }]
     : entry.phase === 'choice-ready' ? [{ id: 'continue', label: text.continue }, { id: 'request-replace', label: text.replaceRequest }]
     : entry.phase === 'overwrite-confirm' ? [{ id: 'replace', label: text.confirm }, { id: 'cancel', label: text.cancel }]
     : entry.phase === 'uncertain' ? [{ id: 'reinspect', label: text.resolve }]
@@ -136,7 +137,7 @@ export default function App() {
     {warningMessages.map(message => <p key={message} role="status" className="save-entry-warning" data-save-entry-warning>{message}</p>)}
     {entry.reasons.length > 0 && <small data-save-entry-reasons>{entry.reasons.join(' / ')}</small>}
     {entries.length > 0 && <EntryButtonGroup key={`${entry.phase}:${entry.epoch}`} groupId={`save-entry:${entry.phase}:${entry.epoch}`}
-      entries={entries.map(item => ({ ...item, disabled: ['create', 'continue'].includes(item.id) ? !entry.inspection?.allowedActions?.includes(item.id) : item.id === 'request-replace' ? !entry.inspection?.allowedActions?.includes('request-replace') : false }))} initialFocusId={entry.phase === 'overwrite-confirm' ? 'cancel' : entry.focusTarget ?? null} materialMode="background" className={entry.phase === 'overwrite-confirm' ? 'save-entry-confirm' : ''} onNavigate={onAction} />}
+      entries={entries.map(item => ({ ...item, disabled: ['create', 'continue', 'restart'].includes(item.id) ? !entry.inspection?.allowedActions?.includes(item.id) : item.id === 'request-replace' ? !entry.inspection?.allowedActions?.includes('request-replace') : false }))} initialFocusId={entry.phase === 'overwrite-confirm' ? 'cancel' : entry.focusTarget ?? null} materialMode="background" className={entry.phase === 'overwrite-confirm' ? 'save-entry-confirm' : ''} onNavigate={onAction} />}
   </section>
   const Runtime = entry.phase === 'entering' && !runtimeRecovery.current.isTerminated(runtime?.sessionHandle) ? runtime?.Component : null
   const recoveryPanel = <RuntimeRecoveryPanel language={language} text={text} phase={entry.phase}
