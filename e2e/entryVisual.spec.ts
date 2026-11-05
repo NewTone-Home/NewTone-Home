@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, SAVE_EPOCH, EPOCH_PREFIX, BACKUP_PREFIX, WRITER_LOCK } from '../src/services/saveEpoch.mjs'
-type Frame = { at: number; opacity: number; y: number; animation: string; beginVisible: boolean; beginFrame: number; beginText: number }
+type Frame = { at: number; opacity: number; y: number; animation: string; text: string; beginVisible: boolean; beginFrame: number; beginText: number }
 type Trace = { frames: Frame[]; done: boolean; error?: string }
 type GesturePoint = { type: string; x: number; y: number; at: number; pointerId: number }
 type ObserverWindow = Window & { __entryVisualMotion?: Record<string, Trace>; __entryVisualPointerTypes?: string[]; __entryVisualStartElement?: Element | null; __entryVisualPath?: GesturePoint[]; __entryVisualPathAbort?: AbortController }
@@ -25,14 +25,14 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     test.setTimeout(120_000)
     const activate = async (locator: ReturnType<typeof page.locator>) => touch ? locator.tap() : locator.click()
     await page.emulateMedia({ reducedMotion: 'no-preference' })
-    const screenshot = async (label: string, movingSelector?: string) => {
+    const screenshot = async (label: string, movingSelector?: string, requireTranslation = true) => {
       if (movingSelector) {
         const state = await page.locator(movingSelector).evaluate(node => {
           const style = getComputedStyle(node)
           return { at: performance.now(), opacity: Number(style.opacity), y: new DOMMatrixReadOnly(style.transform).m42 }
         })
         expect(state.opacity).toBeGreaterThan(.05); expect(state.opacity).toBeLessThan(.95)
-        expect(state.y).toBeLessThan(-.2)
+        if (requireTranslation) expect(state.y).toBeLessThan(-.2)
         await testInfo.attach(`${viewport.width}-${label}-capture-request`, { body: JSON.stringify(state), contentType: 'application/json' })
       }
       const path = testInfo.outputPath(`${viewport.width}-${label}.png`)
@@ -53,7 +53,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
           first ??= now
           const style = getComputedStyle(node)
           const begin = document.querySelector('[data-entry-id="begin"]')
-          trace.frames.push({ at: now, opacity: Number(style.opacity), y: new DOMMatrixReadOnly(style.transform).m42, animation: style.animationName,
+          trace.frames.push({ at: now, opacity: Number(style.opacity), y: new DOMMatrixReadOnly(style.transform).m42, animation: style.animationName, text: node.textContent ?? '',
             beginVisible: !!begin && getComputedStyle(begin).visibility !== 'hidden' && begin.getAttribute('data-entry-visible') === 'true',
             beginFrame: Number(begin?.getAttribute('data-entry-frame-progress')), beginText: Number(begin?.getAttribute('data-entry-text-progress')) })
         }
@@ -63,11 +63,11 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
       }
       requestAnimationFrame(tick)
     }, { key, selector, duration })
-    const finishTrace = async (key: string) => {
+    const finishTrace = async (key: string, minimumFrames = 8) => {
       await page.waitForFunction(key => (window as ObserverWindow).__entryVisualMotion?.[key]?.done, key)
       const trace = await page.evaluate(key => (window as ObserverWindow).__entryVisualMotion![key], key)
       await testInfo.attach(`${viewport.width}-${key}-frames`, { body: JSON.stringify(trace, null, 2), contentType: 'application/json' })
-      expect(trace.error).toBeUndefined(); expect(trace.frames.length).toBeGreaterThan(8)
+      expect(trace.error).toBeUndefined(); expect(trace.frames.length).toBeGreaterThan(minimumFrames)
       return trace.frames
     }
     const observeBreathing = async (selector: string, key: string) => {
@@ -101,7 +101,16 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     await expect(updates.locator('svg')).not.toHaveCount(0)
     expect(await page.evaluate(() => navigator.maxTouchPoints > 0)).toBe(touch)
     await screenshot('empty-start-framed-updates')
+    const originalStart = await begin.elementHandle()
+    await startTrace('loading-caption', '[data-entry-id="begin"] [data-entry-text-fade-value]', 1000)
     await activate(begin)
+    await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.['loading-caption'].frames.some(frame => frame.text === '加载游戏中' && frame.animation === 'entry-text-fade-in' && frame.opacity > .05 && frame.opacity < .95))
+    await screenshot('loading-caption-fade-in', '[data-entry-id="begin"] [data-entry-text-fade-value]', false)
+    expect(await originalStart!.evaluate(node => node === document.querySelector('[data-entry-id="begin"]'))).toBe(true)
+    const loadingFrames = await finishTrace('loading-caption')
+    expect(loadingFrames.some(frame => frame.text === '开始游戏' && frame.animation === 'entry-text-fade-out' && frame.opacity > .05 && frame.opacity < .95)).toBe(true)
+    expect(loadingFrames.some(frame => frame.text === '加载游戏中' && frame.animation === 'entry-text-fade-in' && frame.opacity > .05 && frame.opacity < .95)).toBe(true)
+    expect(loadingFrames.every(frame => frame.beginVisible && frame.beginFrame === 1)).toBe(true)
     await expect(page.locator('.center-experience')).toBeVisible({ timeout: 25_000 })
     await expect(page.locator('[data-world-entry-phase]')).toHaveCount(0, { timeout: 20_000 })
     await page.reload()
@@ -211,7 +220,12 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     await observeBreathing('[data-entry-id="replace"]', 'confirm-breathe')
     await observeBreathing('[data-entry-id="cancel"]', 'cancel-breathe')
     expect(await facts()).toEqual(before)
+    await startTrace('cancel-fade-out', '.save-entry-confirm', 400)
     await activate(cancel)
+    await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.['cancel-fade-out'].frames.some(frame => frame.opacity > .05 && frame.opacity < .95))
+    await screenshot('cancel-fade-out', '.save-entry-confirm', false)
+    const cancelFrames = await finishTrace('cancel-fade-out', 3)
+    expect(cancelFrames.some(frame => frame.opacity > .05 && frame.opacity < .95)).toBe(true)
     await expect(fresh).toBeFocused()
     await expect(page.locator('[data-save-entry-menu="choices"]')).toBeVisible()
     expect(await facts()).toEqual(before)
@@ -263,7 +277,11 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
       await expectStartRetained('choices-preserved-after-path')
       expect(await facts()).toEqual(before)
     }
+    await startTrace('outside-fade-out', '.save-entry-choices', 400)
     await outsideTap()
+    await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.['outside-fade-out'].frames.some(frame => frame.opacity > .05 && frame.opacity < .95))
+    await screenshot('outside-fade-out', '.save-entry-choices', false)
+    expect((await finishTrace('outside-fade-out', 3)).some(frame => frame.opacity > .05 && frame.opacity < .95)).toBe(true)
     await expect(page.locator('.save-entry-choices')).toHaveCount(0)
     await expectStartRetained('outside-choices-collapse')
     expect(await facts()).toEqual(before)
@@ -304,9 +322,19 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
         await activate(begin); await expect(fresh).toBeEnabled(); await activate(fresh)
         await expect(confirm).toBeEnabled()
         const box = (await confirm.boundingBox())!
+        await startTrace('confirm-fade-out', '.save-entry-choices', 400)
+        await startTrace('confirmed-loading-caption', '[data-entry-id="begin"] [data-entry-text-fade-value]', 1200)
         // Real repeated taps at the verified confirmation point, not direct service calls.
         await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
         await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2)
+        await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.['confirm-fade-out'].frames.some(frame => frame.opacity > .05 && frame.opacity < .95))
+        expect((await finishTrace('confirm-fade-out', 3)).some(frame => frame.opacity > .05 && frame.opacity < .95)).toBe(true)
+        await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.['confirmed-loading-caption'].frames.some(frame => frame.text === '加载游戏中' && frame.animation === 'entry-text-fade-in' && frame.opacity > .05 && frame.opacity < .95))
+        await screenshot('confirmed-loading-caption-fade-in', '[data-entry-id="begin"] [data-entry-text-fade-value]', false)
+        const confirmedCaption = await finishTrace('confirmed-loading-caption')
+        expect(confirmedCaption.some(frame => frame.text === '开始游戏' && frame.animation === 'entry-text-fade-out' && frame.opacity > .05 && frame.opacity < .95)).toBe(true)
+        expect(confirmedCaption.some(frame => frame.text === '加载游戏中' && frame.animation === 'entry-text-fade-in' && frame.opacity > .05 && frame.opacity < .95)).toBe(true)
+        expect(confirmedCaption.every(frame => frame.beginVisible && frame.beginFrame === 1)).toBe(true)
         await expect(page.locator('.center-experience')).toBeVisible({ timeout: 25_000 })
         await expect(page.locator('[data-world-entry-phase]')).toHaveCount(0, { timeout: 20_000 })
         const after = await facts(), replaced = JSON.parse(after[AUTHORITY]!)

@@ -4,6 +4,7 @@ import EntryButtonSurface from './EntryButtonSurface'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import { beginSaveEntry, saveEntryMenuMode } from '../services/saveEntryMenuModel.mjs'
 import { isOutsideMenuTap, trackOutsideMenuMove } from '../services/entryMenuOutsideTap.mjs'
+import { ENTRY_MENU_EXIT_MS, isCurrentEntryMenuMotion, takeEntryMenuIntent } from '../services/entryMenuMotion.mjs'
 
 const REVEAL_MS = 320
 
@@ -12,13 +13,55 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
   const [revealing, setRevealing] = useState(false)
   const [touched, setTouched] = useState(null)
   const root = useRef(null)
+  const exitRef = useRef(null), loadingRef = useRef(null)
+  const [exiting, setExiting] = useState(null), [loading, setLoading] = useState(null)
   const live = useRef(null)
   const [readyConfirmation, setReadyConfirmation] = useState(null)
   const reduced = useReducedMotion() || motionMode === 'reduced'
   const mode = saveEntryMenuMode(entry, expandedSnapshot)
   const confirmationRevealing = mode === 'confirm' && !reduced && readyConfirmation !== entry.epoch
-  live.current = { mode, onAction }
-  const expandable = ['choices', 'confirm', 'legacy'].includes(mode)
+  const loadingLabel = language === 'zh' ? '加载游戏中' : 'Loading game'
+  const requestExit = (kind, intent = null) => {
+    if (exitRef.current || loadingRef.current) return
+    const record = { kind, intent, epoch: entry.epoch, snapshot: entry.inspection?.snapshotToken }
+    exitRef.current = record; setExiting(record); setTouched(null)
+  }
+  const completeExit = record => {
+    if (exitRef.current !== record) return
+    exitRef.current = null; setExiting(null)
+    const current = live.current
+    if (!isCurrentEntryMenuMotion(record, current.entry)) return
+    if (record.kind === 'submit') {
+      loadingRef.current = record; setLoading(record)
+    } else if (record.kind === 'cancel') current.onAction('cancel')
+    else {
+      if (current.mode === 'confirm') current.onAction('cancel')
+      setExpandedSnapshot(null); setRevealing(false)
+    }
+  }
+  const loadingTextReady = value => {
+    const record = loadingRef.current, current = live.current
+    if (!record || record.consumed || value !== loadingLabel) return
+    if (!isCurrentEntryMenuMotion(record, current.entry)) {
+      loadingRef.current = null; setLoading(null); return
+    }
+    const intent = takeEntryMenuIntent(record, value, loadingLabel, current.entry)
+    if (intent) current.onAction(intent)
+  }
+  live.current = { mode, onAction, entry, requestExit }
+  useEffect(() => {
+    if (!exiting) return undefined
+    const timer = setTimeout(() => completeExit(exiting), reduced ? 0 : ENTRY_MENU_EXIT_MS)
+    return () => clearTimeout(timer)
+  }, [exiting, reduced])
+  useEffect(() => () => { exitRef.current = null; loadingRef.current = null }, [])
+  useEffect(() => {
+    if (['failed', 'unknown', 'back', 'uncertain'].includes(entry.phase)
+      || (loadingRef.current?.consumed && !['committing', 'entering'].includes(entry.phase))) {
+      exitRef.current = null; loadingRef.current = null; setExiting(null); setLoading(null)
+    }
+  }, [entry.phase, entry.epoch])
+  const expandable = !loading && ['choices', 'confirm', 'legacy'].includes(mode)
   useEffect(() => {
     if (!expandable) return undefined
     let start = null
@@ -32,8 +75,7 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
     const up = event => {
       const dismiss = isOutsideMenuTap(start, point(event)); start = null
       if (!dismiss || !['choices', 'confirm', 'legacy'].includes(live.current.mode)) return
-      if (live.current.mode === 'confirm') live.current.onAction('cancel')
-      setExpandedSnapshot(null); setRevealing(false); setTouched(null)
+      live.current.requestExit('collapse')
     }
     const cancel = () => { start = null }
     document.addEventListener('pointerdown', down, { capture: true, passive: true })
@@ -66,44 +108,50 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
   }, [mode, entry.focusTarget, entry.epoch, confirmationRevealing])
   const expand = token => { setRevealing(!reduced); setExpandedSnapshot(token) }
   const pureOption = (id, label, disabled = false) => {
-    const blocked = disabled || revealing || (['replace', 'cancel'].includes(id) && confirmationRevealing)
+    const blocked = disabled || revealing || !!exiting || !!loading || (['replace', 'cancel'].includes(id) && confirmationRevealing)
     return <button type="button" key={id}
     className={`save-entry-option${touched === id ? ' is-touched' : ''}`}
     data-entry-id={id} disabled={blocked}
     onPointerDown={() => setTouched(id)} onPointerUp={() => setTouched(null)}
     onPointerCancel={() => setTouched(null)} onBlur={() => setTouched(null)}
-    onClick={() => { if (!blocked) { setTouched(null); onAction(id) } }}>{label}</button>
+    onClick={() => {
+      if (blocked) return
+      setTouched(null)
+      if (id === 'cancel') requestExit('cancel')
+      else if (['replace', 'continue', 'restart'].includes(id)) requestExit('submit', id)
+      else onAction(id)
+    }}>{label}</button>
   }
   const message = mode === 'legacy' ? text['legacy-ready']
-    : mode === 'status' ? text[entry.phase] ?? '' : ''
+    : mode === 'status' && !loading ? text[entry.phase] ?? '' : ''
   const statusEntries = entry.phase === 'uncertain' ? [{ id: 'reinspect', label: text.resolve }]
     : ['failed', 'unknown'].includes(entry.phase) ? [{ id: 'back', label: text.back }, { id: 'reinspect', label: text.reinspect }]
     : entry.phase === 'back' ? [{ id: 'reinspect', label: text.create }] : []
   return <section ref={root} className="save-entry" lang={language}
-    data-save-entry-menu={mode} data-save-entry-phase={entry.phase}
+    data-save-entry-menu={loading ? 'loading' : mode} data-menu-exit={exiting?.kind ?? 'none'} data-save-entry-phase={entry.phase}
     data-save-entry-classification={entry.inspection?.classification ?? ''}
     onKeyDown={event => {
       if (event.key !== 'Escape' || !['choices', 'confirm', 'legacy'].includes(mode)) return
       event.preventDefault(); event.stopPropagation()
-      if (mode === 'confirm') onAction('cancel')
-      else { setExpandedSnapshot(null); setRevealing(false) }
+      requestExit(mode === 'confirm' ? 'cancel' : 'collapse')
     }}>
-    {['primary', 'choices', 'confirm', 'legacy'].includes(mode) && <div className="save-entry-primary-slot">
-      <EntryButtonSurface visible={true} entryId="begin" label={text.create} materialMode="background"
+    {(loading || ['primary', 'choices', 'confirm', 'legacy'].includes(mode)) && <div className="save-entry-primary-slot">
+      <EntryButtonSurface visible={true} entryId="begin" label={loading ? loadingLabel : text.create} disabled={!!loading || !!exiting} materialMode="background"
         mobile={typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches === true}
-        retainOnAction={entry.phase !== 'start-ready'}
-        onActionComplete={() => { if (mode === 'primary') beginSaveEntry(entry, expand, onAction) }} />
+        retainOnAction={true} textTransition="fade" textMotionReduced={reduced} onTextSettled={loadingTextReady}
+        onActionComplete={() => { if (mode === 'primary' && !exitRef.current && !loadingRef.current) beginSaveEntry(entry, expand, intent => requestExit('submit', intent)) }} />
     </div>}
-    {['choices', 'confirm'].includes(mode) && <div className="save-entry-choices" data-revealing={revealing}>
+    {!loading && ['choices', 'confirm'].includes(mode) && <div className="save-entry-choices" data-revealing={revealing}
+      data-exiting={!!exiting && exiting.kind !== 'cancel'}>
       {pureOption('continue', text.continue, mode === 'confirm' || !entry.inspection?.allowedActions?.includes('continue'))}
       <div className="save-entry-new-slot">
         {pureOption('request-replace', text.replaceRequest, mode === 'confirm' || !entry.inspection?.allowedActions?.includes('request-replace'))}
-        {mode === 'confirm' && <div className="save-entry-confirm" role="group" aria-label={text.overwrite}>
+        {mode === 'confirm' && <div className="save-entry-confirm" data-exiting={exiting?.kind === 'cancel'} role="group" aria-label={text.overwrite}>
           {pureOption('replace', text.confirm)}{pureOption('cancel', text.cancel)}
         </div>}
       </div>
     </div>}
-    {mode === 'legacy' && <div className="save-entry-choices">
+    {!loading && mode === 'legacy' && <div className="save-entry-choices" data-exiting={!!exiting}>
       <p role="status">{message}</p>
       {pureOption('restart', text.restart, !entry.inspection?.allowedActions?.includes('restart'))}
       {pureOption('back', text.back)}

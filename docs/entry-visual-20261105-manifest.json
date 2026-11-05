@@ -14,7 +14,7 @@
     },
     "src/components/SaveEntry.css": {
       "beforeSHA256": "b3c9d5e11f0e50f19a99f207b2e07e08b7ffde72748370e84d3b409034795acc",
-      "afterSHA256": "e89dbf188d9a9e839ac9d2c834d60328f9243bcea3c6cc7ff0787159f369270a"
+      "afterSHA256": "aff0ffd9140cff7021d1f1038dd9c1f035175483fff942f36e6be1ae0ed50891"
     },
     "src/services/entryPresentation.mjs": {
       "beforeSHA256": "c60e47e0410a38a11f48fc6a5239f9d00eef5d406a6550573cad1fe9b922acc2",
@@ -30,7 +30,7 @@
     },
     "src/components/SaveEntryMenu.jsx": {
       "beforeSHA256": null,
-      "afterSHA256": "b91adb8a2ab5f546e983fa7bdd07cb53d06165f42445051b4b83ab9ab51311df"
+      "afterSHA256": "49b2c6eadded0395c5af1b4876ab8e52591f4b514810eac766c26ede11af3a9a"
     },
     "src/services/saveEntryMenuModel.mjs": {
       "beforeSHA256": null,
@@ -50,15 +50,15 @@
     },
     "e2e/entryVisual.spec.ts": {
       "beforeSHA256": null,
-      "afterSHA256": "6bb56d6b529123c19fb995ab6486e340e065f586e4ffaf503b3b00ccfc984988"
+      "afterSHA256": "0f82080a5c277eeed3f78d589496778acd5f33643d92fb938c0cc72a815325ed"
     },
     "src/components/EntryButtonSurface.jsx": {
       "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
-      "afterSHA256": "0b77aa313e446794feb84c3bda50e97f534d5e1c82d9b25ddbb43c00bddb6cae"
+      "afterSHA256": "6057371a80b531962c67ab3259ddecfec16a991f2b5caede75f9452c0d7dd9f1"
     },
     "src/components/SaveEntryMenuVisibility.test.mjs": {
       "beforeSHA256": null,
-      "afterSHA256": "1bcb46188096d181688ab4cc065f1704fc89be1ee360bb12a742abc35e4c2437"
+      "afterSHA256": "9702cc6d3223e730666eceedcddd9c6fc9543c3a4e3cbc803b25eadd3e4a1b19"
     },
     "src/components/EntrySurface.css": {
       "beforeSHA256": "441ae3c922d6649d11126119c3da2cffb8c73013a0cb17c008895f3d4d6dc5ff",
@@ -75,12 +75,28 @@
     "src/services/entryMenuOutsideTap.test.mjs": {
       "beforeSHA256": null,
       "afterSHA256": "290ef4f61b6ad85e09be116703df79d812a0c8376d24ecb60aff89530b416b7e"
+    },
+    "src/components/EntryTextFade.jsx": {
+      "beforeSHA256": null,
+      "afterSHA256": "f1ef9f31f10a00d0d714cee199cccbd9794e89300e303ac74455850b0792e33d"
+    },
+    "src/components/EntryTextFade.css": {
+      "beforeSHA256": null,
+      "afterSHA256": "96c580a85a4c62f5dcd6dbc26270ee65fafbf0a1658b4fff85ba985c982bf178"
+    },
+    "src/services/entryMenuMotion.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "7367d86193b1405139cf2862292884a35b0aef2b76476d8e33a2ed39661a8dfe"
+    },
+    "src/services/entryMenuMotion.test.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "6516f7fc52ed682f29f8dde2de002ee612c244c81c9e920c8b8a4845706fe34e"
     }
   },
   "checks": {
     "gitDiffCheck": "passed",
     "mjsSyntax": "passed",
-    "jsxTsParseOnly": "6 files passed; no emit",
+    "jsxTsParseOnly": "7 files passed; no emit",
     "tests": "not run",
     "typecheck": "not run",
     "build": "not run",
@@ -91,7 +107,7 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "738e69121046caddc9e87f3d088fee8bc48b2d6704a52f0b0060e1b1614e9b72",
+  "aggregateSHA256": "fa60c2b998b8792565b9b52154bcff81f6fb95aa445af0ac02398286c218a468",
   "testReview": {
     "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
     "testRun": false,
@@ -134,5 +150,12 @@
     "parent": "41f85eb4bee583ef0b6d04c91e67fbe522b32e25",
     "scope": "sticky same-pointer movement threshold; no other UI or save change",
     "testsRun": false
+  },
+  "fadeLoadingRevision": {
+    "parent": "8cf9679682790372e30eb063a27c4b15abf7e327",
+    "scope": "local UI exit and retained frame caption handoff only",
+    "motionInvariantAssertions": 6,
+    "browserTestsRun": false,
+    "buildRun": false
   }
 }

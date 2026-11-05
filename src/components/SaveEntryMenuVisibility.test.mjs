@@ -20,6 +20,7 @@ describe('Start surface activation contract at its real menu call site', () => {
     expect(start[0].visible).toBe(true)
     expect(start[0].disabled).not.toBe(true)
     expect(typeof start[0].onActionComplete).toBe('function')
-    expect(start[0].retainOnAction).toBe(phase !== 'start-ready')
+    expect(start[0].retainOnAction).toBe(true)
+    expect(start[0].textTransition).toBe('fade')
   })
 })

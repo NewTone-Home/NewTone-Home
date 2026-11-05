@@ -26,3 +26,8 @@
 .save-runtime-recovery button { min-height:44px; padding:8px 18px; font:inherit; color:inherit; border:1px solid var(--reader-border); background:transparent; cursor:pointer; }
 .save-runtime-recovery button:disabled { opacity:.55; cursor:wait; }
 .save-runtime-recovery button:focus-visible { outline:2px solid var(--reader-ink); outline-offset:3px; }
+
+.save-entry-choices[data-exiting="true"], .save-entry-confirm[data-exiting="true"] { pointer-events:none; animation:save-entry-options-close 220ms ease-in both; }
+@keyframes save-entry-options-close { from { opacity:1; } to { opacity:0; } }
+@media (prefers-reduced-motion:reduce) { .save-entry-choices[data-exiting="true"], .save-entry-confirm[data-exiting="true"] { animation:none!important; } }
+[data-motion-mode="reduced"] .save-entry-choices[data-exiting="true"], [data-motion-mode="reduced"] .save-entry-confirm[data-exiting="true"] { animation:none!important; }

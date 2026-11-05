@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
 import EntryButtonFrame, { FILL_DIRECTIONS, FRAME_ORIGINS } from './EntryButtonFrame'
 import EntryTextFlip from './EntryTextFlip'
+import EntryTextFade from './EntryTextFade'
 import { ENTRY_BUTTON_TIMINGS, createEntryExitSteps, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'
 import './EntryButtonSurface.css'
 
@@ -38,6 +39,9 @@ function EntryButtonSurface({
   contentSized = false,
   disabled = false,
   retainOnAction = false,
+  textTransition = 'flip',
+  textMotionReduced = false,
+  onTextSettled,
   controlledProgress = null,
   dataAttributes = {},
   onActionStart,
@@ -306,7 +310,9 @@ function EntryButtonSurface({
           materialMode={materialMode}
           worldLayer={worldLayer}
         />
-        <EntryTextFlip className="shared-entry-text" value={label} style={textStyle} />
+        {textTransition === 'fade'
+          ? <EntryTextFade className="shared-entry-text" value={label} style={textStyle} reduced={textMotionReduced} onSettled={onTextSettled} />
+          : <EntryTextFlip className="shared-entry-text" value={label} style={textStyle} />}
       </span>
     </button>
   )
