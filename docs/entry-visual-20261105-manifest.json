@@ -22,7 +22,7 @@
     },
     "src/views/Landing.jsx": {
       "beforeSHA256": "61b1bbcc5ead8ceb524af216e3e001f7a08870748dd5d55a5791033308144ac1",
-      "afterSHA256": "a9226ef1310e43e0d045ca79fb8850c32ecfb1d0977198038191d94335b3b639"
+      "afterSHA256": "afce020daa29802d244815d5c74a6178e86bff22a4f480b6b46e022c05a7c62a"
     },
     "src/views/LandingUpdatesEntry.css": {
       "beforeSHA256": "e9e3eef03c87f6f5c81efbe112e22c78396a6d03e91257af2ffe935dbcc7bfcc",
@@ -50,7 +50,7 @@
     },
     "e2e/entryVisual.spec.ts": {
       "beforeSHA256": null,
-      "afterSHA256": "c67056199bb480e56f59ad9d454245de2187431e051de1b43f0514f1a35f2252"
+      "afterSHA256": "5ed6f1ffe631041cb8940d1aee093e81eebe2e603467f6019356181cdc058c8e"
     },
     "src/components/EntryButtonSurface.jsx": {
       "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
@@ -59,6 +59,10 @@
     "src/components/SaveEntryMenuVisibility.test.mjs": {
       "beforeSHA256": null,
       "afterSHA256": "1bcb46188096d181688ab4cc065f1704fc89be1ee360bb12a742abc35e4c2437"
+    },
+    "src/components/EntrySurface.css": {
+      "beforeSHA256": "441ae3c922d6649d11126119c3da2cffb8c73013a0cb17c008895f3d4d6dc5ff",
+      "afterSHA256": "44d3a7b329b8051f3c1f422d776443edc952f53cd791bd1928bc2c4457bf0ab4"
     }
   },
   "checks": {
@@ -75,7 +79,7 @@
     "viewed": false,
     "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
   },
-  "aggregateSHA256": "899b8a4d61f466d96f316242f96b22bef8943766e45e0c42cf489c0e4d1d145d",
+  "aggregateSHA256": "76e761260dac89b2d7da6fc76462c1d4cae641b590dba769348119eb04f7ba9f",
   "testReview": {
     "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
     "testRun": false,
@@ -92,6 +96,11 @@
     "parent": "8a157f6d1733614b5d116566e05dddcaa266bc8c",
     "scope": "explicit visible=true at Start call site only; shared default unchanged",
     "test": "src/components/SaveEntryMenuVisibility.test.mjs",
+    "testsRun": false
+  },
+  "shortEntryScroll": {
+    "parent": "b456ce65e9c824be6ad1e23e59b2b4c9eb6466dc",
+    "scope": "max-width560px and max-height720px; world idle plus updates landing only",
     "testsRun": false
   }
 }

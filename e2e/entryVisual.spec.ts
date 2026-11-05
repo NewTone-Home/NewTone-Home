@@ -85,6 +85,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     await expect(page.locator('[data-world-entry-phase]')).toHaveCount(0, { timeout: 20_000 })
     await page.reload()
     await expect(begin).toBeEnabled({ timeout: 20_000 })
+    expect(await page.locator('.landing').evaluate(node => node.scrollTop)).toBe(0)
     await expect(page.locator('[data-entry-id="continue"]')).toHaveCount(0)
     // Collect ALL physical keys, not the obsolete pre-epoch prefix. Explicitly
     // prove this is a valid nonempty current save before any zero-write comparison.
@@ -194,15 +195,48 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     await expect(confirm).toBeInViewport({ ratio: 1 }); await expect(cancel).toBeInViewport({ ratio: 1 })
     expect(await facts()).toEqual(before)
     await screenshot('confirm-cancel-below-new-game')
+    if (viewport.width === 375) {
+      const landing = page.locator('.landing'), hint = page.locator('.landing-device-hint[data-world-mode="true"]')
+      expect(await landing.evaluate(node => getComputedStyle(node).overflowY)).toBe('auto')
+      const cdp = await context.newCDPSession(page)
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 12, y: 600 }] })
+      for (const y of [580, 560, 540]) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 12, y }] })
+        await page.waitForTimeout(30) // real input spacing, not a fake clock or programmatic scroll
+      }
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
+      await cdp.detach()
+      await expect.poll(() => landing.evaluate(node => node.scrollTop)).toBeGreaterThan(0)
+      await expect(hint).toBeInViewport({ ratio: 1 })
+      await expect.poll(async () => { const visible = await hint.boundingBox(); return visible!.y + visible!.height })
+        .toBeLessThanOrEqual(viewport.height - 10)
+      expect(await facts()).toEqual(before)
+      await screenshot('short-touch-scrolled-complete-device-note')
+    }
     await activate(cancel)
     await expect(fresh).toBeFocused()
     expect(await facts()).toEqual(before)
     await page.keyboard.press('Escape')
     await expect(begin).toBeEnabled()
+    await expect.poll(() => page.locator('.landing').evaluate(node => node.scrollTop)).toBe(0)
+    await expectStartRetained('collapsed-after-scroll')
     expect(await facts()).toEqual(before)
     await activate(updates)
     await expect(page.locator('.landing-updates-page[data-updates-phase="updates"]')).toBeVisible({ timeout: 15_000 })
+    expect(await page.locator('.landing').evaluate(node => node.scrollTop)).toBe(0)
     await screenshot('updates-open')
+    if (viewport.width === 375) {
+      await activate(page.locator('[data-entry-id="landing-updates-return"]'))
+      await expect(page.locator('.landing[data-updates-phase="landing"]')).toBeVisible({ timeout: 15_000 })
+      await expect(begin).toBeEnabled()
+      await expectStartRetained('short-updates-return')
+      expect(await facts()).toEqual(before)
+      await activate(begin)
+      await expect(current).toBeEnabled()
+      await activate(current)
+      await expect(page.locator('.center-experience')).toBeVisible({ timeout: 25_000 })
+      await expect(page.locator('[data-world-entry-phase]')).toHaveCount(0, { timeout: 20_000 })
+    }
   })
   })
 }
