@@ -13,18 +13,13 @@ const cafe = mainlineScenes['commercial-cafe']
 const snapshot = (npcId: string, phase: 'idle' | 'moving' = 'idle', dutyId?: string) => ({ npcId, phase, retryCount: 0, dutyId, targetId: undefined })
 
 describe('commercial café staff duty ownership', () => {
-  it('gives the coffee owner exclusive prep/delivery/return duties', () => {
+  it('does not create a second preparation duty and keeps narrative delivery/return duties', () => {
     const coffeeOwner = createCommercialCafeCoffeeOwnerBehaviorCoordinator()
     const ordered = coffeeOwner.request({ scene: cafe, coffeeStatus: 'ordered', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
-    expect(ordered).toMatchObject({ dutyId: npcRoles.cafeCoffeeOwner.duties.prepare.id, targetId: 'commercial-cafe-prep-station' })
-    expect(coffeeOwner.getPhase()).toBe('moving-to-prep')
-    expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'ordered', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId, 'moving') })).toBeNull()
-
-    coffeeOwner.arrivedAtPrep()
-    expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'preparing', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()
-    expect(coffeeOwner.getPhase()).toBe('preparing')
+    expect(ordered).toBeNull()
+    expect(coffeeOwner.getPhase()).toBe('counter')
     expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()
-    expect(coffeeOwner.getPhase()).toBe('preparing')
+    expect(coffeeOwner.getPhase()).toBe('counter')
 
     const delivery = coffeeOwner.request({ scene: cafe, coffeeStatus: 'ready', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
     expect(delivery).toMatchObject({ dutyId: 'cafe-coffee-owner.deliver-coffee', targetId: 'commercial-cafe-right-window-upper-group-table' })
@@ -32,7 +27,7 @@ describe('commercial café staff duty ownership', () => {
     coffeeOwner.arrivedAtStoryTable()
     expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()
     expect(coffeeOwner.getPhase()).toBe('delivery-arrived')
-    expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toMatchObject({
+    expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-returning', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toMatchObject({
       dutyId: npcRoles.cafeCoffeeOwner.duties.returnToCounter.id,
       targetId: 'commercial-cafe-counter-service',
     })
@@ -48,11 +43,11 @@ describe('commercial café staff duty ownership', () => {
     expect(coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-delivery', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })).toBeNull()
     expect(coffeeOwner.getPhase()).toBe('delivery-arrived')
 
-    const returnIntent = coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'dialogue', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
+    const returnIntent = coffeeOwner.request({ scene: cafe, coffeeStatus: 'delivered', narrativePhase: 'coffee-returning', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
     expect(returnIntent).toMatchObject({ dutyId: 'cafe-coffee-owner.return-to-counter', targetId: 'commercial-cafe-counter-service' })
   })
 
-  it('cycles the counter worker through legal staff-area ambient stops and story duty preempts the route', () => {
+  it('cycles the counter worker through legal staff-area ambient stops without inventing a prep duty', () => {
     const coffeeOwner = createCommercialCafeCoffeeOwnerBehaviorCoordinator()
     const first = coffeeOwner.request({ scene: cafe, coffeeStatus: 'none', narrativePhase: 'not-started', snapshot: snapshot(commercialCafeCoffeeOwnerNpcId) })
     expect(first).toMatchObject({ dutyId: 'cafe-coffee-owner.counter-ambient', targetId: 'commercial-cafe-counter-ambient-1' })
@@ -64,13 +59,14 @@ describe('commercial café staff duty ownership', () => {
     expect(target!.y).toBeGreaterThanOrEqual(staffArea.y)
     expect(target!.y).toBeLessThanOrEqual(staffArea.y + staffArea.height)
 
-    const prepare = coffeeOwner.request({
+    const orderWhileMoving = coffeeOwner.request({
       scene: cafe,
       coffeeStatus: 'ordered',
       narrativePhase: 'dialogue',
       snapshot: snapshot(commercialCafeCoffeeOwnerNpcId, 'moving', 'cafe-coffee-owner.counter-ambient'),
     })
-    expect(prepare).toMatchObject({ dutyId: 'cafe-coffee-owner.prepare', targetId: 'commercial-cafe-prep-station' })
+    expect(orderWhileMoving).toBeNull()
+    expect(coffeeOwner.getPhase()).toBe('counter')
   })
 
   it('resumes counter ambient movement after a completed return duty', () => {
@@ -104,7 +100,8 @@ describe('commercial café staff duty ownership', () => {
     expect(coffeeOwner).not.toEqual(floorServer)
     const staff = cafe.npcs.filter(({ id }) => id === commercialCafeCoffeeOwnerNpcId || id === commercialCafeFloorServerNpcId)
     expect(staff).toHaveLength(2)
-    expect(staff.map(({ label }) => label)).toEqual(['店员', '店员'])
+    expect(staff.find(({ id }) => id === commercialCafeCoffeeOwnerNpcId)?.label).toBe(npcRoles.cafeCoffeeOwner.label)
+    expect(staff.find(({ id }) => id === commercialCafeFloorServerNpcId)?.label).toBe(npcRoles.cafeFloorServer.label)
     expect(cafe.actorAccess[commercialCafeCoffeeOwnerNpcId]).toEqual(['public', 'staff'])
     expect(cafe.actorAccess[commercialCafeFloorServerNpcId]).toEqual(['public'])
   })

@@ -1,13 +1,16 @@
 import { createPoint, defaultEdgeContactDirection, mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineScenePassageCollision, mainlineScenePassageDoorway, type MainlineStorefrontSlot, type MainlineSceneAccessRegion, type MainlineSceneDefinition, type MainlineSceneId, type MainlineScenePassage } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
-import { mainlineEntityCollision, mainlineLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, type SceneLayout } from './sceneLayout'
+import { mainlineEntityCollision, mainlineLabelFootprint, mainlineNpcLabelFootprint, mainlineLayoutOffsetForEntity, mainlineProtagonistDotFootprint, mainlineSceneFootprint, type SceneLayout } from './sceneLayout'
 import { createMainlineSceneGeometrySnapshot, type MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
-import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, navigationActorBox, resolveNavigationPath, sharedNavigationTraversalStep, type NavigationActorFootprint, type NavigationRuntime } from './navigationCore'
+import { canTravelAlongSegment, edgeContactPoint, findNavigationPath, findSingleDynamicObstacleDetour, navigationActorBox, resolveNavigationPath, sharedNavigationTraversalStep, type NavigationActorFootprint, type NavigationRuntime } from './navigationCore'
 import { createPolygonNavigationMesh, navigationBarrierIntersectsActor, navigationBarriersAllowTravel, type PolygonNavigationMesh } from './scenePathfinding'
 import { containsDoorRegion, doorRegionSide, doorwayBoundaryPoint, doorwayLegalTangent, isDoorTargetBehind, type DoorPassageRegion, type DoorRegionNormal } from './doorPassageModel'
 import { sharedFurnitureGeometry } from './twoSeatFurniture'
 import { mainlineNpcStagedInteractionContactEntityId, mainlineNpcStagedPoint, mainlineNpcStagedSeatId } from './mainlineNpcStaging'
+import { pointInStorefrontRoom, storefrontRoomConnection } from './storefrontRoomConnection'
+import { mainlineActiveSpatialSpaceId, mainlineEntityBelongsToActiveSpace } from './mainlineSceneModel'
+import { continuousCafeRoomId } from './continuousCafe'
 
 /** Screen-space gap as a fraction of the protagonist's visible width. */
 export const MAINLINE_STOREFRONT_CONTACT_GAP = .25
@@ -30,6 +33,18 @@ export type MainlineNavigationOptions = {
   npcRuntimePositions?: ReadonlyMap<string, Point>
   /** Hidden occupied chairs do not remain a second static obstacle. */
   occupiedSeatIds?: ReadonlySet<string>
+  /** The clicked point on a continuous interactive surface. */
+  interactionContactPoint?: Point
+}
+
+export function mainlineSafeSpawnValidationDecision(
+  sceneId: MainlineSceneId,
+  activePlayerSeatId: string | null,
+  lastValidatedKey: string | null,
+  currentKey: string,
+): 'defer-active-seat' | 'already-validated' | 'validate' {
+  if (sceneId === 'commercial-street' && activePlayerSeatId) return 'defer-active-seat'
+  return lastValidatedKey === currentKey ? 'already-validated' : 'validate'
 }
 
 function footprintFromBox(box: CollisionBox): NavigationActorFootprint {
@@ -41,16 +56,42 @@ type CachedNavigationMesh = {
   mesh: PolygonNavigationMesh
 }
 
-// Geometry snapshots are immutable render/navigation transactions. Reusing
-// their static mesh keeps multiple contact candidates in one interaction from
-// recompiling the same scene, without caching dynamic actor occupancy.
-const physicalIntentMeshCache = new WeakMap<PolygonNavigationMesh, PolygonNavigationMesh>()
-const staticNavigationMeshCache = new WeakMap<MainlineSceneGeometrySnapshot, Map<string, CachedNavigationMesh>>()
+// Geometry snapshots are immutable render/navigation transactions. Storefront
+// presentation can replace visual near/baseline units while leaving the
+// collision inputs unchanged, so key meshes by their exact static inputs and
+// scene identity rather than by snapshot identity. Dynamic actor occupancy is
+// still excluded.
+const physicalIntentMeshCache = new WeakMap<PolygonNavigationMesh, Map<string, PolygonNavigationMesh>>()
+const routeNavigationMeshCache = new WeakMap<MainlineSceneDefinition, Map<string, CachedNavigationMesh>>()
+const preparedWorldNavigationMeshCache = new WeakMap<MainlineSceneDefinition, Map<string, CachedNavigationMesh>>()
+const MAX_STATIC_NAVIGATION_MESHES_PER_SCENE = 8
 
-function cacheStaticNavigationMesh(snapshot: MainlineSceneGeometrySnapshot, key: string, mesh: PolygonNavigationMesh) {
-  const meshes = staticNavigationMeshCache.get(snapshot) ?? new Map<string, CachedNavigationMesh>()
+function routeNavigationMesh(scene: MainlineSceneDefinition, inputs: Parameters<typeof createPolygonNavigationMesh>[0]) {
+  // Exact physical inputs include live door/seat/layout state and footprint.
+  // No snapshot identity, rounding or actor-name heuristic can make stale
+  // geometry reusable. Moving actors are checked below on every route.
+  const key = JSON.stringify(inputs)
+  const meshes = routeNavigationMeshCache.get(scene) ?? new Map<string, CachedNavigationMesh>()
+  const cached = meshes.get(key)
+  const mesh = cached?.mesh ?? createPolygonNavigationMesh({ ...inputs, deferTopology: true })
+  meshes.delete(key); meshes.set(key, { key, mesh })
+  while (meshes.size > MAX_STATIC_NAVIGATION_MESHES_PER_SCENE) meshes.delete(meshes.keys().next().value!)
+  routeNavigationMeshCache.set(scene, meshes)
+  return mesh
+}
+
+function cachePreparedWorldNavigationMesh(scene: MainlineSceneDefinition, key: string, mesh: PolygonNavigationMesh) {
+  const meshes = preparedWorldNavigationMeshCache.get(scene) ?? new Map<string, CachedNavigationMesh>()
+  meshes.delete(key)
   meshes.set(key, { key, mesh })
-  staticNavigationMeshCache.set(snapshot, meshes)
+  // Keep only a small LRU per authored scene so responsive layouts and actor
+  // footprints do not accumulate an unbounded set of large navigation meshes.
+  while (meshes.size > MAX_STATIC_NAVIGATION_MESHES_PER_SCENE) {
+    const oldest = meshes.keys().next().value
+    if (oldest === undefined) break
+    meshes.delete(oldest)
+  }
+  preparedWorldNavigationMeshCache.set(scene, meshes)
 }
 
 // Compatibility-only default for non-Page callers: it is the renderer's
@@ -64,8 +105,8 @@ function mainlineActorFootprint(scene: MainlineSceneDefinition, options: Mainlin
   if (options.actorRadius !== undefined) return { width: options.actorRadius * 2, height: options.actorRadius * 2 }
   const metrics = options.screenMetrics
   const npc = options.actorId ? scene.npcs.find((candidate) => candidate.id === options.actorId) : undefined
-  if (npc) return footprintFromBox(mainlineLabelFootprint(npc.label, position, metrics, { lineHeight: 1 }))
-  return footprintFromBox(mainlineProtagonistDotFootprint(position, metrics))
+  if (npc) return footprintFromBox(mainlineNpcLabelFootprint(scene, npc.id, position, metrics))
+  return footprintFromBox(mainlineProtagonistDotFootprint(position, metrics, scene.id))
 }
 
 function normalClearance(footprint: NavigationActorFootprint, axis: 'x' | 'y') {
@@ -136,7 +177,7 @@ export function canTravelAlongMainlineSegment(
   maxStep = sharedNavigationTraversalStep,
 ) {
   return isMainlineNavigationBarrierClear(start, end, scene, layout, options)
-    && canTravelAlongSegment(start, end, (point) => isWalkableMainlinePoint(point, scene, layout, options), maxStep)
+    && canTravelAlongSegment(start, end, mainlineOccupancyQuery(scene, layout, options, start), maxStep)
 }
 
 function overlaps(first: { x: number; y: number; width: number; height: number }, second: { x: number; y: number; width: number; height: number }) {
@@ -146,9 +187,6 @@ function overlaps(first: { x: number; y: number; width: number; height: number }
     && first.y + first.height > second.y
 }
 
-function expanded(box: { x: number; y: number; width: number; height: number }, radius: number) {
-  return { x: box.x - radius, y: box.y - radius, width: box.width + radius * 2, height: box.height + radius * 2 }
-}
 
 function actorAccessFor(scene: MainlineSceneDefinition, actorId?: string) {
   return new Set(scene.actorAccess[actorId ?? 'protagonist'] ?? ['public'])
@@ -156,6 +194,13 @@ function actorAccessFor(scene: MainlineSceneDefinition, actorId?: string) {
 
 function actorCanEnterRegion(scene: MainlineSceneDefinition, actorId: string | undefined, region: MainlineSceneAccessRegion) {
   return actorAccessFor(scene, actorId).has(region.requiredAccess)
+}
+
+// Permissions stay semantic movement checks. Give route construction the same
+// forbidden interiors so it can find a detour rather than reject its only path.
+function deniedRegionRouteObstacles(scene: MainlineSceneDefinition, options: MainlineNavigationOptions): CollisionBox[] {
+  return scene.accessRegions.filter(region => !actorCanEnterRegion(scene, options.actorId, region))
+    .map(({ x, y, width, height }) => ({ x, y, width, height }))
 }
 
 function occupiedSeatIdsForNavigation(scene: MainlineSceneDefinition, options: MainlineNavigationOptions) {
@@ -166,7 +211,13 @@ function occupiedSeatIdsForNavigation(scene: MainlineSceneDefinition, options: M
   }))
 }
 
-function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, options: MainlineNavigationOptions, includeDynamicActors = true) {
+function collisionBoxes(
+  scene: MainlineSceneDefinition,
+  layout: SceneLayout,
+  options: MainlineNavigationOptions,
+  includeDynamicActors = true,
+  excludeRouteThroughDoorCellsFromMesh = false,
+) {
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const openPassageIds = options.openPassageIds
     ? new Set(scene.passages.filter((passage) => options.openPassageIds!.has(passage.id)).map((passage) => passage.id))
@@ -175,10 +226,15 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
   // A closed passage stays a physical gate until its lifecycle marks it open;
   // planning may approach its boundary, but cannot plan through the doorway.
   const geometry = snapshot.units
+  const occupiedSeats = occupiedSeatIdsForNavigation(scene, options)
   const staticBoxes = [
     ...geometry
       .filter((unit) => {
         if (!unit.navigation.blocked) return false
+        if (excludeRouteThroughDoorCellsFromMesh && unit.navigation.passageId && unit.entityId) {
+          const passage = scene.passages.find(candidate => candidate.id === unit.navigation.passageId && candidate.entityId === unit.entityId)
+          if (passage?.routeThrough && passage.access === 'open') return false
+        }
         const passageOpen = unit.navigation.passageId
           ? openPassageIds.has(unit.navigation.passageId)
           : unit.navigation.opensWithPassageId
@@ -194,7 +250,7 @@ function collisionBoxes(scene: MainlineSceneDefinition, layout: SceneLayout, opt
       })
       .map((unit) => ({ x: unit.x, y: unit.y, width: unit.width, height: unit.height })),
     ...scene.objects
-      .filter((entity) => entity.visible !== false && !(entity.kind === 'seat' && occupiedSeatIdsForNavigation(scene, options).has(entity.id)))
+      .filter((entity) => entity.visible !== false && !(entity.kind === 'seat' && occupiedSeats.has(entity.id)))
       .map((entity) => snapshot.objects.get(entity.id)?.collision ?? mainlineEntityCollision(scene, entity, layout, options.screenMetrics))
       .filter((collision): collision is NonNullable<typeof collision> => Boolean(collision)),
   ]
@@ -206,21 +262,36 @@ export function mainlineNavigationCollisionBoxes(scene: MainlineSceneDefinition,
   return collisionBoxes(scene, layout, options)
 }
 
-export function isWalkableMainlinePoint(point: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
-  const footprint = mainlineActorFootprint(scene, options, point)
+/** One synchronous query owns one current occupancy snapshot. Movement ticks
+ * still call the public predicate afresh, so later NPC/door changes are live. */
+function mainlineOccupancyQuery(scene: MainlineSceneDefinition, layout: SceneLayout, options: MainlineNavigationOptions, position: Point, obstacles = collisionBoxes(scene, layout, options)) {
+  const footprint = mainlineActorFootprint(scene, options, position)
   const bounds = insetBounds(sceneGeometrySnapshot(scene, layout, options).walkBounds, footprint)
-  if (point.x < bounds.x || point.x > bounds.x + bounds.width || point.y < bounds.y || point.y > bounds.y + bounds.height) return false
-  // Access is a semantic occupancy policy, never a physical scene obstacle.
-  if (scene.accessRegions.some(region => !actorCanEnterRegion(scene, options.actorId, region) && containsPoint(region, point))) return false
-  for (const boundary of scene.accessBoundaries) {
+  const access = actorAccessFor(scene, options.actorId)
+  const deniedRegions = scene.accessRegions.filter(region => !access.has(region.requiredAccess))
+  const deniedEdges = scene.accessBoundaries.flatMap(boundary => {
     const region = scene.accessRegions.find(candidate => candidate.id === boundary.regionId)
-    if (!region || actorCanEnterRegion(scene, options.actorId, region)) continue
-    const contact = accessBoundaryGeometry(region, boundary.edge, footprint)
-    const tangent = point[contact.tangentAxis]
-    if (tangent >= contact.min && tangent <= contact.max && (point[contact.axis] - contact.line) * contact.direction <= contact.clearance) return false
+    return region && !access.has(region.requiredAccess) ? [accessBoundaryGeometry(region, boundary.edge, footprint)] : []
+  })
+  return (point: Point) => {
+    if (point.x < bounds.x || point.x > bounds.x + bounds.width || point.y < bounds.y || point.y > bounds.y + bounds.height) return false
+    if (deniedRegions.some(region => containsPoint(region, point))) return false
+    for (const contact of deniedEdges) {
+      const tangent = point[contact.tangentAxis]
+      const normalDistance = (point[contact.axis] - contact.line) * contact.direction
+      // A permission edge belongs to this finite region. Its contact band must
+      // not reject unrelated rooms farther behind the same edge in a shared world.
+      if (tangent >= contact.min && tangent <= contact.max
+        && normalDistance >= -contact.depth - contact.clearance
+        && normalDistance <= contact.clearance) return false
+    }
+    const actorBox = navigationActorBox(point, footprint)
+    return obstacles.every(collision => !overlaps(actorBox, collision))
   }
-  const actorBox = navigationActorBox(point, footprint)
-  return collisionBoxes(scene, layout, options).every((collision) => !overlaps(actorBox, expanded(collision, 0)))
+}
+
+export function isWalkableMainlinePoint(point: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}) {
+  return mainlineOccupancyQuery(scene, layout, options, point)(point)
 }
 
 function distance(first: Point, second: Point) {
@@ -565,6 +636,59 @@ export function resolveMainlineSafeSpawnPosition(
   options: MainlineNavigationOptions = {},
 ): Point | null {
   options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
+  if (preferred && scene.structures.some(structure => structure.boundaryWorldGrid)) {
+    // A restored occupant of a locked room is valid even when the initial
+    // spawn lies on the other side of its locked door. Never use that door
+    // as a reason to relocate the player into a different room.
+    const room = scene.rooms.find(candidate => pointInsideBounds(preferred, candidate.bounds))
+    if (room) {
+      if (scene.id === 'commercial-street' && room.id === continuousCafeRoomId) {
+        const cafeEntry = scene.passages.find(passage => passage.id === 'street-cafe-entry')?.crossingTargets[0]
+        if (cafeEntry) {
+          const canReachCafeEntry = (candidate: Point) => isWalkableMainlinePoint(candidate, scene, layout, options)
+            && Boolean(findMainlinePath(candidate, cafeEntry, scene, layout, options))
+
+          // Keep a valid saved location exactly where it was. A Cafe save can
+          // point into a chair/table pocket after the runtime seat state is
+          // cleared on reload, so walkability alone is not enough here.
+          if (canReachCafeEntry(preferred)) return preferred
+
+          // Search a bounded square around the saved point: +/-112px on each
+          // axis (224px total span). Candidates
+          // use the same 14px lattice as the existing room recovery scan; the
+          // path check runs only for the nearest walkable points at spawn time.
+          const stepX = 14 / 1920 * 100, stepY = 14 / 1080 * 100
+          const localCandidates: Point[] = []
+          for (let xStep = -8; xStep <= 8; xStep += 1) {
+            for (let yStep = -8; yStep <= 8; yStep += 1) {
+              const candidate = { x: preferred.x + xStep * stepX, y: preferred.y + yStep * stepY }
+              if (pointInsideBounds(candidate, room.bounds)
+                && isWalkableMainlinePoint(candidate, scene, layout, options)) localCandidates.push(candidate)
+            }
+          }
+          localCandidates.sort((a, b) => Math.hypot((a.x - preferred.x) * 19.2, (a.y - preferred.y) * 10.8)
+            - Math.hypot((b.x - preferred.x) * 19.2, (b.y - preferred.y) * 10.8))
+          for (const candidate of localCandidates.slice(0, 64)) {
+            if (findMainlinePath(candidate, cafeEntry, scene, layout, options)) return candidate
+          }
+
+          // The authored inside target is the nearest safe fallback if a
+          // malformed/old position has no nearby connected point. Validate it
+          // against the same current geometry before returning it.
+          if (canReachCafeEntry(cafeEntry)) return cafeEntry
+          return null
+        }
+      }
+      if (isWalkableMainlinePoint(preferred, scene, layout, options)) return preferred
+      const nearby: Point[] = []
+      const stepX = 14 / 1920 * 100, stepY = 14 / 1080 * 100
+      for(let x=room.bounds.x+stepX;x<room.bounds.x+room.bounds.width;x+=stepX) {
+        for(let y=room.bounds.y+stepY;y<room.bounds.y+room.bounds.height;y+=stepY) nearby.push({x,y})
+      }
+      nearby.sort((a,b)=>Math.hypot((a.x-preferred.x)*19.2,(a.y-preferred.y)*10.8)-Math.hypot((b.x-preferred.x)*19.2,(b.y-preferred.y)*10.8))
+      return nearby.find(candidate=>isWalkableMainlinePoint(candidate,scene,layout,options))??null
+    }
+  }
   const candidates = [
     ...(preferred ? [preferred] : []),
     scene.initialPlayerPosition,
@@ -791,6 +915,15 @@ function targetIsInsideStorefrontFrame(scene: MainlineSceneDefinition, passage: 
     ? target.y >= storefront.start && target.y <= storefront.end
     : target.x >= storefront.start && target.x <= storefront.end
   if (!withinStorefrontSpan) return false
+  const connection = storefrontRoomConnection(scene, storefront)
+  if (connection) {
+    // A click belongs to a connected shop only inside its authored room.
+    // The outward half-plane is the public street and
+    // must stay ordinary navigation so walking along a row does not snap to
+    // a nearby locked door.
+    return pointInStorefrontRoom(target, connection.interiorRoom)
+  }
+  // Legacy storefront portals use their authored public-side approach plane.
   if (storefront.edge === 'left') return target.x <= bounds.x
   if (storefront.edge === 'right') return target.x >= bounds.x + bounds.width
   if (storefront.edge === 'top') return target.y <= bounds.y
@@ -884,15 +1017,19 @@ export function classifyMainlineWorldCommand(
       const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
       const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
       const region = mainlinePassageDoorRegion(passage, collision, doorway, footprint)
-      const storefrontIntent = Boolean(passage.targetSceneId && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
+      const storefront = scene.storefronts.find(candidate => candidate.portalId === passage.portalId)
+      const connection = storefront && storefrontRoomConnection(scene, storefront)
+      const openStorefrontEntryIntent = connection && pointInStorefrontRoom(from, connection.publicRoom)
+      const storefrontIntent = Boolean((passage.targetSceneId || connection && (passage.access === 'locked' || openStorefrontEntryIntent))
+        && targetIsInsideStorefrontFrame(scene, passage, requestedTarget))
       const crossesDoorway = targetCrossesCompiledDoorway(region, from, requestedTarget, footprint)
       if (!storefrontIntent && !crossesDoorway) return null
       const approachPath = canActorReachPassageApproach(scene, passage, from, layout, options)?.path
       if (!approachPath) return null
-      return { passage, approachPath, distance: mainlinePathLength(approachPath) }
+      return { passage, approachPath, storefrontIntent, distance: mainlinePathLength(approachPath) }
     })
-    .filter((candidate): candidate is { passage: MainlineScenePassage; approachPath: Point[]; distance: number } => Boolean(candidate))
-    .sort((first, second) => first.distance - second.distance)
+    .filter((candidate): candidate is { passage: MainlineScenePassage; approachPath: Point[]; storefrontIntent: boolean; distance: number } => Boolean(candidate))
+    .sort((first, second) => Number(second.storefrontIntent) - Number(first.storefrontIntent) || first.distance - second.distance)
   const selected = candidates[0]
   if (selected) {
     return {
@@ -1079,7 +1216,8 @@ export function canActorReachPassageApproach(
   const collision = mainlinePassageCollisionForNavigation(scene, passage, options)
   const doorway = mainlinePassageDoorwayForNavigation(scene, passage, options)
   const doorCenter = { x: doorway.x + doorway.width / 2, y: doorway.y + doorway.height / 2 }
-  if (scene.accessRegions.some(region => !actorCanEnterRegion(scene, options.actorId, region) && (containsPoint(region, doorCenter) || passage.crossingTargets.some(point => containsPoint(region, point))))) return null
+  // A locked door is only approached, never crossed, so the denied room behind it must not make its approach unreachable.
+  if (passage.access !== 'locked' && scene.accessRegions.some(region => !actorCanEnterRegion(scene, options.actorId, region) && (containsPoint(region, doorCenter) || passage.crossingTargets.some(point => containsPoint(region, point))))) return null
   const side = passageSide(passage, from, collision, doorway)
   const footprint = mainlineActorFootprint(scene, options, from)
   const boundary = passageBoundaryPoint(passage, from, passage.crossingTargets[side], footprint, collision, doorway)
@@ -1119,41 +1257,47 @@ export function findMainlinePathThroughPassage(scene: MainlineSceneDefinition, p
 
 export function findMainlinePath(start: Point, target: Point, scene: MainlineSceneDefinition, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): Point[] | null {
   options = { ...options, geometrySnapshot: sceneGeometrySnapshot(scene, layout, options) }
-  if (!isWalkableMainlinePoint(start, scene, layout, options)) return null
-  if (!isWalkableMainlinePoint(target, scene, layout, options)) return null
+  const staticOptions = { ...options, navigationRuntime: undefined }
   const actorFootprint = mainlineActorFootprint(scene, options, start)
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const barriers = mainlineNavigationBarriers(scene, layout, { ...options, geometrySnapshot: snapshot })
-  const canOccupy = (point: Point) => isWalkableMainlinePoint(point, scene, layout, options)
-  if (isMainlineNavigationBarrierClear(start, target, scene, layout, options) && canTravelAlongSegment(start, target, canOccupy)) return [start, target]
-  const obstacles = collisionBoxes(scene, layout, options)
-  const cacheKey = [
-    options.actorId ?? 'protagonist',
-    actorFootprint.width.toFixed(4),
-    actorFootprint.height.toFixed(4),
-    [...(options.openPassageIds ?? [])].sort().join(','),
-    [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
-  ].join('|')
-  const canReuseStaticMesh = !options.navigationRuntime
-  const cached = canReuseStaticMesh ? staticNavigationMeshCache.get(snapshot)?.get(cacheKey) : undefined
-  const navigationMesh = cached?.key === cacheKey
-    ? cached.mesh
-    : createPolygonNavigationMesh({
-      bounds: insetBounds(snapshot.walkBounds, actorFootprint),
-      obstacles,
-      obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 },
-      barriers,
+  const staticObstacles = collisionBoxes(scene, layout, staticOptions)
+  const obstacles = [...staticObstacles, ...(options.navigationRuntime?.dynamicObstaclesFor(options.actorId) ?? [])]
+  const canOccupy = mainlineOccupancyQuery(scene, layout, options, start, obstacles)
+  const canOccupyStatic = mainlineOccupancyQuery(scene, layout, staticOptions, start, staticObstacles)
+  if (!canOccupy(start)) return null
+  const targetIsWalkable = canOccupy(target)
+  if (!targetIsWalkable) return null
+  const barriersClear = (from: Point, to: Point) => navigationBarriersAllowTravel(from, to, barriers, actorFootprint)
+  const canTravel = (from: Point, to: Point) => barriersClear(from, to) && canTravelAlongSegment(from, to, canOccupy)
+  if (canTravel(start, target)) return [start, target]
+  const canTravelStatic = (from: Point, to: Point) => barriersClear(from, to) && canTravelAlongSegment(from, to, canOccupyStatic)
+  if (targetIsWalkable
+    && options.navigationRuntime
+    && canTravelStatic(start, target)) {
+    const detour = findSingleDynamicObstacleDetour(
+      start,
+      target,
+      options.navigationRuntime.dynamicObstaclesFor(options.actorId),
       actorFootprint,
-    })
-  if (canReuseStaticMesh && cached?.key !== cacheKey) cacheStaticNavigationMesh(snapshot, cacheKey, navigationMesh)
+      canTravel,
+    )
+    if (detour) return detour
+  }
+  const bounds = insetBounds(snapshot.walkBounds, actorFootprint)
+  const permissionObstacles = deniedRegionRouteObstacles(scene, options)
+  const inputs = { bounds, obstacles: [...staticObstacles, ...permissionObstacles],
+    obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 }, barriers, actorFootprint }
+  // Player and NPC requests share immutable physical geometry. A moving actor
+  // never poisons that cache: validate every returned segment against live
+  // occupancy, then use a complete dynamic mesh only if a detour is needed.
+  const staticPath = findNavigationPath(start, target, {
+    ...inputs, navigationMesh: routeNavigationMesh(scene, inputs), canTravel,
+  })
+  if (staticPath || !options.navigationRuntime) return staticPath
+  const dynamicInputs = { ...inputs, obstacles: [...obstacles, ...permissionObstacles] }
   return findNavigationPath(start, target, {
-    bounds: insetBounds(snapshot.walkBounds, actorFootprint),
-    obstacles,
-    actorFootprint,
-    barriers,
-    navigationMesh,
-    canTravel: (segmentStart, segmentEnd) => isMainlineNavigationBarrierClear(segmentStart, segmentEnd, scene, layout, options)
-      && canTravelAlongSegment(segmentStart, segmentEnd, canOccupy),
+    ...dynamicInputs, navigationMesh: routeNavigationMesh(scene, dynamicInputs), canTravel,
   })
 }
 
@@ -1179,29 +1323,40 @@ export function prepareMainlineWorldNavigation(scene: MainlineSceneDefinition, l
   // The target component belongs to the stable world. Runtime actors are
   // deliberately excluded here: they may block this movement attempt, but
   // cannot turn a raw click into a different permanent destination.
-  const obstacles = collisionBoxes(scene, layout, options, false)
+  const physicalObstacles = collisionBoxes(scene, layout, options, false)
+  // A traversable passage is a permanent topological portal in the static
+  // mesh. Its lifecycle-owned door remains a live physical blocker in
+  // collisionBoxes/canOccupy until the passage becomes passable. Keeping the
+  // door cell out of the mesh avoids rebuilding the large graph at the
+  // crossing while preserving closed-door movement and permission checks.
+  const obstacles = [...collisionBoxes(scene, layout, options, false, true), ...deniedRegionRouteObstacles(scene, options)]
   const cacheKey = [
     'world',
     options.actorId ?? 'protagonist',
     actorFootprint.width.toFixed(4),
     actorFootprint.height.toFixed(4),
-    [...(options.openPassageIds ?? [])].sort().join(','),
     [...occupiedSeatIdsForNavigation(scene, options)].sort().join(','),
   ].join('|')
-  const cached = staticNavigationMeshCache.get(snapshot)?.get(cacheKey)
-  const navigationMesh = cached?.key === cacheKey
+  const bounds = insetBounds(snapshot.walkBounds, actorFootprint)
+  const meshCacheKey = JSON.stringify({ cacheKey, bounds, obstacles, barriers, actorFootprint })
+  const meshes = preparedWorldNavigationMeshCache.get(scene)
+  const cached = meshes?.get(meshCacheKey)
+  const navigationMesh = cached
     ? cached.mesh
     : createPolygonNavigationMesh({
-      bounds: insetBounds(snapshot.walkBounds, actorFootprint),
+      bounds,
       obstacles,
       obstacleInset: { x: actorFootprint.width / 2, y: actorFootprint.height / 2 },
       barriers,
       actorFootprint,
     })
-  if (cached?.key !== cacheKey) cacheStaticNavigationMesh(snapshot, cacheKey, navigationMesh)
-  return {
-    bounds: insetBounds(snapshot.walkBounds, actorFootprint), obstacles, actorFootprint, barriers, navigationMesh,
+  if (!cached) cachePreparedWorldNavigationMesh(scene, meshCacheKey, navigationMesh)
+  else {
+    // Refresh insertion order so frequently reused dimensions stay in the LRU.
+    meshes!.delete(meshCacheKey)
+    meshes!.set(meshCacheKey, cached)
   }
+  return { bounds, obstacles, physicalObstacles, actorFootprint, barriers, navigationMesh }
 }
 
 /** Declared permission edge with a public normal and actor contact clearance. */
@@ -1211,7 +1366,7 @@ function accessBoundaryGeometry(region: MainlineSceneAccessRegion, edge: 'top' |
   const direction = edge === 'right' || edge === 'bottom' ? 1 : -1
   const line = axis === 'x' ? region.x + (edge === 'right' ? region.width : 0) : region.y + (edge === 'bottom' ? region.height : 0)
   const tangentHalf = axis === 'x' ? footprint.height / 2 : footprint.width / 2
-  return { axis, tangentAxis, direction, line, clearance: axis === 'x' ? footprint.width / 2 : footprint.height / 2,
+  return { axis, tangentAxis, direction, line, depth: axis === 'x' ? region.width : region.height, clearance: axis === 'x' ? footprint.width / 2 : footprint.height / 2,
     min: region[tangentAxis] - tangentHalf, max: region[tangentAxis] + (axis === 'x' ? region.height : region.width) + tangentHalf } as const
 }
 
@@ -1225,22 +1380,49 @@ export function resolveMainlineWorldNavigation(
   if (!isWalkableMainlinePoint(from, scene, layout, options)) return null
   const adapter = prepareMainlineWorldNavigation(scene, layout, options)
   const footprint = adapter.actorFootprint
-  const deniedBoundaries = scene.accessBoundaries.flatMap(boundary => {
-    const region = scene.accessRegions.find(candidate => candidate.id === boundary.regionId)
-    return region && !actorCanEnterRegion(scene, options.actorId, region)
-      ? [{ region, geometry: accessBoundaryGeometry(region, boundary.edge, footprint) }] : []
+  const explicitBoundariesByRegion = new Map<string, typeof scene.accessBoundaries>()
+  scene.accessBoundaries.forEach(boundary => {
+    const boundaries = explicitBoundariesByRegion.get(boundary.regionId) ?? []
+    explicitBoundariesByRegion.set(boundary.regionId, [...boundaries, boundary])
+  })
+  const deniedBoundaries = scene.accessRegions.flatMap(region => {
+    if (actorCanEnterRegion(scene, options.actorId, region)) return []
+    const explicitBoundaries = explicitBoundariesByRegion.get(region.id)
+    // Regions without authored boundary metadata still need a public contact
+    // point so a blocked click can explain the access rule. Derive all four
+    // perimeter edges only for those regions; authored openings stay exact.
+    const edges = explicitBoundaries?.length
+      ? explicitBoundaries.map(boundary => boundary.edge)
+      : ['top', 'right', 'bottom', 'left'] as const
+    return edges.map(edge => ({ region, geometry: accessBoundaryGeometry(region, edge, footprint) }))
   })
   if (deniedBoundaries.length) {
+    // Most clicks in a scene with protected regions still target public,
+    // reachable ground. Resolve that ordinary route first; only build the
+    // physical-only intent mesh when the permission-aware route cannot reach
+    // the requested point. This keeps denied-access feedback intact without
+    // paying its cold topology-build cost for successful public movement.
+    const permittedResolution = resolveNavigationPath(from, requestedTarget, adapter)
+    if (permittedResolution?.reachedRequestedTarget) return permittedResolution
+
     // Resolve the attempted physical route with the same mesh owner. This
     // route supplies intent only; it is never handed to the movement controller.
     const physicalBarriers = adapter.barriers.filter(barrier => barrier.kind !== 'access-boundary')
-    let physicalMesh = physicalIntentMeshCache.get(adapter.navigationMesh)
+    const physicalKey = JSON.stringify({ bounds: adapter.bounds, obstacles: adapter.physicalObstacles, barriers: physicalBarriers, actorFootprint: footprint })
+    const physicalMeshes = physicalIntentMeshCache.get(adapter.navigationMesh) ?? new Map<string, PolygonNavigationMesh>()
+    let physicalMesh = physicalMeshes.get(physicalKey)
     if (!physicalMesh) {
       physicalMesh = createPolygonNavigationMesh({
-        bounds: adapter.bounds, obstacles: adapter.obstacles, barriers: physicalBarriers,
+        bounds: adapter.bounds, obstacles: adapter.physicalObstacles, barriers: physicalBarriers,
         obstacleInset: { x: footprint.width / 2, y: footprint.height / 2 }, actorFootprint: footprint,
       })
-      physicalIntentMeshCache.set(adapter.navigationMesh, physicalMesh)
+      physicalMeshes.set(physicalKey, physicalMesh)
+      while (physicalMeshes.size > MAX_STATIC_NAVIGATION_MESHES_PER_SCENE) {
+        const oldest = physicalMeshes.keys().next().value
+        if (oldest === undefined) break
+        physicalMeshes.delete(oldest)
+      }
+      physicalIntentMeshCache.set(adapter.navigationMesh, physicalMeshes)
     }
     const attempted = resolveNavigationPath(from, requestedTarget, {
       ...adapter, barriers: physicalBarriers, navigationMesh: physicalMesh,
@@ -1266,6 +1448,7 @@ export function resolveMainlineWorldNavigation(
         path: path ?? [{ ...from }], reachedRequestedTarget: false, deniedAccessRegion: contact.region,
       }
     }
+    return permittedResolution
   }
   return resolveNavigationPath(from, requestedTarget, adapter)
 }
@@ -1310,7 +1493,9 @@ export function mainlineEntityInteractionCandidates(scene: MainlineSceneDefiniti
   if (!entity) return [from]
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const offset = mainlineLayoutOffsetForEntity(scene, entityId, layout)
-  const position = snapshot.objects.get(entityId)?.position ?? { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
+  const position = entity.interactionStructureId && options.interactionContactPoint
+    ? options.interactionContactPoint
+    : snapshot.objects.get(entityId)?.position ?? { x: entity.position.x + offset.x, y: entity.position.y + offset.y }
   if (entity.kind === 'door') {
     const passage = scene.passages.find((candidate) => candidate.entityId === entityId)
     if (passage) {
@@ -1396,6 +1581,23 @@ export function isMainlineInteractionPositionLegal(position: Point, scene: Mainl
 export function resolveMainlineServiceContact(scene: MainlineSceneDefinition, entityId: string, approach: Point, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
   const snapshot = sceneGeometrySnapshot(scene, layout, options)
   const geometry = snapshot.objects.get(entityId)
+  const entity = scene.objects.find(candidate => candidate.id === entityId)
+  if (!entity) return { target: from, path: null, inRange: false }
+  if (entity?.interactionStructureId) {
+    // Equipment labels on a shared worktop are visual/semantic contacts for
+    // the whole counter body. Routing to the label's tiny glyph box can put
+    // the employee destination inside the collidable worktop itself.
+    const interactionOptions = { ...options, geometrySnapshot: snapshot }
+    const candidates = mainlineEntityInteractionCandidates(
+      scene,
+      entityId,
+      approach,
+      layout,
+      mainlineActorFootprint(scene, options, from),
+      interactionOptions,
+    )
+    return resolveMainlineInteractionCandidates(scene, from, candidates, 0, layout, interactionOptions)
+  }
   if (!geometry?.collision) return { target: from, path: null, inRange: false }
   const contact = edgeContactPoint(geometry.position, geometry.collision, approach, mainlineActorFootprint(scene, options, from))
   return resolveMainlineInteractionCandidates(scene, from, [contact], 0, layout, { ...options, geometrySnapshot: snapshot })
@@ -1526,9 +1728,33 @@ export function mainlineStorefrontArrivalDecision(scene: MainlineSceneDefinition
 /** One selected entity contact is shared by proximity, route and arrival. */
 export function resolveMainlineEntityInteraction(scene: MainlineSceneDefinition, entityId: string, from: Point, layout: SceneLayout = {}, options: MainlineNavigationOptions = {}): MainlineInteractionResolution {
   const entity = scene.objects.find((candidate) => candidate.id === entityId)
+  if (entity?.spaceId && !mainlineEntityBelongsToActiveSpace(entity, mainlineActiveSpatialSpaceId(scene, from))) {
+    return { target: from, path: null, inRange: false }
+  }
   const candidates = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), options)
   const range = entity?.interactionRange ?? .35
   const resolved = resolveMainlineInteractionCandidates(scene, from, candidates, range, layout, options)
+  if (!resolved.path && options.interactionContactPoint && entity?.interactionStructureId) {
+    const part = scene.continuousStructures.find(item => item.id === entity.interactionStructureId)
+    if (part?.counterSurface) {
+      const vertical = part.counterSurface.orientation === 'vertical'
+      const extent = vertical ? part.height : part.width
+      const step = vertical ? 8 / 10.8 : 8 / 19.2
+      // At a wall or junction the exact contact may be blocked. Search along
+      // this same segment, nearest to the clicked point first, for a legal
+      // reachable stance rather than returning to a fixed service marker.
+      for (let delta = step; delta <= extent + step; delta += step) {
+        for (const direction of [-1, 1]) {
+          const point = { ...options.interactionContactPoint }
+          if (vertical) point.y += direction * delta
+          else point.x += direction * delta
+          const nearby = mainlineEntityInteractionCandidates(scene, entityId, from, layout, mainlineActorFootprint(scene, options, from), { ...options, interactionContactPoint: point })
+          const fallback = resolveMainlineInteractionCandidates(scene, from, nearby, range, layout, options)
+          if (fallback.path) return fallback
+        }
+      }
+    }
+  }
   if (resolved.path || entity?.surface !== 'floor' || entity.kind === 'door' || entity.kind === 'seat' || range <= .35) return resolved
   // A neighbouring visible body can occupy a contact without invalidating
   // the object's authored interaction range. Project through shared legality

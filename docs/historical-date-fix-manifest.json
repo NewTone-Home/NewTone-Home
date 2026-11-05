@@ -1,0 +1,29 @@
+{
+  "baseCommit": "a230f5b6d9fa40e8c5fac2ac1f274c9be5ea69b1",
+  "baseTree": "00a921b687ff859fd939b5dc27a7e22f6a33c9bf",
+  "branch": "fix/historical-date-compat-20261104",
+  "worktree": "C:\\Users\\Tony_Li\\Documents\\Codex\\2026-10-30\\task\\newtone-historical-date-fix-20261104",
+  "scope": "historical website v1 date-only bridge; current schema validation unchanged",
+  "patchSnapshotSha256": "9f72d078821946e55168bdecb11d6fe57d4c0a83c20d98e11a2a923b526a6b41",
+  "hashAlgorithm": "sha256(sorted path+NUL+raw byte count+NUL+raw SHA256+LF)",
+  "files": [
+    {
+      "path": "src/services/saveMigration.mjs",
+      "bytes": 13129,
+      "sha256": "89a211b8e07b057fe1cda49317962402a5055efd6984d7e88fda1de7fbbbc61b",
+      "lfSha256": "75ff4a43630b26814b1e63bbf8deb748ca8e22264988a1738f66c14349f66f59"
+    },
+    {
+      "path": "tests/historicalDateCompatibility.test.mjs",
+      "bytes": 11157,
+      "sha256": "f6aac0efdb4cfe06a646338f346c0789874b72a2f0ee669f7b25ddd01d9b0705",
+      "lfSha256": "f6aac0efdb4cfe06a646338f346c0789874b72a2f0ee669f7b25ddd01d9b0705"
+    }
+  ],
+  "strictFunctionsUnchanged": [
+    "validateCore",
+    "validateNew"
+  ],
+  "verification": "Syntax parsing only; no tests/typecheck/build/browser executed",
+  "plannedNewCases": 37
+}

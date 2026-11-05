@@ -99,19 +99,25 @@ test('real Cafe ride order waits independently, boards only at Street pickup, an
   await requestRide(page, '商业街')
   await pickup(page, 'commercial-street')
   await moveAcrossStreet(page, 185)
-  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
-  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toBeVisible({ timeout: 15000 })
+  const street = mainlineScenes['commercial-street']
+  const cafe = street.storefronts.find(storefront => storefront.id === 'commercial-cafe-slot')!
+  const cafeShell = street.rooms.find(room => room.id === 'commercial-north-cafe-interior')!
+  const cafeDoor = page.locator(`[data-focus-target-group="door:${cafe.portalId}"]`).first()
+  await cafeDoor.click()
+  await page.waitForFunction(({ x, y, width, height }) => {
+    const actor = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')
+    const px = Number(actor?.dataset.runtimeX)
+    const py = Number(actor?.dataset.runtimeY)
+    return Boolean(actor && px >= x && px <= x + width && py >= y && py <= y + height)
+  }, cafeShell.bounds, { timeout: 20000 })
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-street"]')).toBeVisible()
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveCount(0)
+  await expect(page.locator('[data-scene-dialogue]')).toHaveCount(0)
+  await expect(page.locator('[data-actor-id^="cafe-"]')).toHaveCount(0)
+  // The legacy Cafe scene remains directly addressable for saved-story compatibility.
+  await page.goto('/?scene=commercial-cafe&debugRuntimeEvidence=1')
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toBeVisible()
   await expect(page.locator('.center-local-slide__surface--target .scene-shell')).toHaveCount(0)
-  for (let visit = 0; visit < 3; visit += 1) {
-    await point(page, { x: 64, y: 60 })
-    await expect.poll(async () => page.locator('[data-actor-id="protagonist"]').evaluate(element => parseFloat((element as HTMLElement).style.left))).toBeCloseTo(64, 0)
-    await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/)
-    await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
-    await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveCount(0, { timeout: 15000 })
-    await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
-    await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toBeVisible({ timeout: 15000 })
-    await expect(page.locator('.center-local-slide__surface--target .scene-shell')).toHaveCount(0)
-  }
   await point(page, { x: 64, y: 60 })
   await expect.poll(async () => page.locator('[data-actor-id="protagonist"]').evaluate(element => parseFloat((element as HTMLElement).style.left))).toBeCloseTo(64, 0)
   await expect(page.locator('[data-actor-id="protagonist"]')).not.toHaveClass(/is-moving/)

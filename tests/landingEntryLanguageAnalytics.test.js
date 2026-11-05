@@ -1,3 +1,4 @@
+import { createLandingEntryObserver } from '../src/services/landingEntryObserver.mjs'
 import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { buildAnalyticsEvent } from '../src/services/analytics'
@@ -35,19 +36,18 @@ describe('Landing entry language analytics', () => {
 
   it('shares the display resolver and tracks one event per Landing view without language rerender duplicates', () => {
     const trackSpy = vi.fn()
-    const displayedLanguage = trackLandingEntry(
-      { language: 'zh', hasInitializedLanguage: false }, ['en-GB'], trackSpy,
-    )
-
-    expect(trackSpy).toHaveBeenCalledTimes(1)
-    expect(trackSpy).toHaveBeenCalledWith('landing_entry', {
-      stepId: 'landing', language: 'en', eventData: { languageSource: 'browser_default' },
-    })
-    expect(displayedLanguage).toEqual({ language: 'en', source: 'browser_default' })
-    expect(app.match(/trackLandingEntry\(/g)).toHaveLength(1)
-    expect(app).toContain('trackLandingEntry(displayedPreferences, navigator.languages')
-    expect(app).toContain('}, [currentView])')
+    const observer = createLandingEntryObserver((preferences, browsers) => trackLandingEntry(preferences, browsers, trackSpy))
+    const shown = { visible: true, previewReady: true, preferences: { language: 'zh', hasInitializedLanguage: false }, browserLanguages: ['en-GB'] }
+    observer.observe({ ...shown, previewReady: false })
+    expect(trackSpy).not.toHaveBeenCalled()
+    observer.observe(shown); observer.observe(shown)
+    observer.observe({ ...shown, preferences: { language: 'zh', hasInitializedLanguage: true } })
+    expect(trackSpy).toHaveBeenCalledExactlyOnceWith('landing_entry', { stepId: 'landing', language: 'en', eventData: { languageSource: 'browser_default' } })
+    observer.observe({ ...shown, visible: false }); observer.observe(shown)
+    expect(trackSpy).toHaveBeenCalledTimes(2)
+    expect(app).toContain('landingObserver.current.observe(')
     expect(landing).toContain('resolveDisplayedReaderLanguage({')
     expect(readingTransition).toContain('resolveDisplayedReaderLanguage({')
   })
+
 })

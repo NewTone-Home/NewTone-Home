@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { sceneFocusFrameGeometry } from './SceneFocusFrames'
+import { sceneFocusFrameGeometry, sceneFocusPaintGeometryStyle } from './SceneFocusFrames'
 
 const corners = ['top-left', 'top-right', 'bottom-right', 'bottom-left'] as const
 
 describe('sceneFocusFrameGeometry', () => {
+  it('ignores only the paint clock while retaining relative geometry styles', () => {
+    expect(sceneFocusPaintGeometryStyle('--scene-breathing-progress: .1; transform: translateX(2px); font-size: 16px;'))
+      .toBe(sceneFocusPaintGeometryStyle('--scene-breathing-progress: .9; transform: translateX(2px); font-size: 16px;'))
+    expect(sceneFocusPaintGeometryStyle('--scene-breathing-progress: .9; transform: translateX(3px);'))
+      .not.toBe(sceneFocusPaintGeometryStyle('--scene-breathing-progress: .9; transform: translateX(2px);'))
+    expect(sceneFocusPaintGeometryStyle(null)).toBe('')
+  })
   it('keeps a near-square interaction frame proportional', () => {
     const geometry = sceneFocusFrameGeometry(46, 28)
 

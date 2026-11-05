@@ -1,0 +1,347 @@
+.dialogue-choice-wheel {
+  --dialogue-wheel-gap: 62px;
+  position: absolute;
+  z-index: 8;
+  width: min(360px, 38vw);
+  height: calc(var(--dialogue-wheel-gap) * 2.3);
+  overflow: hidden;
+  color: #f8f5ec;
+  touch-action: none;
+  overscroll-behavior: contain;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  transition: opacity 620ms ease, transform 620ms cubic-bezier(.2,.75,.25,1);
+  pointer-events: auto;
+}
+
+.dialogue-choice-wheel--wide-right {
+  height: var(--wide-wheel-clip-height, calc(var(--dialogue-wheel-gap) * 2.3));
+  right: clamp(16px, 4vw, 58px);
+  top: 50%;
+  transform: translate3d(0, -50%, 0) scale(1);
+}
+
+.dialogue-choice-wheel--wide-inline {
+  position: absolute;
+  inset: auto clamp(24px, 3vw, 42px) 28px 36px;
+  width: auto;
+  max-width: none;
+  height: var(--wide-wheel-h, 84px);
+  margin: 0;
+  transform: none;
+}
+
+.dialogue-choice-wheel--narrow-bottom {
+  left: 50%;
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: min(90vw, 420px);
+  transform: translate3d(-50%, 0, 0) scale(1);
+}
+
+/* When hosted by the phone subtitle panel, share its padded safe content rect. */
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom {
+  --dialogue-wheel-entry-x: 0px;
+  top: var(--narrow-dialogue-safe-top);
+  right: var(--narrow-dialogue-safe-right);
+  bottom: var(--narrow-dialogue-safe-bottom);
+  left: var(--narrow-dialogue-safe-left);
+  width: auto;
+  height: auto;
+  transform: none;
+}
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-entering {
+  transform: translate3d(0, 18px, 0) scale(.98);
+}
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-exiting {
+  transform: translate3d(0, 12px, 0) scale(.985);
+}
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__viewport {
+  top: 50%;
+  right: 0;
+  bottom: auto;
+  left: 0;
+  height: min(var(--narrow-wheel-clip-height, 64px), 100%);
+  overflow: hidden;
+  transform: translateY(-50%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 3%, #000 97%, transparent 100%);
+}
+.narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__viewport {
+  top: calc(50% + 17px);
+}
+.narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel--narrow-bottom .dialogue-choice-wheel__option {
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 4px 12px;
+  font-size: 14px;
+  line-height: 1.1;
+}
+.narrow-dialogue-content > .dialogue-choice-wheel--narrow-bottom.is-entering .dialogue-choice-wheel__viewport {
+  animation-name: dialogue-choice-wheel-mobile-fade-in;
+}
+@keyframes dialogue-choice-wheel-mobile-fade-in {
+  from { opacity: .15; filter: blur(3px); }
+  to { opacity: 1; filter: blur(0); }
+}
+.narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--center {
+  z-index: 2;
+  color: inherit;
+  background: rgba(255, 255, 255, .13);
+  box-shadow: none;
+  font-weight: 500;
+}
+.narrow-dialogue-content > .dialogue-choice-wheel.is-confirmed .dialogue-choice-wheel__option--center {
+  color: #fff;
+  background: rgba(255, 255, 255, .03);
+  box-shadow: none;
+  font-weight: 650;
+}
+
+.dialogue-choice-wheel.is-entering {
+  opacity: .2;
+  transition-duration: var(--dialogue-choice-entry-duration, 1000ms);
+}
+
+.dialogue-choice-wheel--wide-right.is-entering {
+  transform: translate3d(20px, -50%, 0) scale(.98);
+  transition-duration: var(--dialogue-choice-entry-duration, 1000ms);
+}
+
+.dialogue-choice-wheel--narrow-bottom.is-entering {
+  transform: translate3d(-50%, 18px, 0) scale(.98);
+  transition-duration: var(--dialogue-choice-entry-duration, 1000ms);
+}
+
+.dialogue-choice-wheel--wide-inline.is-entering {
+  transform: none;
+}
+
+.dialogue-choice-wheel.is-locked {
+  pointer-events: none;
+}
+.dialogue-choice-wheel.is-exiting {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0) scale(.985);
+  transition-duration: 180ms;
+}
+.dialogue-choice-wheel--wide-right.is-exiting { transform: translate3d(10px, -50%, 0) scale(.985); }
+.dialogue-choice-wheel--narrow-bottom.is-exiting { transform: translate3d(-50%, 12px, 0) scale(.985); }
+.dialogue-choice-wheel--wide-inline.is-exiting { transform: none; }
+
+.dialogue-choice-wheel__viewport {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+  perspective: 820px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 23%, #000 77%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 23%, #000 77%, transparent 100%);
+}
+
+.dialogue-choice-wheel__option {
+  position: absolute;
+  left: 5%;
+  width: 90%;
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 14px;
+  color: inherit;
+  background: transparent;
+  text-align: center;
+  font: inherit;
+  font-size: clamp(16px, 2.5vw, 22px);
+  line-height: 1.35;
+  white-space: normal;
+  transition: transform 150ms cubic-bezier(.2,.75,.25,1), opacity 130ms ease, filter 130ms ease;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.dialogue-choice-wheel.is-scrolling .dialogue-choice-wheel__option {
+  transition: none;
+}
+
+.dialogue-choice-wheel__option--center {
+  pointer-events: auto;
+  cursor: pointer;
+  color: #fffdf5;
+  background: rgba(255, 255, 255, .13);
+  box-shadow: none;
+  transition: transform 150ms cubic-bezier(.2,.75,.25,1), opacity 130ms ease, filter 130ms ease, background-color 180ms ease;
+  font-weight: 650;
+}
+
+.dialogue-choice-wheel__option--center:disabled {
+  cursor: default;
+}
+.dialogue-choice-wheel.is-confirmed .dialogue-choice-wheel__option--center {
+  color: #fff;
+  background: rgba(255, 255, 255, .03);
+  box-shadow: none;
+  font-weight: 650;
+}
+
+.dialogue-choice-wheel__option--neighbor {
+  opacity: .58;
+  filter: blur(.15px);
+}
+
+.narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor {
+  z-index: 1;
+  opacity: .9;
+  filter: none;
+  box-sizing: border-box;
+  height: 0.8em;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 14px;
+  line-height: 1.35;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, .94), 0 0 6px rgba(0, 0, 0, .8);
+}
+.narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor {
+  height: .75em;
+}
+
+/* A long wrapped neighbor must not overlap the focused choice. Show only the
+   line nearest the center: the last line above, the first line below. */
+.narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor > .dialogue-choice-wheel__neighbor-copy {
+  display: block;
+  width: 100%;
+}
+
+.narrow-dialogue-content > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor[data-dialogue-choice-neighbor-side="above"] > .dialogue-choice-wheel__neighbor-copy {
+  transform: translateY(calc(0.8em - 100%));
+}
+.narrow-dialogue-content--choice-prompt > .dialogue-choice-wheel .dialogue-choice-wheel__option--neighbor[data-dialogue-choice-neighbor-side="above"] > .dialogue-choice-wheel__neighbor-copy {
+  transform: translateY(calc(0.75em - 100%));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialogue-choice-wheel,
+  .dialogue-choice-wheel__option {
+    transition-duration: 1ms;
+  }
+}
+
+/* Desktop choice bubble: nearly transparent, thin glass-like outline, smaller, faded in. */
+.dialogue-choice-wheel--wide-inline { animation: dialogue-choice-wide-fade-in 380ms ease-out both; }
+@keyframes dialogue-choice-wide-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.dialogue-choice-wheel--wide-inline .dialogue-choice-wheel__option { min-height: 36px; padding: 4px 14px; font-size: clamp(14px, 1.15vw, 17px); border-radius: 999px; }
+.dialogue-choice-wheel--wide-inline .dialogue-choice-wheel__option--center {
+  background: rgba(255, 255, 255, .025);
+  border: 1px solid rgba(255, 255, 255, .34);
+  box-shadow: 0 0 14px rgba(255, 255, 255, .08), inset 0 0 10px rgba(255, 255, 255, .05);
+  font-weight: 500;
+}
+.dialogue-choice-wheel--wide-inline.is-confirmed .dialogue-choice-wheel__option--center { background: rgba(255, 255, 255, .02); }
+
+/* One-time hint that the choices can be scrolled. */
+.dialogue-choice-wheel__hint {
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  margin-top: -10px;
+  color: rgba(255, 255, 255, .7);
+  font-size: 18px;
+  line-height: 1;
+  pointer-events: none;
+  animation: dialogue-choice-hint-bounce 1.1s ease-in-out infinite;
+}
+@keyframes dialogue-choice-hint-bounce { 0%, 100% { transform: translateY(-3px); opacity: .5; } 50% { transform: translateY(4px); opacity: 1; } }
+
+/* ---- Desktop: all choices visible, in the conversation flow (no wheel) ---- */
+@keyframes dialogue-choice-appear { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dialogue-choice-breathe { 0%, 100% { opacity: .62; } 50% { opacity: 1; } }
+
+.dialogue-choice-bubbles,
+.dialogue-choice-menu {
+  position: relative;
+  flex: 0 0 auto;
+  pointer-events: auto;
+  animation: dialogue-choice-appear 480ms linear both;
+}
+.dialogue-choice-bubbles.is-locked,
+.dialogue-choice-menu.is-locked { display: none; }
+.dialogue-choice-bubbles.is-soft.is-locked { display: flex; pointer-events: none; animation: dialogue-choice-soft-out 300ms ease-in both; }
+@keyframes dialogue-choice-soft-out { from { opacity: 1; } to { opacity: 0; } }
+
+.dialogue-choice-bubbles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 10px;
+  margin-top: 4px;
+}
+.dialogue-choice-bubbles__item,
+.dialogue-choice-menu__extra {
+  min-height: 36px;
+  padding: 4px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: clamp(14px, 1.15vw, 17px);
+  cursor: pointer;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
+}
+/* Hover: the option itself breathes (dim <-> bright) so it is clear it is the one under the pointer. */
+.dialogue-choice-bubbles__item:focus-visible,
+.dialogue-choice-menu__row:focus-visible {
+  outline: none;
+  animation: dialogue-choice-breathe 1.2s ease-in-out infinite;
+}
+/* Only a real pointer hovers. On a touch screen :hover sticks to the spot you tapped, so the next option that appears there would keep flashing. */
+@media (hover: hover) and (pointer: fine) {
+  .dialogue-choice-bubbles__item:hover:not(:disabled),
+  .dialogue-choice-menu__extra:hover:not(:disabled),
+  .dialogue-choice-menu__row:hover:not(:disabled) {
+    outline: none;
+    animation: dialogue-choice-breathe 1.2s ease-in-out infinite;
+  }
+}
+.dialogue-choice-bubbles__item.is-picked,
+.dialogue-choice-menu__extra.is-picked,
+.dialogue-choice-menu__row.is-picked {
+  animation: none;
+  opacity: 1;
+}
+.dialogue-choice-bubbles__item:disabled:not(.is-picked),
+.dialogue-choice-menu__extra:disabled:not(.is-picked),
+.dialogue-choice-menu__row:disabled:not(.is-picked) { opacity: .4; cursor: default; }
+
+.dialogue-choice-menu__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 12px;
+}
+.dialogue-choice-menu__row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dialogue-choice-menu__line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: clamp(15px, 1.2vw, 18px); }
+.dialogue-choice-menu__price { font-variant-numeric: tabular-nums; }
+.dialogue-choice-menu__desc { font-size: .72em; line-height: 1.4; color: rgba(243, 240, 233, .62); }
+.dialogue-choice-menu__extra { align-self: center; margin-top: 6px; min-height: 30px; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) {
+  .dialogue-choice-bubbles__item:hover:not(:disabled),
+  .dialogue-choice-menu__row:hover:not(:disabled) { animation: none; }
+}

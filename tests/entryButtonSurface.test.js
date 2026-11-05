@@ -19,7 +19,7 @@ describe('shared entry button surface', () => {
     expect(surface).toContain("recordRuntimeAudit('entry-timeline-cancel'")
     expect(surface).toContain("phaseRef.current === 'entering' && !timelineRef.current.frame")
     expect(surface).toContain("recordRuntimeAudit('entry-action-complete'")
-    expect(surface).toContain("import { ENTRY_BUTTON_TIMINGS, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'")
+    expect(surface).toContain("import { ENTRY_BUTTON_TIMINGS, createEntryExitSteps, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'")
     expect(surface).not.toContain('const TIMINGS =')
     expect(surface).not.toContain('const runTimeline =')
     expect(surface).toContain('onActionCompleteRef.current?.')

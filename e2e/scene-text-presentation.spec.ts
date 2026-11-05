@@ -20,11 +20,10 @@ async function expectFixedObservation(page: Page, sceneId: MainlineSceneId, targ
 
   const policy = mainlineScenes[sceneId].presentation
   if (policy.mode !== 'fixed') throw new Error(`${sceneId} must use a fixed text policy`)
-  // The existing scene camera may translate the whole world. The authored
-  // anchor itself remains the stable contract, so inspect its world values.
-  const camera = await page.locator('.mainline-scene-stage').evaluate(e => ({ x:Number(e.getAttribute('data-camera-offset-x')??0), y:Number(e.getAttribute('data-camera-offset-y')??0) }))
-  expect(await text.evaluate((element) => element.style.left)).toBe(`${policy.anchor.x+camera.x}%`)
-  expect(await text.evaluate((element) => element.style.top)).toBe(`${policy.anchor.y+camera.y}%`)
+  // The text now shares the transformed world with its actors. Its authored
+  // world anchor remains fixed while the enclosing world camera moves.
+  expect(await text.evaluate((element) => element.style.left)).toBe(`${policy.anchor.x}%`)
+  expect(await text.evaluate((element) => element.style.top)).toBe(`${policy.anchor.y}%`)
   await page.screenshot({ path: testInfo.outputPath(screenshotName) })
 }
 
@@ -99,7 +98,8 @@ test('scene text typography matches the layout contract at desktop, landscape, a
     await page.locator('[data-object-id="zhongshuyuan-office-desk"]').click()
     const text = page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')
     await expect(text).toBeVisible({ timeout: 15_000 })
-    const fontSize = await text.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))
+    const fontSize = await text.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)
+      * Number(document.querySelector<HTMLElement>('.scene-mainline-world')?.dataset.worldProjectionScale ?? 1))
     expect(fontSize).toBeCloseTo(expectedPx, 1)
   }
 })
@@ -140,6 +140,52 @@ test('an Observation completes into an unlocked Action that can be abandoned by 
   await expect(page.locator('[data-scene-action="zhongshuyuan-office-plant"]')).toHaveCount(0)
   await expect(page.locator('[data-scene-echo="zhongshuyuan-office-desk"]')).toBeVisible({ timeout: 15_000 })
   await expect(plant).not.toHaveClass(/scene-mainline-interaction--active/)
+})
+
+test('an observation action appears compactly at the final reading anchor on a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 844 })
+  await page.goto('/?scene=zhongshuyuan-office')
+  const plant = page.locator('[data-object-id="zhongshuyuan-office-plant"]')
+  const echo = page.locator('[data-scene-echo="zhongshuyuan-office-plant"]')
+  await plant.click()
+  await expect(echo).toBeVisible({ timeout: 15_000 })
+  await page.waitForTimeout(900)
+
+  const shield = page.locator('[data-scene-dialogue-shield="true"]')
+  const action = page.locator('[data-scene-action="zhongshuyuan-office-plant"]')
+  let lastReadingPosition: { x: number; y: number } | null = null
+  for (let attempt = 0; attempt < 6 && await action.count() === 0; attempt += 1) {
+    if (await echo.count()) {
+      lastReadingPosition = await echo.evaluate(element => ({
+        x: Number((element as HTMLElement).dataset.sceneReadingPositionX),
+        y: Number((element as HTMLElement).dataset.sceneReadingPositionY),
+      }))
+    }
+    await shield.click({ force: true })
+    await page.waitForTimeout(180)
+  }
+
+  await expect(action).toBeVisible()
+  await expect(action).toHaveClass(/scene-mainline-action--reading/)
+  expect(lastReadingPosition).not.toBeNull()
+  const actionDetails = await action.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    const node = element as HTMLElement
+    return {
+      x: Number(node.dataset.sceneActionPositionX),
+      y: Number(node.dataset.sceneActionPositionY),
+      rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
+      optionCount: element.querySelectorAll('.shared-entry-control').length,
+    }
+  })
+  expect(actionDetails.x).toBeCloseTo(lastReadingPosition!.x, 5)
+  expect(actionDetails.y).toBeCloseTo(lastReadingPosition!.y, 5)
+  expect(actionDetails.optionCount).toBe(1)
+  expect(actionDetails.rect.left).toBeGreaterThanOrEqual(0)
+  expect(actionDetails.rect.right).toBeLessThanOrEqual(360)
+  expect(actionDetails.rect.top).toBeGreaterThanOrEqual(0)
+  expect(actionDetails.rect.bottom).toBeLessThanOrEqual(844)
+  await expect(page.getByRole('button', { name: '浇水', exact: true })).toBeEnabled()
 })
 
 async function completeObservationIntoAction(page: Page, target: Locator, entityId: string, option: string) {

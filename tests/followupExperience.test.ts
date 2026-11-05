@@ -1,3 +1,5 @@
+import { currentCafeStart, currentCafeOptions, currentCafeRoom } from './helpers/currentCafe'
+import { mainlineNpcStagedPoint } from '../src/center/runtime/mainlineNpcStaging'
 import { describe, it, expect } from 'vitest'
 import { commercialCafeFloorServiceTarget } from '../src/center/runtime/commercialCafeBehavior'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
@@ -16,13 +18,13 @@ describe('follow-up experience contracts', () => {
     const burner=mainlineEntityCollision(scene,scene.objects.find(o=>o.id==='jijia-incense-burner')!,{},metrics)!
     const gaps=[(burner.y-boxes[0].y-boxes[0].height)*metrics.height/100,(boxes[1].x-burner.x-burner.width)*metrics.width/100,(boxes[2].y-burner.y-burner.height)*metrics.height/100,(burner.x-boxes[3].x-boxes[3].width)*metrics.width/100]
     expect(Math.max(...gaps)-Math.min(...gaps)).toBeLessThan(.02)
-    expect(mainlineEntityPosition(scene,scene.objects.find(o=>o.id==='jijia-offering-table-north')!,{},metrics).y).toBe(47.2)
+    expect(mainlineEntityPosition(scene,scene.objects.find(o=>o.id==='jijia-offering-table-north')!,{},metrics).y).toBeCloseTo(scene.altars[0]!.anchor.y-2.8,8)
     expect(createMainlineSceneGeometrySnapshot(scene,scene.initialPlayerPosition,{},metrics).navigationBarriers).toHaveLength(4)
   })
   it('uses authored service sides for every ordinary table with legal shared routes', () => {
-    const scene=mainlineScenes['commercial-cafe'], metrics={width:1280,height:720}
-    let start=scene.initialPlayerPosition
-    const tables=scene.objects.filter(o=>o.kind==='table' && o.id!==commercialCafeStoryTableId)
+    const scene=mainlineScenes['commercial-street'], metrics=currentCafeOptions.screenMetrics
+    let start=mainlineNpcStagedPoint(scene,'cafe-floor-server')!
+    const tables=scene.objects.filter(o=>o.kind==='table' && o.roomId===currentCafeRoom.id && o.id!==commercialCafeStoryTableId)
     for(let index=0;index<tables.length;index++){
       const intent=resolveCommercialCafeFloorServiceIntent(scene,index)!
       expect(intent.target).toEqual(tables[index].approach)
@@ -42,24 +44,24 @@ describe('follow-up experience contracts', () => {
     expect(exits).toHaveLength(2)
     for(const exit of exits) expect(mainlineRideAtPickup(order,order.sourceSceneId,exit)).toBe(true)
     expect(mainlineRideAtPickup(order,order.sourceSceneId,mainlineScenes[order.sourceSceneId].initialPlayerPosition)).toBe(false)
-    for(const sceneId of ['commercial-street','yonghe-mining-perimeter'] as const) expect(mainlineRidePickupPositions(sceneId)[0][sceneId==='commercial-street'?'x':'y']).toBe(mainlineScenes[sceneId].externalExits[0].threshold)
+    // Both the continuous commercial street and the rotated mining street are
+    // horizontal now, so their pickup coordinate is x (not the old mining y).
+    for(const sceneId of ['commercial-street','yonghe-mining-perimeter'] as const) expect(mainlineRidePickupPositions(sceneId)[0].x).toBe(mainlineScenes[sceneId].externalExits[0].threshold)
     expect(mainlineRideWalkingEtaMs('commercial-cafe',mainlineScenes['commercial-cafe'].initialPlayerPosition,{layout:{},screenMetrics:{width:1280,height:720}})).toBeGreaterThan(0)
     expect(mainlineRideWaitingGuidance('commercial-cafe').guidanceText).toBe('请回到商业街口等车')
     expect(mainlineRideWaitingGuidance('yonghe-mining-perimeter').guidanceText).toBe('请到矿区入口等车')
     expect(mainlineRideWaitingGuidance('zhongshuyuan-office').guidanceText).toBe('请到办公室出口等车')
     expect(mainlineRideWaitingGuidance('jijia-ancestral-home').guidanceText).toBe('请到院门等车')
   })
-  it('navigates Café and Street as separate scene segments using their authored portal and pickup exits', () => {
-    const cafe=mainlineScenes['commercial-cafe']
-    const portal=cafe.passages.find(p=>p.id==='street-cafe-entry')!
-    const expectedPortal={x:(portal.thresholds[0].x+portal.thresholds[1].x)/2,y:(portal.thresholds[0].y+portal.thresholds[1].y)/2}
-    expect(mainlineRideNavigationGoal('commercial-cafe','commercial-street')).toEqual(expectedPortal)
-    expect(expectedPortal.x).toBeLessThan(cafe.initialPlayerPosition.x)
-    expect(mainlineRideNavigationGoal('commercial-street','commercial-street')).toEqual(mainlineRidePickupPosition('commercial-street'))
-    const eateryExit=mainlineScenes['yonghe-eatery'].passages.find(p=>p.targetSceneId==='yonghe-mining-perimeter')
-    expect(mainlineRideNavigationGoal('yonghe-eatery','yonghe-mining-perimeter')).toEqual(eateryExit?{x:(eateryExit.thresholds[0].x+eateryExit.thresholds[1].x)/2,y:(eateryExit.thresholds[0].y+eateryExit.thresholds[1].y)/2}:null)
-    expect(mainlineRideNavigationGoal('yonghe-eatery','commercial-street')).toBeNull()
-  })
+  it('uses the single Street ride segment after normalizing the retired Cafe route instead of fabricating a second scene',()=>{
+ const cafe=mainlineScenes['commercial-cafe'],street=mainlineScenes['commercial-street']
+ expect(cafe).toBe(street)
+ expect(cafe.passages.find(p=>p.id==='street-cafe-entry')).toMatchObject({routeThrough:true,fromRoomId:'commercial-street-public-lane',toRoomId:currentCafeRoom.id})
+ expect(mainlineRideNavigationGoal(cafe.id,'commercial-street')).toEqual(mainlineRidePickupPosition('commercial-street'))
+ expect(mainlineRideNavigationGoal('commercial-cafe','commercial-street')).toBeNull()
+ expect(mainlineScenes['yonghe-eatery'].passages.some(p=>p.targetSceneId==='yonghe-mining-perimeter')).toBe(false)
+ expect(mainlineRideNavigationGoal('yonghe-eatery','yonghe-mining-perimeter')).toBeNull()
+})
   it('suppresses world-exit phone reveal only at the active ride pickup exits', () => {
     const order={sourceSceneId:'commercial-street' as const,targetSceneId:'zhongshuyuan-office' as const,driverArrivesAt:Date.now()+60000}
     const pickup=mainlineRidePickupPosition(order.sourceSceneId)!

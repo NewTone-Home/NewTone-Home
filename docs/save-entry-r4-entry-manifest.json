@@ -1,0 +1,14 @@
+{
+  "base": "ab098d7a96fe67adce16775aae5e450d4986f2dc",
+  "testsRun": false,
+  "buildRun": false,
+  "files": {
+    "src/App.jsx": "2f557c20feb9072131d4cd990ec4ff219669816ebb62d138f5793dd435bc387c",
+    "src/components/RuntimeRecoveryBoundary.jsx": "523ad499f644c542fa0a6be6aa407324c6fb6c3fae438fed6883265ff36b32af",
+    "src/components/RuntimeRecoveryBoundary.test.mjs": "3c61adeaa2609d1499008a50a25cd29e44de0c00a3c8ca7457de3e40562b9ec4",
+    "src/services/runtimeRecovery.mjs": "2d0a2b115929b65a290743094ff56e17aa7dd3ee17ff0a073d0f3f2fa4c8992f",
+    "e2e/saveEntryRecovery.spec.ts": "4b37efc22fcaf2cd2553a4a452b2d5cd12ee43bb8c5c80eddeadc675a29eb36b",
+    "src/services/entryController.test.mjs": "66dff8d269081d88934137135f2742301dd7d786e3223d0461c9ad125332eb97"
+  },
+  "aggregateSHA256": "d459a0b40403739ab4f97dcdd993637f95a8ce2b6f562fcf688337b767bc580e"
+}

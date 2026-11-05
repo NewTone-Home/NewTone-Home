@@ -1,0 +1,200 @@
+[
+  {
+    "id": 1,
+    "originalFailure": "tests/cafeInteriorTrial.test.ts > isolated Cafe layout trial > shows the approved Cafe wall menu and compact blackboard copy on observation",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 2,
+    "originalFailure": "tests/cafeInteriorTrial.test.ts > isolated Cafe layout trial > shows one observation without options for each cafe plant",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 3,
+    "originalFailure": "tests/CafeSixRestroom.test.tsx > wall wrap, six Cafe tables and the real single restroom > keeps fixture durations separate on the game clock: toilet 45s, sink 90s",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 4,
+    "originalFailure": "tests/mainlineGeometrySnapshot.test.js > mainline screen geometry snapshot > keeps one geometry source for 'phone landscape'",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 5,
+    "originalFailure": "tests/mainlineReadingLayoutSession.test.ts > unified subtitle layout > pins dialogue pages to a compact viewport region at 390 px",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 6,
+    "originalFailure": "tests/mainlineReadingLayoutSession.test.ts > unified subtitle layout > pins dialogue pages to a compact viewport region at 411 px",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 7,
+    "originalFailure": "tests/mainlineReadingProtection.test.tsx > reading target protection > keeps the active menu neutral and keyboard focusable while bounding the adjacent wall wrapper",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 8,
+    "originalFailure": "tests/mainlineReadingProtection.test.tsx > reading target protection > keeps target and same-position neighbor in their source order with bounded identity wrappers",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 9,
+    "originalFailure": "tests/mainlineReadingProtection.test.tsx > reading target protection > keeps the complete counter surface at its original draw position and masks it by interaction identity",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 10,
+    "originalFailure": "tests/mainlineReadingProtection.test.tsx > reading target protection > renders scene actions at their supplied final reading anchor with a bounded reading width",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 11,
+    "originalFailure": "tests/mainlineWallVisualCoverage.test.ts > all door neighbors, complete edge gaps and corner coverage > 'yonghe-mining-perimeter' retains complete door-adjacent and endpoint coverage",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 12,
+    "originalFailure": "tests/mainlineWallVisualCoverage.test.ts > all door neighbors, complete edge gaps and corner coverage > 'yonghe-eatery' retains complete door-adjacent and endpoint coverage",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 13,
+    "originalFailure": "tests/miningLayoutMigration.test.ts > one-time mine layout migration by old room identity > recovers old-yonghe-center in the same public shop and preserves non-position progress",
+    "policyImpact": "旧代际入口不再导入旧位置；该布局 helper 的单元契约仍保留，失败不自动关闭。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 14,
+    "originalFailure": "tests/miningLayoutMigration.test.ts > one-time mine layout migration by old room identity > recovers old-pharmacy in the same public shop and preserves non-position progress",
+    "policyImpact": "旧代际入口不再导入旧位置；该布局 helper 的单元契约仍保留，失败不自动关闭。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 15,
+    "originalFailure": "tests/miningLayoutMigration.test.ts > one-time mine layout migration by old room identity > recovers old-yonghe-near-counter in the same public shop and preserves non-position progress",
+    "policyImpact": "旧代际入口不再导入旧位置；该布局 helper 的单元契约仍保留，失败不自动关闭。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 16,
+    "originalFailure": "tests/miningLayoutMigration.test.ts > one-time mine layout migration by old room identity > migrates all eight version2 rooms by frozen identity and saves version2 positions once",
+    "policyImpact": "旧代际入口不再导入旧位置；该布局 helper 的单元契约仍保留，失败不自动关闭。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 17,
+    "originalFailure": "tests/miningStreetShell.test.ts > mining clockwise continuous street shell > keeps all eight storefronts on one map and opens only Yonghe",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 18,
+    "originalFailure": "tests/npcFoundation.test.ts > static NPC foundation > keeps all three visible counter runs continuous and preserves the original coffee-order identity without phantom order cells",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 19,
+    "originalFailure": "tests/phoneMapModel.test.ts > Phone map region and POI model > groups current inner-world locations and real POIs by their parent area",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 20,
+    "originalFailure": "tests/phoneMapModel.test.ts > Phone map region and POI model > uses continuous bounded zoom ratios",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 21,
+    "originalFailure": "tests/playerSave.test.js > player local save contract > seeds new saves and migrates old saves from their saved story-clock time",
+    "policyImpact": "旧档导入预期不再是入口政策；helper 断言仍保留。新代际时间保存/恢复仍必须验证，不能以政策变化关闭该失败。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 22,
+    "originalFailure": "tests/playerSave.test.js > player local save contract > restores valid simulated time without adding offline wall time and falls back on invalid values",
+    "policyImpact": "旧档导入预期不再是入口政策；helper 断言仍保留。新代际时间保存/恢复仍必须验证，不能以政策变化关闭该失败。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 23,
+    "originalFailure": "tests/playerSave.test.js > player local save contract > keeps the version-one phone migration while adding the clock fallback",
+    "policyImpact": "旧档导入预期不再是入口政策；helper 断言仍保留。新代际时间保存/恢复仍必须验证，不能以政策变化关闭该失败。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 24,
+    "originalFailure": "tests/sceneGridRollout.test.ts > one world lattice per active continuous space > preserves pre-grid semantics outside the explicitly authorized Cafe, tea and Yonghe layout trials",
+    "policyImpact": "旧代际入口不再导入旧位置；该布局 helper 的单元契约仍保留，失败不自动关闭。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 25,
+    "originalFailure": "tests/StorefrontAccess.test.ts > shop interior access > keeps only Yonghe open on the mining street without changing unrelated scenes",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 26,
+    "originalFailure": "tests/wallCoverageOwnership.test.ts > wall coverage counts actual shared-owner paint rather than relaxing gap tolerances > recognizes a corner painted by the adjacent shop but detects removal of that exact glyph",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 27,
+    "originalFailure": "tests/worldNavigation.test.ts > ordinary world navigation and passage intent > returns access-denial feedback for a protected region with no authored boundary edges",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 28,
+    "originalFailure": "tests/yongheInteriorTrial.test.ts > yonghe-mining-perimeter rotated restaurant > keeps the work zone staff-only, counter continuous, and rear door connected to the alley",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 29,
+    "originalFailure": "tests/yongheInteriorTrial.test.ts > yonghe-eatery rotated restaurant > keeps the work zone staff-only, counter continuous, and rear door connected to the alley",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 30,
+    "originalFailure": "src/center/runtime/heldConsumablePresentation.test.ts > held consumable presentation > keeps an unknown legacy drink generic without inventing a SKU name",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 31,
+    "originalFailure": "src/center/runtime/mainlineSceneInteractions.test.ts > mainline scene interaction policies > persists watering as a bounded plant state instead of feedback-only UI",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 32,
+    "originalFailure": "src/center/runtime/mainlineSceneInteractions.test.ts > mainline scene interaction policies > keeps coffee optional and asks for confirmation only when the protagonist carries milk tea",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  },
+  {
+    "id": 33,
+    "originalFailure": "src/center/runtime/MainlineSceneRenderer.test.tsx > mainline renderer breathing semantics > renders the active dialogue line in the stage renderer",
+    "policyImpact": "无直接影响；原失败继续保留，未改该测试或产品，不宣称修复。",
+    "status": "not-rerun-not-closed"
+  }
+]

@@ -9,6 +9,6 @@ export default defineConfig({
   base: githubPagesBase,
   plugins: [react()],
   test: {
-    include: ['tests/**/*.{test,spec}.{js,ts,tsx}', 'src/**/*.{test,spec}.{js,ts,tsx}'],
+    include: ['tests/**/*.{test,spec}.{js,ts,tsx,mjs}', 'src/**/*.{test,spec}.{js,ts,tsx,mjs}'],
   },
 })

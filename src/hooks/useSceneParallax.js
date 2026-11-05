@@ -1,3 +1,5 @@
+import { rethrowStoppedSession } from '../save-session.mjs'
+import { getGameStorage } from '../save-session.mjs'
 import { useEffect, useRef } from 'react'
 import {
   LANDING_PARALLAX_BACK_LIMIT,
@@ -27,7 +29,7 @@ function readScreenAngle() {
 function readSessionPermission() {
   try {
     return sessionStorage.getItem(MOTION_PERMISSION_SESSION_KEY)
-  } catch {
+  } catch { rethrowStoppedSession();
     return null
   }
 }
@@ -36,24 +38,24 @@ function writeSessionPermission(value) {
   try {
     if (value) sessionStorage.setItem(MOTION_PERMISSION_SESSION_KEY, value)
     else sessionStorage.removeItem(MOTION_PERMISSION_SESSION_KEY)
-  } catch {
+  } catch { rethrowStoppedSession();
     // Private browsing may make session storage unavailable.
   }
 }
 
 function readMotionPreference() {
   try {
-    return localStorage.getItem(MOTION_PREFERENCE_KEY) === 'true'
-  } catch {
+    return getGameStorage().getItem(MOTION_PREFERENCE_KEY) === 'true'
+  } catch { rethrowStoppedSession();
     return false
   }
 }
 
 function writeMotionPreference(enabled) {
   try {
-    if (enabled) localStorage.setItem(MOTION_PREFERENCE_KEY, 'true')
-    else localStorage.removeItem(MOTION_PREFERENCE_KEY)
-  } catch {
+    if (enabled) getGameStorage().setItem(MOTION_PREFERENCE_KEY, 'true')
+    else getGameStorage().removeItem(MOTION_PREFERENCE_KEY)
+  } catch { rethrowStoppedSession();
     // The preference is optional; orientation still works for this page view.
   }
 }
@@ -226,7 +228,7 @@ export function useSceneParallax({ rootRef, enabled = true, reduced = false }) {
           writeMotionPreference(false)
           settleStatic('denied')
         }
-      } catch {
+      } catch { rethrowStoppedSession();
         writeSessionPermission(null)
         if (!readMotionPreference()) writeMotionPreference(false)
         settleStatic('denied')

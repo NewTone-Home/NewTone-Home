@@ -1,0 +1,120 @@
+import {describe,it,expect} from 'vitest'
+import {mainlineScenes,validateMainlineSceneGeometry} from '../src/center/runtime/mainlineScenes'
+import {mainlineSceneBlueprints,type MainlineSceneId} from '../src/center/runtime/mainlineSceneModel'
+import {migratePreGridPosition,sceneGridTransform} from '../src/center/runtime/sceneGridRollout'
+import {officeGrid} from '../src/center/runtime/officeGrid'
+import {sanitizePlayerSave} from '../src/center/runtime/playerSave'
+import {resolveMainlineSafeSpawnPosition,isWalkableMainlinePoint,findMainlineRoomPassageSequence} from '../src/center/runtime/mainlineNavigation'
+import {sceneDesignReferenceMetrics} from '../src/center/runtime/sceneBoundaryGrid'
+import {readFileSync} from 'node:fs'
+import {gridSemanticContract} from './helpers/gridSemanticContract'
+
+const ids=Object.keys(mainlineScenes).filter(id=>id!=='commercial-cafe') as MainlineSceneId[]
+describe('one world lattice per active continuous space',()=>{
+ it('preserves pre-grid semantics outside the explicitly authorized Cafe, tea and Yonghe layout trials',()=>{
+ const baseline=JSON.parse(readFileSync('tests/fixtures/pre-grid-semantic-027f31.json','utf8'))
+ const trialRooms=new Set(['commercial-north-cafe-interior','commercial-north-n1-interior','commercial-south-s5-interior','mining-shop-2-interior'])
+ for(const id of ids){
+  const before=baseline[id],now=JSON.parse(JSON.stringify(gridSemanticContract(mainlineScenes[id])))
+  const changedIds=new Set([...before.objects,...now.objects].filter(o=>trialRooms.has(o.roomId)||o.id.startsWith('yonghe-outdoor-')).map(o=>o.id))
+  for(const door of [...before.portals,...now.portals].filter(p=>p.id.endsWith('-back-door')||p.id==='yonghe-warehouse-door'))changedIds.add(door.id)
+  for(const id of ['commercial-s2-fast-food-kitchen-warehouse-divider-8','commercial-s2-fast-food-kitchen-warehouse-divider-9','cafe-restroom-toilet','cafe-restroom-sink'])changedIds.add(id)
+  for(const key of ['cafe-trial-customer-toilet-door','street-cafe-entry','yonghe-menu','yonghe-back-door','yonghe-warehouse-door','yonghe-survey-central-lane'])changedIds.add(key)
+  const shopPortalIds=new Set(mainlineScenes['commercial-street'].storefronts.filter(slot=>/-slot(?:-\d+)?$/.test(slot.id)).map(slot=>slot.portalId))
+  const frontPortalIds=new Set([...baseline[id].portals,...now.portals].filter(p=>p.fromRoomId?.includes('public-lane')&&p.toRoomId?.endsWith('-interior')).map(p=>p.id))
+  const originalNpcIds=new Set(before.npcs.map(n=>n.id))
+  const omitTrial=(contract)=>({...contract,
+   objects:contract.objects.filter(o=>!changedIds.has(o.id)),
+   portals:contract.portals.filter(p=>p.id!=='cafe-trial-customer-toilet-door'&&p.id!=='cafe-restroom-entry'&&!p.id.endsWith('-back-door')&&p.id!=='yonghe-back-door'&&p.id!=='yonghe-warehouse-door').map(p=>frontPortalIds.has(p.id)?{...p,access:undefined,lockedText:undefined,transitionText:undefined}:p.id==='yonghe-back-door'?{...p,lockedText:undefined}:p),
+   rooms:contract.rooms.filter(r=>r.id!=='cafe-single-restroom-interior'&&r.id!=='mining-street-back-alley'),
+   npcs:contract.npcs.filter(n=>originalNpcIds.has(n.id)),
+   npcBehaviors:contract.npcBehaviors.filter(n=>originalNpcIds.has(n.npcId)),
+   interactionText:Object.fromEntries(Object.entries(contract.interactionText??{}).filter(([id])=>!changedIds.has(id)&&!frontPortalIds.has(id))),
+   explorationText:Object.fromEntries(Object.entries(contract.explorationText??{}).filter(([id])=>!changedIds.has(id)&&!id.startsWith('cafe-restroom-'))),
+  })
+  const expected=omitTrial(before)
+  if(id==='yonghe-mining-perimeter'||id==='yonghe-eatery'){
+   const approvedNames=['\u6d17\u8863\u5e97','\u6c38\u548c\u5c0f\u9986','\u836f\u5e97','\u4e94\u91d1\u5e97','\u4fbf\u5229\u5e97','\u65c5\u5e97','\u7535\u5668\u7ef4\u4fee','\u7406\u53d1\u5e97']
+   expected.objects=expected.objects.map(o=>/^mining-shop-door-\d+$/.test(o.id)?{...o,label:approvedNames[Number(o.id.split('-').at(-1))-1]}:o)
+  }
+  const authoredTextSpace={
+   'jijia-ancestral-home':{roomId:'jijia-yard-public-area',kind:'room',wallId:'jijia-yard'},
+   'jijia-ancestral-interior':{roomId:'jijia-inner-house-main-room',kind:'room',wallId:'jijia-inner-house'},
+   'zhongshuyuan-passage':{roomId:'zhongshuyuan-passage-walkable-space',kind:'corridor',wallId:'zhongshuyuan-passage-frame'},
+  } as const
+  const space=authoredTextSpace[id]
+  if(space){
+   const scene=mainlineSceneBlueprints[id].scene
+   const shell=scene.walls?.find(w=>w.id===space.wallId)
+   expect(scene.rooms).toEqual([{id:space.roomId,bounds:scene.walkBounds,kind:space.kind}])
+   if(id==='zhongshuyuan-passage'){
+    expect(shell?.bounds).toBeDefined()
+    expect(shell!.bounds!.x).toBeLessThan(scene.walkBounds!.x)
+    expect(shell!.bounds!.y).toBeLessThan(scene.walkBounds!.y)
+    expect(shell!.bounds!.x+shell!.bounds!.width).toBeGreaterThan(scene.walkBounds!.x+scene.walkBounds!.width)
+    expect(shell!.bounds!.y+shell!.bounds!.height).toBeGreaterThan(scene.walkBounds!.y+scene.walkBounds!.height)
+   }else{
+    expect(shell?.bounds?.x).toBe(scene.walkBounds?.x)
+    expect(shell?.bounds?.y).toBe(scene.walkBounds?.y)
+    expect(shell?.bounds?.width).toBeCloseTo(scene.walkBounds?.width,12)
+    expect(shell?.bounds?.height).toBe(scene.walkBounds?.height)
+   }
+   expected.rooms=[...expected.rooms,{id:space.roomId,kind:space.kind}]
+  }
+  expect(omitTrial(now),id).toEqual(expected)
+ }
+})
+ for(const id of ids)it(`${id}: walls and corners use its single 28px lattice`,()=>{
+  const s=mainlineScenes[id],g=sceneGridTransform(id)?.grid??officeGrid
+  expect(validateMainlineSceneGeometry(s)).toEqual([])
+  for(const w of s.structures){
+   if(!w.wallEdges?.length)continue
+   if(w.boundaryWorldGrid)expect(w.boundaryWorldGrid).toEqual({origin:g.origin,pitchPx:28})
+   if(!w.bounds)continue
+   for(const p of [w.bounds,{x:w.bounds.x+w.bounds.width,y:w.bounds.y+w.bounds.height}]){
+    expect((p.x-g.origin.x)/g.step.x).toBeCloseTo(Math.round((p.x-g.origin.x)/g.step.x),8)
+    expect((p.y-g.origin.y)/g.step.y).toBeCloseTo(Math.round((p.y-g.origin.y)/g.step.y),8)
+   }
+  }
+ })
+ it('resolves every cross-scene entry from the destination side of the same door',()=>{
+  for(const id of ids)for(const p of mainlineSceneBlueprints[id].portals){
+   if(!p.targetSceneId||!p.endpoint.entryPosition)continue
+   const reverse=mainlineSceneBlueprints[p.targetSceneId].portals.find(q=>q.id===p.id&&q.targetSceneId===id)
+   if(reverse)expect(p.endpoint.entryPosition).toEqual(reverse.endpoint.threshold)
+  }
+ })
+ it('keeps all 14 shop fronts, only the three approved Commercial Street shops open, and every rear door locked',()=>{
+  const s=mainlineScenes['commercial-street']
+  const shopPortalIds=new Set(s.storefronts.filter(slot=>/-slot(?:-\d+)?$/.test(slot.id)).map(slot=>slot.portalId))
+  const fronts=s.passages.filter(p=>p.routeThrough&&shopPortalIds.has(p.portalId))
+  const openShopIds=new Set(['commercial-north-slot-1','commercial-south-slot-5','commercial-cafe-slot'])
+  expect(fronts).toHaveLength(14)
+  expect(s.passages.filter(p=>p.id.endsWith('-rear-door'))).toHaveLength(14)
+  expect(fronts.filter(p=>p.access==='open').map(p=>s.storefronts.find(slot=>slot.portalId===p.portalId)?.id).sort())
+    .toEqual([...openShopIds].sort())
+  expect(s.passages.filter(p=>p.id.endsWith('-rear-door')).every(p=>p.access==='locked')).toBe(true)
+ })
+ it('keeps only the continuous Cafe lattice when the old scene alias is requested',()=>{
+ expect(sceneGridTransform('commercial-cafe')).toBeNull()
+ expect(mainlineScenes['commercial-cafe']).toBe(mainlineScenes['commercial-street'])
+ expect(mainlineScenes['commercial-cafe'].structures.some(w=>w.id==='commercial-cafe-room')).toBe(false)
+ expect(Object.keys(mainlineScenes)).not.toContain('commercial-cafe')
+})
+ it('migrates old office positions within the same room once and preserves progression',()=>{
+  const old={_version:2,currentSceneId:'zhongshuyuan-office',currentPosition:{x:17,y:20},scenePositions:{'zhongshuyuan-office':{x:17,y:20}},phoneDevice:'inner',sceneState:{'zhongshuyuan-office':{fixtureExplored:true}},phoneContactNotes:{a:'retained'}}
+  const migrated=sanitizePlayerSave(old,'commercial-street')
+  expect(migrated.currentPosition).toEqual(migratePreGridPosition('zhongshuyuan-office',old.currentPosition))
+  expect(migrated.sceneState).toEqual(old.sceneState)
+  expect(migrated.phoneContactNotes).toEqual(old.phoneContactNotes)
+  expect(sanitizePlayerSave(migrated,'commercial-street')).toEqual(migrated)
+ })
+ it('keeps a restored locked-room occupant there, without requiring a route through a locked door',()=>{
+  const s=mainlineScenes['zhongshuyuan-office'],room=s.rooms.find(r=>r.id.includes('north'))!
+  const p={x:room.bounds.x+room.bounds.width/2,y:room.bounds.y+room.bounds.height/2}
+  const options={screenMetrics:sceneDesignReferenceMetrics}
+  expect(isWalkableMainlinePoint(p,s,{},options)).toBe(true)
+  expect(findMainlineRoomPassageSequence(s,s.initialPlayerPosition,p,{},options)?.passages.some(p=>p.access==='locked')).toBe(true)
+  expect(resolveMainlineSafeSpawnPosition(s,p,{},options)).toEqual(p)
+ })
+})

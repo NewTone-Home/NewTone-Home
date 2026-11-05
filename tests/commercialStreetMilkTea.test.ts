@@ -11,6 +11,8 @@ import {
   commercialStreetMilkTeaReadyAnalyticsPatch,
   commercialStreetMilkTeaReadyAnalyticsWasReported,
   commercialStreetMilkTeaPickupPatch,
+  commercialStreetMilkTeaPickupAllowed,
+  commercialStreetMilkTeaConsumePatch,
   commercialStreetMilkTeaQueueStatus,
   createCommercialStreetMilkTeaOrder,
   formatCommercialStreetMilkTeaOrderNumber,
@@ -110,6 +112,30 @@ describe('commercial street milk tea', () => {
     const state = save.sceneState['commercial-street']
     expect(commercialStreetMilkTeaOrderFromSceneState(state)).toBeNull()
     expect(commercialStreetMilkTeaHeld(state)).toBe(true)
+    expect(commercialStreetMilkTeaPickupAllowed(state, 100_000)).toBe(false)
+    expect(commercialStreetMilkTeaConsumePatch()).toEqual({ commercialStreetMilkTeaHeldDrink: null })
+    expect(commercialStreetMilkTeaHeld({ ...state, ...commercialStreetMilkTeaConsumePatch() })).toBe(false)
+  })
+
+  it('allows pickup exactly when the saved order is ready and tolerates older order records', () => {
+    const order = createCommercialStreetMilkTeaOrder(
+      {},
+      { drink: milkTeaDrinks[0], sugar: milkTeaSugarOptions[0], ice: milkTeaIceOptions[2] },
+      1_000,
+      () => 0,
+    )
+    const saved = commercialStreetMilkTeaOrderPatch(order)
+    expect(commercialStreetMilkTeaPickupAllowed(saved, order.readyAt - 1)).toBe(false)
+    expect(commercialStreetMilkTeaPickupAllowed(saved, order.readyAt)).toBe(true)
+
+    const legacy = { ...saved }
+    delete legacy.commercialStreetMilkTeaCreatedAt
+    delete legacy.commercialStreetMilkTeaQueueAhead
+    expect(commercialStreetMilkTeaOrderFromSceneState(legacy)).toEqual({
+      ...order,
+      createdAt: order.readyAt - 15_000,
+      queueAhead: 0,
+    })
   })
 
   it('persists the ready analytics marker once per concrete order and clears it for the next order', () => {

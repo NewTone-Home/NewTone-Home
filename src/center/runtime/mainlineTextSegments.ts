@@ -4,23 +4,100 @@ const closingMarks = new Set(['”', '’', '"', "'", '」', '』', '）', ')', 
 
 export const mainlineTextSegmentMinClauseLength = 5
 
-function normalized(value: string) { return value.replace(/\s+/g, ' ').trim() }
+/** Suppress only a single separator carried to a new display page after punctuation. */
+export function mainlineReadingSegmentDisplayText(segments: readonly string[], index: number): string {
+  const text = segments[index] ?? ''
+  if (index > 0 && /[。！？!?；;，,：:]$/u.test(segments[index - 1] ?? '') && /^\n(?=\S)/u.test(text)) return text.slice(1)
+  return text
+}
+
+/** Add a display-only continuation mark to nonfinal pages. Source segments
+ * remain untouched so page offsets and reconstruction still use authored text. */
+export function mainlineReadingPageDisplayText(segments: readonly string[], index: number): string {
+  const text = mainlineReadingSegmentDisplayText(segments, index)
+  return index < segments.length - 1 ? `${text}...` : text
+}
+
+/** Keep authored text intact before measuring or segmenting display pages. */
+export function mainlineDisplaySourceText(source: string) {
+  return source
+}
 function characterLength(value: string) {
   return Array.from(value.replace(/[\s。！？!?；;，,、：:“”‘’"'「」『』（）()【】〔〕［］《》〈〉]+$/gu, '').replace(/\s/g, '')).length
 }
 
+function readableCharacter(value: string) {
+  return Boolean(value.trim()) && !/\p{P}/u.test(value)
+}
+
+function rebalanceShortFinalPage(pages: readonly string[], maxWidthPx: number, measure: (value: string) => number) {
+  if (pages.length < 2) return pages
+  const previous = pages[pages.length - 2]!
+  const last = pages[pages.length - 1]!
+  const lastLength = Array.from(last).filter(readableCharacter).length
+  if (lastLength === 0) {
+    // A trailing whitespace-only fragment has no readable content. Keep it
+    // attached to the preceding page, where trailing spaces do not create a
+    // visible line of their own.
+    if (!last.trim()) return [...pages.slice(0, -2), `${previous}${last}`]
+
+    // A punctuation-only tail must travel with at least one readable source
+    // character. If the narrowest possible split still cannot fit, show the
+    // combined source as one page instead of making punctuation its own step.
+    const previousCharacters = Array.from(previous)
+    let start = previousCharacters.length
+    let movedReadable = 0
+    while (start > 0 && movedReadable < 1) {
+      start -= 1
+      movedReadable += readableCharacter(previousCharacters[start]!) ? 1 : 0
+    }
+    const balancedPrevious = previousCharacters.slice(0, start).join('')
+    const balancedLast = `${previousCharacters.slice(start).join('')}${last}`
+    if (movedReadable > 0 && characterLength(balancedPrevious) > 0
+      && measure(balancedPrevious) <= maxWidthPx && measure(balancedLast) <= maxWidthPx) {
+      return [...pages.slice(0, -2), balancedPrevious, balancedLast]
+    }
+    return [...pages.slice(0, -2), `${previous}${last}`]
+  }
+  const targetLength = 3
+  if (lastLength < 1 || lastLength >= targetLength) return pages
+
+  const transferCount = targetLength - lastLength
+  const previousCharacters = Array.from(previous)
+  let start = previousCharacters.length
+  let movedLength = 0
+  while (start > 0 && movedLength < transferCount) {
+    start -= 1
+    movedLength += readableCharacter(previousCharacters[start]!) ? 1 : 0
+  }
+  // Move a literal suffix, including punctuation in its original place.
+  // If balancing cannot keep both pages readable and within width, retain the
+  // short tail rather than move punctuation across the characters it follows.
+  const moved = previousCharacters.slice(start).join('')
+  const balancedPrevious = previousCharacters.slice(0, start).join('')
+  const balancedLast = `${moved}${last}`
+  if (characterLength(balancedPrevious) < targetLength
+    || characterLength(balancedLast) < targetLength
+    || Array.from(balancedPrevious.replace(/\s/gu, '')).length < targetLength
+    || measure(balancedPrevious) > maxWidthPx
+    || measure(balancedLast) > maxWidthPx) return pages
+
+  return [...pages.slice(0, -2), balancedPrevious, balancedLast]
+}
+
 /** Preserve punctuation while keeping short vocatives and particles attached. */
 export function splitMainlineInteractionText(text: string): readonly string[] {
+  const displayText = mainlineDisplaySourceText(text)
   const clauses: string[] = []
   let buffer = ''
-  for (const character of text.replace(/\r\n?/g, '\n')) {
+  for (const character of displayText) {
     buffer += character
     if (character === '\n' || strongBoundaries.has(character) || weakBoundaries.has(character)) {
-      if (normalized(buffer)) clauses.push(normalized(buffer))
+      if (buffer) clauses.push(buffer)
       buffer = ''
     }
   }
-  if (normalized(buffer)) clauses.push(normalized(buffer))
+  if (buffer) clauses.push(buffer)
   const merged = clauses.reduce<string[]>((result, clause) => {
     const previous = result[result.length - 1]
     if (previous && characterLength(previous) < mainlineTextSegmentMinClauseLength) result[result.length - 1] = `${previous}${clause}`
@@ -35,11 +112,47 @@ export function splitMainlineInteractionText(text: string): readonly string[] {
   if (segments.length > 1 && characterLength(segments[segments.length - 1]!) < mainlineTextSegmentMinClauseLength) {
     segments[segments.length - 2] += segments.pop()!
   }
-  return segments.length ? segments : [normalized(text)]
+  return segments.length ? segments : [displayText]
 }
 
 export function longestMainlineInteractionSegment(text: string) {
   return splitMainlineInteractionText(text).reduce((longest, segment) => (
     Array.from(segment).length > Array.from(longest).length ? segment : longest
   ), '')
+}
+
+/** Measure the rendered Chinese serif face in browsers. The fallback is only
+ * used in non-browser callers; the scene renderer always has Canvas metrics. */
+export function mainlineMeasuredTextWidth(text: string, fontSizePx: number, fontFamily = '"Noto Serif SC", Georgia, serif') {
+  if (typeof document !== 'undefined') {
+    const context = document.createElement('canvas').getContext('2d')
+    if (context) {
+      context.font = `${fontSizePx}px ${fontFamily}`
+      return context.measureText(text).width
+    }
+  }
+  return Array.from(text).length * fontSizePx
+}
+
+/** Split only when the real rendered line is wider than its available box.
+ * Keeps every original character and punctuation mark in display order. */
+export function splitMainlineInteractionTextToFit(text: string, maxWidthPx: number, fontSizePx: number, measure = (value: string) => mainlineMeasuredTextWidth(value, fontSizePx)): readonly string[] {
+  const displayText = mainlineDisplaySourceText(text)
+  if (measure(displayText) <= maxWidthPx) return [displayText]
+  const characters = Array.from(displayText)
+  const preferredBreaks = new Set(['。', '！', '!', '？', '?', '；', ';', '，', ',', '、', '：', ':', '\n'])
+  const output: string[] = []
+  let start = 0
+  while (start < characters.length) {
+    let end = start + 1
+    while (end <= characters.length && measure(characters.slice(start, end).join('')) <= maxWidthPx) end += 1
+    const fitEnd = Math.max(start + 1, end - 1)
+    let breakEnd = fitEnd
+    for (let index = fitEnd - 1; index > start; index -= 1) {
+      if (preferredBreaks.has(characters[index]!)) { breakEnd = index + 1; break }
+    }
+    output.push(characters.slice(start, breakEnd).join(''))
+    start = breakEnd
+  }
+  return output.length ? rebalanceShortFinalPage(output, maxWidthPx, measure) : [displayText]
 }

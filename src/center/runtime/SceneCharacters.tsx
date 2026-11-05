@@ -9,11 +9,11 @@ export const SceneCharacters = forwardRef<HTMLSpanElement, ComponentPropsWithout
 
 /** Two purely visual states in one fixed world cell, sharing the parent's
  * progress. This component adds no timer, input or world object. */
-export function SceneCharacterSwitch({ before, after, beforeGroup, afterGroup }: {
-  before: string; after: ReactNode; beforeGroup?: string; afterGroup?: string
+export function SceneCharacterSwitch({ before, after, beforeGroup, afterGroup, beforeOffsetPx }: {
+  before: string; after: ReactNode; beforeGroup?: string; afterGroup?: string; beforeOffsetPx?: { x: number; y: number }
 }) {
   return <span className="scene-character-switch">
-    <SceneCharacters className="scene-character-switch__before" data-focus-visual-group={beforeGroup}>{before}</SceneCharacters>
+    <SceneCharacters className="scene-character-switch__before" data-focus-visual-group={beforeGroup} style={beforeOffsetPx ? { left: `calc(50% + ${beforeOffsetPx.x}px)`, top: `calc(50% + ${beforeOffsetPx.y}px)` } : undefined}>{before}</SceneCharacters>
     <SceneCharacters className="scene-character-switch__after" data-focus-visual-group={afterGroup}>{after}</SceneCharacters>
   </span>
 }

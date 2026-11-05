@@ -1,0 +1,167 @@
+.narrow-dialogue-content {
+  --narrow-dialogue-safe-top: 2px;
+  --narrow-dialogue-safe-right: max(20px, env(safe-area-inset-right));
+  --narrow-dialogue-safe-bottom: max(2px, calc(2px + env(safe-area-inset-bottom)));
+  --narrow-dialogue-safe-left: max(20px, env(safe-area-inset-left));
+  position: relative;
+  box-sizing: border-box;
+  width: min(100%, var(--narrow-dialogue-available-width));
+  height: var(--narrow-dialogue-window-height);
+  overflow: hidden;
+  touch-action: pan-y;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
+.narrow-dialogue-slot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  backface-visibility: hidden;
+}
+
+.narrow-dialogue-slot--current {
+  animation: narrow-dialogue-reveal 260ms ease-out both;
+}
+
+.narrow-dialogue-content--choice-prompt .narrow-dialogue-slot--current {
+  justify-content: flex-start;
+  padding-top: var(--narrow-dialogue-safe-top);
+}
+
+/* Manual order prompts share the compact 15vh phone panel with the wheel. */
+.narrow-dialogue-content--choice-prompt .narrow-dialogue-text {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.narrow-dialogue-content--choice-prompt .narrow-dialogue-speaker {
+  margin-bottom: 1px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.narrow-dialogue-slot--current.narrow-dialogue-slot--incoming {
+  animation: narrow-dialogue-roll-in 220ms ease-out both;
+}
+
+.narrow-dialogue-slot--outgoing {
+  animation: narrow-dialogue-roll-out 220ms ease-in both;
+  pointer-events: none;
+}
+
+.narrow-dialogue-speaker {
+  flex: none;
+  margin-bottom: 0.35em;
+  font-weight: 650;
+  transition: opacity 260ms ease-out;
+}
+.narrow-dialogue-speaker.is-erased { opacity: 0; }
+
+/* Conversation lines: them on the left, you on the right (the text keeps the same measured width). */
+.narrow-dialogue-content--align-start .narrow-dialogue-copy,
+.narrow-dialogue-content--align-start .narrow-dialogue-text { text-align: left; }
+.narrow-dialogue-content--align-end .narrow-dialogue-copy,
+.narrow-dialogue-content--align-end .narrow-dialogue-text { text-align: right; }
+
+.narrow-dialogue-copy {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  text-align: center;
+}
+
+.narrow-dialogue-copy--speaker {
+  transform: translateY(var(--narrow-dialogue-copy-speaker-offset));
+}
+
+.narrow-dialogue-text {
+  min-width: 0;
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-break: strict;
+  text-wrap: balance;
+  text-align: center;
+}
+
+.narrow-dialogue-text-stack {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+}
+
+.narrow-dialogue-text-stack > .narrow-dialogue-text {
+  grid-area: 1 / 1;
+}
+
+.narrow-dialogue-text--measure {
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+.narrow-dialogue-choice-window {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+}
+
+.narrow-dialogue-choice {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(100%, var(--narrow-dialogue-available-width));
+  overflow: hidden;
+  padding: 0.3em 0.6em;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: normal;
+  cursor: pointer;
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+
+.narrow-dialogue-choice.is-focused {
+  opacity: 1;
+}
+
+.narrow-dialogue-choice.is-neighbor {
+  opacity: 0.58;
+  font-size: 0.88em;
+}
+
+@keyframes narrow-dialogue-reveal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes narrow-dialogue-roll-in {
+  from { opacity: 0; transform: translateY(18%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes narrow-dialogue-roll-out {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(-18%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .narrow-dialogue-slot--current,
+  .narrow-dialogue-slot--current.narrow-dialogue-slot--incoming,
+  .narrow-dialogue-slot--outgoing {
+    animation-duration: 1ms;
+  }
+}

@@ -1,0 +1,1539 @@
+{
+  "jijia-ancestral-home": {
+    "edges": [
+      {
+        "key": "jijia-yard:top",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 27.87840000000017
+      },
+      {
+        "key": "jijia-yard:right",
+        "doorNeighbors": {
+          "jijia-main-door": {
+            "before": 27.64800000000014,
+            "after": 27.648000000000025
+          }
+        },
+        "startDistance": 27.647999999999996,
+        "endDistance": 0,
+        "maxGap": 27.64800000000014
+      },
+      {
+        "key": "jijia-yard:bottom",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 27.878400000000056,
+        "maxGap": 27.87840000000017
+      },
+      {
+        "key": "jijia-yard:left",
+        "doorNeighbors": {
+          "jijia-yard-gate": {
+            "before": 27.648000000000025,
+            "after": 27.648000000000025
+          }
+        },
+        "startDistance": 27.647999999999996,
+        "endDistance": 27.648000000000025,
+        "maxGap": 82.94400000000007
+      }
+    ],
+    "corners": [
+      {
+        "key": "jijia-yard",
+        "distances": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "jijia-ancestral-interior": {
+    "edges": [
+      {
+        "key": "jijia-inner-house:top",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 27.87840000000017
+      },
+      {
+        "key": "jijia-inner-house:right",
+        "doorNeighbors": {
+          "jijia-secret-door": {
+            "before": 27.64799999999991,
+            "after": 27.648000000000025
+          }
+        },
+        "startDistance": 27.647999999999996,
+        "endDistance": 0,
+        "maxGap": 27.64800000000014
+      },
+      {
+        "key": "jijia-inner-house:bottom",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 27.878400000000056,
+        "maxGap": 27.87840000000017
+      },
+      {
+        "key": "jijia-inner-house:left",
+        "doorNeighbors": {
+          "jijia-main-door": {
+            "before": 27.64800000000014,
+            "after": 27.648000000000025
+          }
+        },
+        "startDistance": 27.647999999999996,
+        "endDistance": 27.648000000000025,
+        "maxGap": 27.64800000000014
+      }
+    ],
+    "corners": [
+      {
+        "key": "jijia-inner-house",
+        "distances": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "commercial-street": {
+    "edges": [
+      {
+        "key": "commercial-north-facade:bottom",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 671.9808000000003
+      },
+      {
+        "key": "commercial-north-slot-1:bottom",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-north-slot-2:bottom",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-north-slot-3:bottom",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-north-slot-4:bottom",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-north-slot-5:bottom",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-north-slot-6:bottom",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-cafe-slot:bottom",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-south-facade:top",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 671.9807999999999
+      },
+      {
+        "key": "commercial-south-slot-1:top",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-south-slot-2:top",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-south-slot-4:top",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-south-slot-5:top",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-south-slot-6:top",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-south-slot-7:top",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-south-slot-8:top",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "commercial-north-n1-interior-shell:top",
+        "doorNeighbors": {
+          "commercial-north-n1-interior-rear-door": {
+            "before": 27.993599999999958,
+            "after": 27.993600000000015
+          }
+        },
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.012800000000027
+      },
+      {
+        "key": "commercial-north-n1-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 28.00007999999991,
+        "endDistance": 27.997920000000022,
+        "maxGap": 28.004400000000018
+      },
+      {
+        "key": "commercial-north-n2-interior-shell:top",
+        "doorNeighbors": {
+          "commercial-north-n2-interior-rear-door": {
+            "before": 27.993600000000015,
+            "after": 28.01279999999997
+          }
+        },
+        "startDistance": 28.000720319999914,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-north-n2-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 28.00007999999991,
+        "endDistance": 27.997920000000022,
+        "maxGap": 28.004400000000018
+      },
+      {
+        "key": "commercial-north-n3-interior-shell:top",
+        "doorNeighbors": {
+          "commercial-north-n3-interior-rear-door": {
+            "before": 27.993600000000015,
+            "after": 27.993600000000015
+          }
+        },
+        "startDistance": 28.00840031999985,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-north-n3-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 28.00007999999991,
+        "endDistance": 27.997920000000022,
+        "maxGap": 28.004400000000018
+      },
+      {
+        "key": "commercial-north-n4-interior-shell:top",
+        "doorNeighbors": {
+          "commercial-north-n4-interior-rear-door": {
+            "before": 28.01279999999997,
+            "after": 27.993600000000242
+          }
+        },
+        "startDistance": 27.996880319999946,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-north-n4-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 28.00007999999991,
+        "endDistance": 27.997920000000022,
+        "maxGap": 28.004400000000018
+      },
+      {
+        "key": "commercial-north-n5-interior-shell:top",
+        "doorNeighbors": {
+          "commercial-north-n5-interior-rear-door": {
+            "before": 27.993600000000015,
+            "after": 28.012800000000198
+          }
+        },
+        "startDistance": 28.004560319999882,
+        "endDistance": 0,
+        "maxGap": 28.012800000000198
+      },
+      {
+        "key": "commercial-north-n5-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 28.00007999999991,
+        "endDistance": 27.997920000000022,
+        "maxGap": 28.004400000000018
+      },
+      {
+        "key": "commercial-north-n6-interior-shell:top",
+        "doorNeighbors": {
+          "commercial-north-n6-interior-rear-door": {
+            "before": 27.993600000000242,
+            "after": 27.993600000000242
+          }
+        },
+        "startDistance": 27.993040319999864,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-north-n6-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 28.00007999999991,
+        "endDistance": 27.997920000000022,
+        "maxGap": 28.004400000000018
+      },
+      {
+        "key": "commercial-north-cafe-interior-shell:top",
+        "doorNeighbors": {
+          "commercial-north-cafe-interior-rear-door": {
+            "before": 27.993600000000242,
+            "after": 28.01279999999997
+          }
+        },
+        "startDistance": 28.000720320000255,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-north-cafe-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 28.00007999999991,
+        "endDistance": 27.997920000000022,
+        "maxGap": 28.004400000000018
+      },
+      {
+        "key": "commercial-north-cafe-interior-shell:right",
+        "doorNeighbors": {},
+        "startDistance": 28.00007999999991,
+        "endDistance": 27.997920000000022,
+        "maxGap": 28.004400000000018
+      },
+      {
+        "key": "commercial-south-s1-interior-shell:bottom",
+        "doorNeighbors": {
+          "commercial-south-s1-interior-rear-door": {
+            "before": 27.993599999999958,
+            "after": 27.993600000000015
+          }
+        },
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.012800000000027
+      },
+      {
+        "key": "commercial-south-s1-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.997919999999908,
+        "endDistance": 28.000079999999798,
+        "maxGap": 28.004400000000487
+      },
+      {
+        "key": "commercial-south-s2-interior-shell:bottom",
+        "doorNeighbors": {
+          "commercial-south-s2-interior-rear-door": {
+            "before": 27.993600000000015,
+            "after": 28.01279999999997
+          }
+        },
+        "startDistance": 28.000720319999914,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-south-s2-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.997919999999908,
+        "endDistance": 28.000079999999798,
+        "maxGap": 28.004400000000487
+      },
+      {
+        "key": "commercial-south-s4-interior-shell:bottom",
+        "doorNeighbors": {
+          "commercial-south-s4-interior-rear-door": {
+            "before": 28.01279999999997,
+            "after": 27.993600000000242
+          }
+        },
+        "startDistance": 27.996880319999946,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-south-s4-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.997919999999908,
+        "endDistance": 28.000079999999798,
+        "maxGap": 28.004400000000487
+      },
+      {
+        "key": "commercial-south-s5-interior-shell:bottom",
+        "doorNeighbors": {
+          "commercial-south-s5-interior-rear-door": {
+            "before": 27.993600000000015,
+            "after": 28.012800000000198
+          }
+        },
+        "startDistance": 28.004560319999882,
+        "endDistance": 0,
+        "maxGap": 28.012800000000198
+      },
+      {
+        "key": "commercial-south-s5-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.997919999999908,
+        "endDistance": 28.000079999999798,
+        "maxGap": 28.004400000000487
+      },
+      {
+        "key": "commercial-south-s6-interior-shell:bottom",
+        "doorNeighbors": {
+          "commercial-south-s6-interior-rear-door": {
+            "before": 27.993600000000242,
+            "after": 27.993600000000242
+          }
+        },
+        "startDistance": 27.993040319999864,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-south-s6-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.997919999999908,
+        "endDistance": 28.000079999999798,
+        "maxGap": 28.004400000000487
+      },
+      {
+        "key": "commercial-south-s7-interior-shell:bottom",
+        "doorNeighbors": {
+          "commercial-south-s7-interior-rear-door": {
+            "before": 27.993599999999788,
+            "after": 28.01279999999997
+          }
+        },
+        "startDistance": 28.000720320000255,
+        "endDistance": 0,
+        "maxGap": 28.01279999999997
+      },
+      {
+        "key": "commercial-south-s7-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.997919999999908,
+        "endDistance": 28.000079999999798,
+        "maxGap": 28.004400000000487
+      },
+      {
+        "key": "commercial-south-s8-interior-shell:bottom",
+        "doorNeighbors": {
+          "commercial-south-s8-interior-rear-door": {
+            "before": 27.993599999999788,
+            "after": 27.993600000000697
+          }
+        },
+        "startDistance": 28.008400319999964,
+        "endDistance": 0,
+        "maxGap": 28.012799999999515
+      },
+      {
+        "key": "commercial-south-s8-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.997919999999908,
+        "endDistance": 28.000079999999798,
+        "maxGap": 28.004400000000487
+      },
+      {
+        "key": "commercial-south-s8-interior-shell:right",
+        "doorNeighbors": {},
+        "startDistance": 27.997919999999908,
+        "endDistance": 28.000079999999798,
+        "maxGap": 28.004400000000487
+      }
+    ],
+    "corners": [
+      {
+        "key": "commercial-north-facade",
+        "distances": [
+          209.59991999999997,
+          209.59991999999997,
+          0,
+          0
+        ]
+      },
+      {
+        "key": "commercial-south-facade",
+        "distances": [
+          0,
+          0,
+          209.59991999999997,
+          209.59991999999997
+        ]
+      },
+      {
+        "key": "commercial-north-n1-interior-shell",
+        "distances": [
+          0,
+          0,
+          337.15682200321686,
+          27.99792000000002
+        ]
+      },
+      {
+        "key": "commercial-north-n2-interior-shell",
+        "distances": [
+          28.000079999999937,
+          0,
+          337.15682200321686,
+          27.99792000000002
+        ]
+      },
+      {
+        "key": "commercial-north-n3-interior-shell",
+        "distances": [
+          28.000079999999937,
+          0,
+          337.156822003217,
+          27.99792000000002
+        ]
+      },
+      {
+        "key": "commercial-north-n4-interior-shell",
+        "distances": [
+          27.996880319999764,
+          0,
+          337.15682200321686,
+          27.99792000000002
+        ]
+      },
+      {
+        "key": "commercial-north-n5-interior-shell",
+        "distances": [
+          28.000079999999937,
+          0,
+          337.15682200321686,
+          27.99792000000002
+        ]
+      },
+      {
+        "key": "commercial-north-n6-interior-shell",
+        "distances": [
+          27.99304031999991,
+          0,
+          337.15682200321686,
+          27.99792000000002
+        ]
+      },
+      {
+        "key": "commercial-north-cafe-interior-shell",
+        "distances": [
+          28.000079999999937,
+          0,
+          27.99792000000002,
+          27.99792000000002
+        ]
+      },
+      {
+        "key": "commercial-south-s1-interior-shell",
+        "distances": [
+          27.99791999999998,
+          337.15682200321675,
+          0,
+          0
+        ]
+      },
+      {
+        "key": "commercial-south-s2-interior-shell",
+        "distances": [
+          27.99791999999998,
+          672.5676470960049,
+          0,
+          28.00008000000005
+        ]
+      },
+      {
+        "key": "commercial-south-s4-interior-shell",
+        "distances": [
+          27.99791999999998,
+          337.15682200321675,
+          0,
+          27.996880319999764
+        ]
+      },
+      {
+        "key": "commercial-south-s5-interior-shell",
+        "distances": [
+          27.99791999999998,
+          337.15682200321675,
+          0,
+          28.00008000000005
+        ]
+      },
+      {
+        "key": "commercial-south-s6-interior-shell",
+        "distances": [
+          27.99791999999998,
+          337.15682200321675,
+          0,
+          27.99304031999991
+        ]
+      },
+      {
+        "key": "commercial-south-s7-interior-shell",
+        "distances": [
+          27.99791999999998,
+          337.15682200321675,
+          0,
+          28.00008000000005
+        ]
+      },
+      {
+        "key": "commercial-south-s8-interior-shell",
+        "distances": [
+          27.99791999999998,
+          27.99791999999998,
+          0,
+          28.00008000000005
+        ]
+      }
+    ]
+  },
+  "commercial-cafe": {
+    "edges": [
+      {
+        "key": "commercial-cafe-room:top",
+        "doorNeighbors": {
+          "cafe-back-door": {
+            "before": 27.916799999999967,
+            "after": 27.936000000000035
+          }
+        },
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 27.93600000000015
+      },
+      {
+        "key": "commercial-cafe-room:bottom",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 27.93600000000015
+      },
+      {
+        "key": "commercial-cafe-room:left",
+        "doorNeighbors": {
+          "street-cafe-entry": {
+            "before": 28.144800000000032,
+            "after": 28.144800000000032
+          }
+        },
+        "startDistance": 28.144800000000004,
+        "endDistance": 28.14479999999992,
+        "maxGap": 28.15560000000005
+      }
+    ],
+    "corners": [
+      {
+        "key": "commercial-cafe-room",
+        "distances": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "yonghe-mining-perimeter": {
+    "edges": [
+      {
+        "key": "mining-street-facade:right",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 195.99839999999998
+      },
+      {
+        "key": "yonghe-slot-1:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-2:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-3:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-4:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-5:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-6:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-7:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-8:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "mining-shop-1-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000004
+      },
+      {
+        "key": "mining-shop-1-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-2-interior-shell:left",
+        "doorNeighbors": {
+          "yonghe-back-door": {
+            "before": 27.993599999999958,
+            "after": 28.004400000000032
+          }
+        },
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-2-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.997439999999983,
+        "endDistance": 27.993600000000015,
+        "maxGap": 55.98720000000003
+      },
+      {
+        "key": "mining-shop-3-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-3-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-4-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000146
+      },
+      {
+        "key": "mining-shop-4-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 28.005120000000034,
+        "endDistance": 27.993600000000015,
+        "maxGap": 55.98720000000003
+      },
+      {
+        "key": "mining-shop-5-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-5-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-6-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.995759999999905,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-6-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-7-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.995759999999905,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-7-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-8-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.99575999999979,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-8-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-8-interior-shell:bottom",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-industrial-edge:left",
+        "doorNeighbors": {},
+        "startDistance": 0.0021599999999999397,
+        "endDistance": 0.004320000000234359,
+        "maxGap": 28.00440000000026
+      }
+    ],
+    "corners": [
+      {
+        "key": "mining-street-facade",
+        "distances": [
+          27.999360000000024,
+          0,
+          0,
+          27.999360000000024
+        ]
+      },
+      {
+        "key": "mining-shop-1-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          142.7716836110018,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-2-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          197.9895481111909,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-3-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          142.7716836110018,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-4-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          170.3167722838547,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-5-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          142.7716836110019,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-6-interior-shell",
+        "distances": [
+          27.99359999999997,
+          27.99359999999997,
+          142.77168361100175,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-7-interior-shell",
+        "distances": [
+          27.99359999999997,
+          27.99359999999997,
+          142.77168361100175,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-8-interior-shell",
+        "distances": [
+          27.99359999999997,
+          27.99359999999997,
+          27.99359999999997,
+          0
+        ]
+      },
+      {
+        "key": "mining-industrial-edge",
+        "distances": [
+          0.0021599999999997624,
+          83.99808002777213,
+          83.99808011108833,
+          0.00432000000014341
+        ]
+      }
+    ]
+  },
+  "yonghe-eatery": {
+    "edges": [
+      {
+        "key": "mining-street-facade:right",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 195.99839999999998
+      },
+      {
+        "key": "yonghe-slot-1:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-2:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-3:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-4:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-5:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-6:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-7:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "yonghe-slot-8:right",
+        "doorNeighbors": {},
+        "startDistance": null,
+        "endDistance": null,
+        "maxGap": 0
+      },
+      {
+        "key": "mining-shop-1-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000004
+      },
+      {
+        "key": "mining-shop-1-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-2-interior-shell:left",
+        "doorNeighbors": {
+          "yonghe-back-door": {
+            "before": 27.993599999999958,
+            "after": 28.004400000000032
+          }
+        },
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-2-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.997439999999983,
+        "endDistance": 27.993600000000015,
+        "maxGap": 55.98720000000003
+      },
+      {
+        "key": "mining-shop-3-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-3-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-4-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000146
+      },
+      {
+        "key": "mining-shop-4-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 28.005120000000034,
+        "endDistance": 27.993600000000015,
+        "maxGap": 55.98720000000003
+      },
+      {
+        "key": "mining-shop-5-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-5-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-6-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.995759999999905,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-6-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-7-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.995759999999905,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-7-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-8-interior-shell:left",
+        "doorNeighbors": {},
+        "startDistance": 27.99575999999979,
+        "endDistance": 0,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "mining-shop-8-interior-shell:top",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-shop-8-interior-shell:bottom",
+        "doorNeighbors": {},
+        "startDistance": 27.993600000000015,
+        "endDistance": 27.993600000000015,
+        "maxGap": 28.012800000000084
+      },
+      {
+        "key": "mining-industrial-edge:left",
+        "doorNeighbors": {},
+        "startDistance": 0.0021599999999999397,
+        "endDistance": 0.004320000000234359,
+        "maxGap": 28.00440000000026
+      }
+    ],
+    "corners": [
+      {
+        "key": "mining-street-facade",
+        "distances": [
+          27.999360000000024,
+          0,
+          0,
+          27.999360000000024
+        ]
+      },
+      {
+        "key": "mining-shop-1-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          142.7716836110018,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-2-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          197.9895481111909,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-3-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          142.7716836110018,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-4-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          170.3167722838547,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-5-interior-shell",
+        "distances": [
+          0,
+          27.99359999999997,
+          142.7716836110019,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-6-interior-shell",
+        "distances": [
+          27.99359999999997,
+          27.99359999999997,
+          142.77168361100175,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-7-interior-shell",
+        "distances": [
+          27.99359999999997,
+          27.99359999999997,
+          142.77168361100175,
+          0
+        ]
+      },
+      {
+        "key": "mining-shop-8-interior-shell",
+        "distances": [
+          27.99359999999997,
+          27.99359999999997,
+          27.99359999999997,
+          0
+        ]
+      },
+      {
+        "key": "mining-industrial-edge",
+        "distances": [
+          0.0021599999999997624,
+          83.99808002777213,
+          83.99808011108833,
+          0.00432000000014341
+        ]
+      }
+    ]
+  },
+  "zhongshuyuan-passage": {
+    "edges": [
+      {
+        "key": "zhongshuyuan-passage-frame:top",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.204800000000205
+      },
+      {
+        "key": "zhongshuyuan-passage-frame:right",
+        "doorNeighbors": {
+          "zhongshuyuan-office-secret-door": {
+            "before": 28.004400000000032,
+            "after": 28.004400000000032
+          }
+        },
+        "startDistance": 27.99576000000002,
+        "endDistance": 27.995759999999905,
+        "maxGap": 28.004400000000032
+      },
+      {
+        "key": "zhongshuyuan-passage-frame:bottom",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.204800000000205
+      },
+      {
+        "key": "zhongshuyuan-passage-frame:left",
+        "doorNeighbors": {
+          "jijia-secret-door": {
+            "before": 28.004400000000032,
+            "after": 28.004400000000032
+          }
+        },
+        "startDistance": 27.99576000000002,
+        "endDistance": 27.995759999999905,
+        "maxGap": 28.004400000000032
+      }
+    ],
+    "corners": [
+      {
+        "key": "zhongshuyuan-passage-frame",
+        "distances": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  "zhongshuyuan-office": {
+    "edges": [
+      {
+        "key": "zhongshuyuan-office-floor-frame:top",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 28.166400000000294
+      },
+      {
+        "key": "zhongshuyuan-office-floor-frame:right",
+        "doorNeighbors": {},
+        "startDistance": 28.349999999999994,
+        "endDistance": 0,
+        "maxGap": 283.5
+      },
+      {
+        "key": "zhongshuyuan-office-floor-frame:bottom",
+        "doorNeighbors": {},
+        "startDistance": 0,
+        "endDistance": 28.16639999999984,
+        "maxGap": 28.166400000000294
+      },
+      {
+        "key": "zhongshuyuan-office-floor-frame:left",
+        "doorNeighbors": {
+          "zhongshuyuan-office-secret-door": {
+            "before": 28.350000000000023,
+            "after": 28.350000000000023
+          }
+        },
+        "startDistance": 28.349999999999994,
+        "endDistance": 28.350000000000023,
+        "maxGap": 283.5
+      },
+      {
+        "key": "zhongshuyuan-office-glass-north:top",
+        "doorNeighbors": {
+          "zhongshuyuan-office-north-door-1": {
+            "before": 27.993600000000015,
+            "after": 27.974400000000003
+          },
+          "zhongshuyuan-office-north-door-2": {
+            "before": 27.993600000000015,
+            "after": 27.974399999999946
+          },
+          "zhongshuyuan-office-north-door-3": {
+            "before": 27.974399999999832,
+            "after": 27.993600000000242
+          },
+          "zhongshuyuan-office-north-door-4": {
+            "before": 27.974399999999605,
+            "after": 27.993600000000242
+          }
+        },
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 27.993600000000242
+      },
+      {
+        "key": "zhongshuyuan-office-glass-south:bottom",
+        "doorNeighbors": {
+          "zhongshuyuan-office-south-door-1": {
+            "before": 27.993600000000015,
+            "after": 27.974400000000003
+          },
+          "zhongshuyuan-office-south-door-2": {
+            "before": 27.993600000000015,
+            "after": 27.974399999999946
+          },
+          "zhongshuyuan-office-south-door-3": {
+            "before": 27.974399999999832,
+            "after": 27.993600000000242
+          },
+          "zhongshuyuan-office-south-door-4": {
+            "before": 27.974399999999605,
+            "after": 27.993600000000242
+          }
+        },
+        "startDistance": 0,
+        "endDistance": 0,
+        "maxGap": 27.993600000000242
+      },
+      {
+        "key": "zhongshuyuan-office-divider-north-1:left",
+        "doorNeighbors": {},
+        "startDistance": 27.896399999999986,
+        "endDistance": 27.89639999999997,
+        "maxGap": 27.907200000000046
+      },
+      {
+        "key": "zhongshuyuan-office-divider-north-2:left",
+        "doorNeighbors": {},
+        "startDistance": 27.896399999999986,
+        "endDistance": 27.89639999999997,
+        "maxGap": 27.907200000000046
+      },
+      {
+        "key": "zhongshuyuan-office-divider-north-3:left",
+        "doorNeighbors": {},
+        "startDistance": 27.896399999999986,
+        "endDistance": 27.89639999999997,
+        "maxGap": 27.907200000000046
+      },
+      {
+        "key": "zhongshuyuan-office-divider-south-1:left",
+        "doorNeighbors": {},
+        "startDistance": 27.896400000000085,
+        "endDistance": 27.89639999999997,
+        "maxGap": 27.907200000000103
+      },
+      {
+        "key": "zhongshuyuan-office-divider-south-2:left",
+        "doorNeighbors": {},
+        "startDistance": 27.896400000000085,
+        "endDistance": 27.89639999999997,
+        "maxGap": 27.907200000000103
+      },
+      {
+        "key": "zhongshuyuan-office-divider-south-3:left",
+        "doorNeighbors": {},
+        "startDistance": 27.896400000000085,
+        "endDistance": 27.89639999999997,
+        "maxGap": 27.907200000000103
+      }
+    ],
+    "corners": [
+      {
+        "key": "zhongshuyuan-office-floor-frame",
+        "distances": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "key": "zhongshuyuan-office-glass-north",
+        "distances": [
+          0,
+          0,
+          10.8,
+          10.8
+        ]
+      },
+      {
+        "key": "zhongshuyuan-office-glass-south",
+        "distances": [
+          10.8,
+          10.8,
+          0,
+          0
+        ]
+      },
+      {
+        "key": "zhongshuyuan-office-divider-north-1",
+        "distances": [
+          27.896400000000003,
+          33.86516105025931,
+          33.865161050259296,
+          27.896399999999986
+        ]
+      },
+      {
+        "key": "zhongshuyuan-office-divider-north-2",
+        "distances": [
+          27.896400000000003,
+          33.86516105025931,
+          33.865161050259296,
+          27.896399999999986
+        ]
+      },
+      {
+        "key": "zhongshuyuan-office-divider-north-3",
+        "distances": [
+          27.896400000000003,
+          33.86516105025931,
+          33.865161050259296,
+          27.896399999999986
+        ]
+      },
+      {
+        "key": "zhongshuyuan-office-divider-south-1",
+        "distances": [
+          27.896399999999986,
+          33.865161050259296,
+          33.865161050259296,
+          27.896399999999986
+        ]
+      },
+      {
+        "key": "zhongshuyuan-office-divider-south-2",
+        "distances": [
+          27.896399999999986,
+          33.865161050259296,
+          33.865161050259296,
+          27.896399999999986
+        ]
+      },
+      {
+        "key": "zhongshuyuan-office-divider-south-3",
+        "distances": [
+          27.896399999999986,
+          33.865161050259296,
+          33.865161050259296,
+          27.896399999999986
+        ]
+      }
+    ]
+  }
+}

@@ -10,7 +10,25 @@ function isCoarsePointer() {
     && window.matchMedia?.('(pointer: coarse)').matches === true
 }
 
-function EntryButtonGroup({ groupId, entries, onNavigate, onActionStart, materialMode, worldLayer, visible = true, className = '' }) {
+function EntryButtonGroup({ groupId, entries, onNavigate, onActionStart, materialMode, worldLayer, visible = true, className = '', initialFocusId = null }) {
+  const rootRef = useRef(null)
+  const aliveRef = useRef(true)
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
+  useEffect(() => {
+    aliveRef.current = true
+    let observer
+    if (initialFocusId && rootRef.current) {
+      const focusWhenReady = () => {
+        const button = rootRef.current?.querySelector(`[data-entry-group-entry="${initialFocusId}"]`)
+        if (button && !button.disabled) { button.focus(); observer?.disconnect() }
+      }
+      observer = new MutationObserver(focusWhenReady)
+      observer.observe(rootRef.current, { subtree: true, attributes: true, attributeFilter: ['disabled'] })
+      focusWhenReady()
+    }
+    return () => { aliveRef.current = false; observer?.disconnect() }
+  }, [initialFocusId])
   const [phase, setPhase] = useState(GROUP_PHASE.VISIBLE)
   const phaseRef = useRef(GROUP_PHASE.VISIBLE)
   const actionRef = useRef(null)
@@ -32,7 +50,7 @@ function EntryButtonGroup({ groupId, entries, onNavigate, onActionStart, materia
   }, [entries, groupId])
 
   const handleActionStart = useCallback(({ entryId, inputType }) => {
-    if (phaseRef.current !== GROUP_PHASE.VISIBLE || navigatedRef.current) return
+    if (!aliveRef.current || !visibleRef.current || phaseRef.current !== GROUP_PHASE.VISIBLE || navigatedRef.current) return
     actionRef.current = { entryId, inputType }
     recordRuntimeAudit('entry-group-click', { groupId, entryId, inputType })
     onActionStartRef.current?.({ entryId, inputType })
@@ -40,7 +58,7 @@ function EntryButtonGroup({ groupId, entries, onNavigate, onActionStart, materia
   }, [groupId, setGroupPhase])
 
   const handleActionComplete = useCallback(({ entryId, inputType }) => {
-    if (phaseRef.current !== GROUP_PHASE.EXITING || navigatedRef.current) return
+    if (!aliveRef.current || phaseRef.current !== GROUP_PHASE.EXITING || navigatedRef.current) return
     if (!actionRef.current || actionRef.current.entryId !== entryId) return
     navigatedRef.current = true
     recordRuntimeAudit('entry-group-action-complete', { groupId, entryId, inputType })
@@ -48,11 +66,12 @@ function EntryButtonGroup({ groupId, entries, onNavigate, onActionStart, materia
   }, [groupId])
 
   return (
-    <div className={`entry-button-group${className ? ` ${className}` : ''}`} data-entry-group={groupId} data-entry-group-phase={phase} data-entry-group-visible={visible ? 'true' : 'false'}>
+    <div ref={rootRef} className={`entry-button-group${className ? ` ${className}` : ''}`} data-entry-group={groupId} data-entry-group-phase={phase} data-entry-group-visible={visible ? 'true' : 'false'}>
       {entries.map(entry => (
         <EntryButtonSurface
           key={entry.id}
           entryId={entry.id}
+          disabled={entry.disabled === true}
           label={entry.label}
           materialMode={entry.materialMode || materialMode}
           worldLayer={entry.worldLayer || worldLayer}

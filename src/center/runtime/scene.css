@@ -97,6 +97,7 @@
   height: clamp(560px, 74vh, 760px);
   min-height: 540px;
   overflow: hidden;
+  /* Every scene uses the same plain black as the commercial street; the day/night tint is switched off for now. */
   background: var(--room);
   cursor: crosshair;
   touch-action: manipulation;
@@ -204,6 +205,7 @@
   opacity: .62;
   pointer-events: none;
 }
+.scene-focus-frame[data-focus-frame-phase="collapsed"] { visibility: hidden; }
 .scene-focus-frame svg {
   display: block;
   width: 100%;
@@ -215,7 +217,9 @@
   fill: none;
   stroke: currentColor;
   stroke-width: 1;
-  vector-effect: non-scaling-stroke;
+  /* ViewBox, gap and stroke use local world CSS units and receive the same
+     world projection as text. Keep normalized dashes in this SVG space;
+     non-scaling-stroke would truncate the animated path under world scale. */
   stroke-linecap: square;
   stroke-linejoin: miter;
   stroke-dasharray: 1;
@@ -309,6 +313,11 @@
   pointer-events: none;
 }
 .scene-spatial-glyph--counter.is-ordered { color: var(--active); }
+.scene-counter-label { -webkit-tap-highlight-color: transparent; }
+.scene-counter-label:focus:not(:focus-visible) { outline: none; }
+[data-counter-outline-group] { -webkit-tap-highlight-color: transparent; }
+.scene-mainline-counter-layer [data-counter-part-id][role="button"]:focus:not(:focus-visible) { outline: none; }
+.scene-mainline-counter-layer [data-counter-part-id][role="button"]:focus-visible { outline: none; stroke: var(--active); stroke-width: 1; stroke-dasharray: 2 1; }
 
 .scene-mark { height: 1px; background: var(--faint); transform-origin: left center; }
 .scene-mark--threshold { background: var(--line); opacity: .75; }
@@ -521,6 +530,9 @@
   pointer-events: none;
   will-change: left, top;
 }
+.scene-protagonist.is-followup-interactive { pointer-events:auto; }
+.scene-protagonist.is-followup-interactive::after { content:""; position:absolute; inset:-.55em; border-radius:50%; }
+.scene-protagonist.is-reading-protected { z-index: 11; }
 
 .scene-protagonist__dot {
   display: block;
@@ -565,6 +577,28 @@
   transform: rotate(-18deg);
   transform-origin: bottom;
 }
+.scene-protagonist__held-action {
+  position: absolute;
+  left: 19px;
+  top: -12px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 0;
+  border-radius: 0;
+  color: var(--active);
+  background: none;
+  box-shadow: none;
+  font-size: 16px;
+  line-height: 1;
+}
+.scene-protagonist__held-action--pop { pointer-events: none; overflow: visible; }
+.scene-protagonist__held-action--pop .held-consumable-mark { animation: held-grow-fade 620ms ease-out forwards; }
+@keyframes held-grow-fade { from { transform: scale(1); opacity: 1; } to { transform: scale(2.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .scene-protagonist__held-action--pop .held-consumable-mark { animation-duration: 1ms; } }
+.scene-protagonist__held-action:hover, .scene-protagonist__held-action:focus-visible { transform: scale(1.15); filter: brightness(1.25); outline: none; }
 
 .scene-protagonist__seat-label {
   display: block;
@@ -665,6 +699,40 @@
   min-height: 100dvh;
 }
 .scene-mainline-world { z-index: 0; position: absolute; inset: 0; will-change: transform; animation: mainline-world-enter 180ms ease both; }
+/* A non-layout probe separates stable browser-chrome height from live 100dvh.
+   Unsupported svh falls back to vh; no UA or physical-screen guess is used. */
+.scene-mainline-stable-viewport {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 100vh;
+  height: 100svh;
+  visibility: hidden;
+  pointer-events: none;
+}
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-object__grid-content,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-npc__grid-content,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-focus-group__glyph-visual,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-mainline-storefront__label-text > [data-scene-characters],
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-protagonist__grid-content,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-commercial-question-mark__visual,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-spatial-glyph > .scene-character-switch,
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-spatial-glyph > [data-scene-characters],
+.scene-mainline-world[data-commercial-street-grid="equal-pitch"] .scene-spatial-glyph > .scene-door {
+  scale: var(--scene-horizontal-grid-counter-scale, 1) 1;
+  transform-origin: center;
+}
+.scene-mainline-object__grid-content,
+.scene-mainline-npc__grid-content,
+.scene-protagonist__grid-content { display: inline-block; }
+.scene-mainline-npc[data-npc-duty-id$=".preparing"] .scene-mainline-npc__grid-content {
+  animation: takeaway-worker-preparing 900ms ease-in-out infinite alternate;
+}
+@keyframes takeaway-worker-preparing {
+  from { opacity: .78; transform: translateY(0); }
+  to { opacity: 1; transform: translateY(-1px); }
+}
 .scene-mainline-world.is-local-slide-handoff { animation: none; }
 @keyframes mainline-world-enter {
   from { opacity: 0; }
@@ -672,9 +740,23 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .scene-mainline-world { animation: none; }
+  .scene-mainline-npc[data-npc-duty-id$=".preparing"] .scene-mainline-npc__grid-content { animation: none; }
 }
 .scene-mainline-wall-labels { inset: 0; z-index: 1; }
-.scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); line-height: 1; }
+.scene-mainline-counter-layer,
+.scene-mainline-object-layer { position: absolute; inset: 0; pointer-events: none; }
+.scene-mainline-reading-identity-plane { position: absolute; pointer-events: none; }
+.scene-mainline-reading-identity-plane > * { pointer-events: auto; }
+.scene-reading-local-mask-defs { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.scene-mainline-reading-identity-plane[data-reading-occlusion-hidden="true"],
+.scene-mainline-reading-identity-plane[data-reading-occlusion-hidden="true"] * { pointer-events: none !important; }
+.scene-mainline-reading-identity-plane--wall > * { pointer-events: none; }
+.scene-mainline-reading-identity-plane--wall > .scene-mainline-focus-group,
+.scene-mainline-reading-identity-plane--wall > .scene-mainline-door-button { pointer-events: auto; }
+.scene-reading-occlusion-defs { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.scene-mainline-counter-layer > .scene-mainline-reading-identity-plane,
+.scene-mainline-object-layer > .scene-mainline-reading-identity-plane { pointer-events: none; }
+.scene-mainline-wall { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 16px); line-height: 1; }
 .scene-mainline-wall-door {
   display: inline-flex;
   align-items: center;
@@ -727,7 +809,7 @@
 }
 .scene-mainline-wall-feature {
   color: var(--soft);
-  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
+  font-size: var(--scene-mainline-object-font-size, 16px);
   letter-spacing: normal;
   white-space: nowrap;
 }
@@ -743,7 +825,7 @@
 .scene-mainline-exploration--steady > .scene-mainline-focus-group__glyph {
   transition: color 160ms ease-out;
 }
-.scene-mainline-wall-feature.is-baseline { opacity: .78; }
+.scene-mainline-wall-feature.is-baseline { opacity: .88; }
 .scene-mainline-wall-feature.is-near { color: var(--active); opacity: 1; }
 .scene-mainline-wall-door:focus-visible,
 .mainline-scene-stage .scene-mainline-object:focus-visible {
@@ -755,17 +837,21 @@
 .scene-mainline-storefront-cell {
   z-index: 3;
   color: var(--soft);
+  font-size: var(--scene-mainline-object-font-size, 16px);
+  line-height: 1;
   white-space: nowrap;
   pointer-events: none;
 }
+.scene-mainline-storefront-cell:not(.scene-mainline-storefront--glass):not(.scene-mainline-wall--ordinary) { opacity: .88; }
 .scene-mainline-storefront-cell.is-near {
   color: var(--active);
 }
 .scene-mainline-storefront { font: inherit; }
 .scene-mainline-storefront--horizontal { writing-mode: horizontal-tb; text-orientation: mixed; }
 .scene-mainline-storefront--vertical { writing-mode: vertical-rl; text-orientation: upright; }
-.scene-mainline-storefront--wall { color: var(--muted); }
-.scene-mainline-storefront--glass { color: rgba(161, 194, 194, .78); }
+.scene-mainline-storefront--wall { color: var(--soft); }
+.scene-mainline-storefront--glass,
+.scene-mainline-storefront--window { color: rgba(161, 194, 194, .78); }
 .scene-mainline-storefront--sign { color: var(--ink); letter-spacing: .08em; }
 .scene-mainline-storefront--sign .scene-mainline-storefront__label-slot {
   position: absolute;
@@ -798,17 +884,26 @@
   transition: color 120ms ease-out, visibility 0s linear 140ms;
 }
 .scene-mainline-storefront--vertical.scene-mainline-storefront--sign .scene-mainline-storefront__label-track {
-  font-size: min(1em, calc((100cqh - 4px) / var(--storefront-label-length)));
+  font-size: var(--scene-mainline-object-font-size, 16px);
 }
 .scene-mainline-storefront__label-track {
   display: block;
   width: max-content;
   max-width: 100%;
-  font-size: min(1em, calc((100cqw - 4px) / var(--storefront-label-length)));
+  font-size: var(--scene-mainline-object-font-size, 16px);
   white-space: nowrap;
   will-change: transform;
   transform: translate3d(0, 0, 0);
   transition: transform var(--storefront-label-roll-duration) cubic-bezier(.4, 0, .2, 1);
+}
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="revealing"] .scene-mainline-storefront__label-track,
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="revealed"] .scene-mainline-storefront__label-track,
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="lingering"] .scene-mainline-storefront__label-track {
+  transform: scaleX(0);
+}
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="restoring"] .scene-mainline-storefront__label-track,
+.scene-mainline-storefront--portal .scene-mainline-storefront__label-slot[data-storefront-label-phase="baseline"] .scene-mainline-storefront__label-track {
+  transform: scaleX(1);
 }
 .scene-mainline-storefront__label-text {
   display: block;
@@ -817,9 +912,18 @@
   opacity: 1;
 }
 .scene-mainline-storefront--blank { color: transparent; }
-.scene-mainline-storefront--worn { color: rgba(214, 179, 119, .82); }
+.scene-mainline-storefront--worn { color: rgba(232, 190, 117, .88); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--glass { color: rgba(188, 158, 105, .65); }
+.scene-mainline-storefront--worn.scene-mainline-storefront--window { color: rgba(161, 194, 194, .78); }
 .scene-mainline-storefront--worn.scene-mainline-storefront--sign { color: rgba(232, 190, 117, .9); }
+/* Trial: ordinary wall reference is #ad966c at .78 over #050505.
+   #caaf7e at 1 gives about 1.50x that RGB contrast above the same backdrop;
+   it is a visual target, not a claim of 1.50x photometric luminance. */
+.scene-spatial-glyph.scene-mainline-industrial-facility.is-baseline,
+.scene-spatial-glyph.scene-mainline-industrial-facility.is-near {
+  color: #caaf7e;
+  opacity: 1;
+}
 .scene-mainline-storefront--near { color: var(--active); }
 .scene-mainline-storefront--door {
   color: var(--active);
@@ -853,7 +957,7 @@
   z-index: 5;
   transform: translate(-50%, -50%);
   color: var(--ink);
-  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
+  font-size: var(--scene-mainline-object-font-size, 16px);
   line-height: 1;
   white-space: nowrap;
 }
@@ -870,28 +974,30 @@
 }
 .scene-mainline-npc:focus-visible { outline: 1px solid var(--active); outline-offset: 4px; }
 .scene-mainline-npc--ambient { pointer-events: none; cursor: default; }
-.scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, clamp(10px, 1.35cqw, 18px)); }
+.scene-mainline-npc.is-reading-through { z-index: 15; transition: filter 400ms linear; }
+.scene-mainline-npc.is-reading-protected { z-index: 11; }
+.scene-mainline-object--door { color: var(--active); font-size: var(--scene-mainline-object-font-size, 16px); }
 .scene-mainline-object--landmark,
-.scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); }
+.scene-mainline-object--direction { color: var(--soft); font-size: var(--scene-mainline-object-font-size, 16px); }
 .scene-mainline-yard-tree-ring { color: var(--soft); opacity: .78; }
 .scene-mainline-yard-tree-ring.is-under-player { opacity: .28; }
-.scene-mainline-object--fixture { color: var(--ink); font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px)); letter-spacing: 0; }
+.scene-mainline-object--fixture { color: var(--ink); font-size: var(--scene-mainline-object-font-size, 16px); letter-spacing: 0; }
 .scene-mainline-object--table,
 .scene-mainline-object--seat {
   color: var(--soft);
   min-width: 0;
   min-height: 0;
   padding: 0;
-  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
+  font-size: var(--scene-mainline-object-font-size, 16px);
   line-height: 1;
 }
-.scene-mainline-exploration--breathing > .scene-mainline-object__label {
+.scene-mainline-exploration--breathing > .scene-mainline-object__grid-content > .scene-mainline-object__label {
   animation: scene-exploration-breathe 2.8s ease-in-out infinite;
   animation-delay: var(--scene-exploration-animation-delay, 0s);
 }
-.scene-mainline-exploration--breathing:hover > .scene-mainline-object__label,
-.scene-mainline-exploration--breathing:focus-visible > .scene-mainline-object__label,
-.scene-mainline-exploration--breathing.is-active > .scene-mainline-object__label {
+.scene-mainline-exploration--breathing:hover > .scene-mainline-object__grid-content > .scene-mainline-object__label,
+.scene-mainline-exploration--breathing:focus-visible > .scene-mainline-object__grid-content > .scene-mainline-object__label,
+.scene-mainline-exploration--breathing.is-active > .scene-mainline-object__grid-content > .scene-mainline-object__label {
   animation: none;
   color: var(--active);
 }
@@ -909,23 +1015,6 @@
   0%, 100% { color: var(--interaction-tutorial-low); opacity: .86; }
   50% { color: var(--interaction-tutorial-high); opacity: .98; }
 }
-.scene-mainline-altar-table.scene-mainline-exploration--breathing > span {
-  /* The altar clock is written once by the renderer and read by every
-     member. No table owns an independent CSS animation anymore. */
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
-}
-.scene-mainline-incense--lit.scene-mainline-exploration--breathing > span {
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-tutorial-high) calc(var(--scene-breathing-progress, .5) * 100%), var(--interaction-tutorial-low));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
-}
-.scene-mainline-altar-table.scene-mainline-interaction--active > span,
-.scene-mainline-incense--lit.scene-mainline-interaction--active > span {
-  color: var(--active) !important;
-  opacity: 1 !important;
-}
 .scene-mainline-incense--burning {
   animation: scene-incense-burn-lifecycle var(--incense-burn-remaining, 0ms) linear;
 }
@@ -940,7 +1029,7 @@
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
 [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-  font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15cqw, 16px));
+  font-size: var(--scene-mainline-object-font-size, 16px);
 }
 .scene-mainline-object--table.scene-mainline-object--facing-east > span,
 .scene-mainline-object--table.scene-mainline-object--facing-west > span,
@@ -989,19 +1078,44 @@
   color: var(--interaction-dynamic);
   opacity: 1;
 }
-.scene-mainline-incense--burning.scene-mainline-interaction--dynamic > span {
-  animation: none;
-  color: color-mix(in srgb, var(--interaction-dynamic) calc(60% + var(--scene-breathing-progress, .5) * 40%), var(--interaction-normal));
-  opacity: calc(.86 + var(--scene-breathing-progress, .5) * .12);
+.scene-mainline-object.scene-mainline-restroom-fixture,
+.scene-mainline-object.scene-mainline-restroom-fixture:hover,
+.scene-mainline-object.scene-mainline-restroom-fixture:focus-visible {
+  color: var(--interaction-normal);
+  transition: opacity .16s ease-out;
+}
+.scene-mainline-object.scene-mainline-restroom-fixture > .scene-mainline-object__grid-content {
+  color: inherit;
+  opacity: 1;
 }
 .scene-mainline-object.scene-mainline-interaction--normal-unexplored > span,
 .scene-mainline-object.scene-mainline-interaction--explored > span,
 .scene-mainline-object.scene-mainline-interaction--active > span {
   color: inherit;
 }
-.scene-mainline-object.scene-mainline-incense--unlit.scene-mainline-interaction--normal-unexplored {
-  color: var(--muted);
-  opacity: .3;
+.scene-mainline-object.scene-mainline-altar-table {
+  color: var(--interaction-normal);
+  opacity: 1;
+}
+.scene-mainline-object.scene-mainline-altar-table > .scene-mainline-object__grid-content,
+.scene-mainline-object.scene-mainline-incense--unlit > .scene-mainline-object__grid-content {
+  animation: none;
+  color: inherit;
+  opacity: 1;
+}
+/* Viewing, hover and explored/tutorial state never light an unlit burner. */
+.scene-mainline-object.scene-mainline-incense--unlit {
+  color: var(--interaction-normal);
+  opacity: .5;
+}
+.scene-mainline-object.scene-mainline-incense--lit {
+  color: var(--interaction-dynamic);
+  opacity: 1;
+}
+.scene-mainline-object.scene-mainline-incense--lit > .scene-mainline-object__grid-content {
+  animation: none;
+  color: color-mix(in srgb, var(--interaction-active) calc(35% + var(--scene-breathing-progress, .5) * 65%), var(--interaction-normal));
+  opacity: calc(.42 + var(--scene-breathing-progress, .5) * .58);
 }
 .scene-mainline-object.is-mid {
   opacity: .34;
@@ -1028,6 +1142,13 @@
 }
 
 .scene-mainline-reading-layer { position: absolute; inset: 0; z-index: 14; pointer-events: none; }
+.scene-office-blinds-shade { position: absolute; z-index: 20; pointer-events: none; background: #000; transition: opacity 360ms ease-in-out; }
+.scene-mainline-world.has-office-blinds-shade .scene-mainline-reading-layer { z-index: 21; }
+.scene-mainline-dialogue-stage-object { opacity: 1; transition: opacity 380ms ease-in-out; }
+.scene-mainline-dialogue-stage-object.is-stage-faded { opacity: 0; }
+.scene-mainline-text.scene-mainline-text--stage-dialogue { animation: none; }
+.scene-mainline-text.scene-mainline-text--handoff-outgoing { animation-name: mainline-dialogue-handoff-fade; animation-timing-function: linear; animation-fill-mode: forwards; pointer-events: none; }
+@keyframes mainline-dialogue-handoff-fade { from { opacity: 1; } to { opacity: 0; } }
 .scene-mainline-reading-layer .shared-entry-control { pointer-events: auto; }
 .scene-mainline-text {
   position: absolute;
@@ -1035,7 +1156,7 @@
   box-sizing: border-box;
   width: var(--scene-mainline-text-width);
   inline-size: var(--scene-mainline-text-width);
-  min-height: var(--scene-mainline-text-height);
+  height: var(--scene-mainline-text-height);
   max-width: calc(100% - 24px);
   max-height: 36%;
   overflow: visible;
@@ -1073,9 +1194,268 @@
 .scene-mainline-speaker-anchor.is-leaving { animation: dialogue-speaker-exiting 160ms ease-in both; }
 @keyframes dialogue-speaker-entering { from { opacity: 0; } to { opacity: 1; } }
 @keyframes dialogue-speaker-exiting { from { opacity: 1; } to { opacity: 0; } }
-.scene-mainline-text__observation { display: block; min-height: 1.6em; }
-.scene-mainline-text__dialogue { display: block; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
-.scene-mainline-text__dialogue > span { display: block; animation: mainline-echo-segment-scroll-down 360ms cubic-bezier(.22, .61, .36, 1) both; }
+.scene-mainline-text__observation { position: absolute; inset: 2px 0; display: block; }
+.scene-mainline-text[data-scene-echo="commercial-cafe-blackboard"]::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -.45em -.7em;
+  border: 1px solid rgba(233, 213, 166, .72);
+  border-radius: 2px;
+  background: rgba(31, 27, 22, .78);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .24), inset 0 0 0 2px rgba(233, 213, 166, .12);
+  transform-origin: top center;
+  animation: shop-wall-menu-unfold 640ms cubic-bezier(.2,.7,.25,1) both;
+}
+@keyframes shop-wall-menu-unfold {
+  from { clip-path: inset(0 0 100% 0); opacity: .55; }
+  to { clip-path: inset(0); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-text[data-scene-echo="commercial-s5-milk-tea-menu-service-label"]::before,
+  .scene-mainline-text[data-scene-echo="fruit-tea-trial-menu"]::before,
+  .scene-mainline-text[data-scene-echo="commercial-cafe-menu"]::before,
+  .scene-mainline-text[data-scene-echo="commercial-cafe-blackboard"]::before { animation-duration: 1ms; }
+}
+.scene-mainline-text--menu { line-height: 1.72; }
+.scene-mainline-text.scene-mainline-text--subtitle {
+  z-index: 30;
+  left: 0 !important;
+  right: 0;
+  bottom: 0;
+  top: auto !important;
+  width: 100% !important;
+  max-width: 100%;
+  height: auto !important;
+  min-height: 15vh;
+  max-height: min(34vh, 260px);
+  overflow: hidden;
+  transform: none !important;
+  padding: 22px max(20px, env(safe-area-inset-right)) max(16px, calc(8px + env(safe-area-inset-bottom))) max(20px, env(safe-area-inset-left));
+  color: #f1f0ec;
+  font-size: 18px !important;
+  line-height: 1.5;
+  text-align: left;
+  isolation: isolate;
+  animation: none;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 68%, transparent 100%);
+  -webkit-mask-size: 100% 300%;
+  -webkit-mask-position: 0 100%;
+  mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 68%, transparent 100%);
+  mask-size: 100% 300%;
+  mask-position: 0 100%;
+}
+.scene-mainline-text.scene-mainline-text--subtitle.is-leaving { animation: mainline-subtitle-leave 160ms ease-in both; }
+.scene-mainline-text.scene-mainline-text--subtitle:not(.is-leaving) { animation: mainline-subtitle-reveal 260ms cubic-bezier(.2, .72, .24, 1) both; }
+@keyframes mainline-subtitle-leave { from { opacity: 1; } to { opacity: 0; } }
+@keyframes mainline-subtitle-reveal {
+  from { -webkit-mask-position: 0 0; mask-position: 0 0; }
+  to { -webkit-mask-position: 0 100%; mask-position: 0 100%; }
+}
+.scene-mainline-text.scene-mainline-text--subtitle::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(8, 10, 13, .9) 0%, rgba(8, 10, 13, .72) 45%, rgba(8, 10, 13, .24) 82%, rgba(8, 10, 13, 0) 100%);
+}
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-text__speaker {
+  width: max-content;
+  margin: 0 0 8px;
+  color: #f1f0ec;
+  font-size: 14px;
+  text-align: left;
+}
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-text__dialogue {
+  position: relative;
+  inset: auto;
+  text-align: left;
+}
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-page-stack {
+  position: static;
+  left: auto;
+  top: auto;
+  width: 100% !important;
+  height: auto;
+  overflow: visible;
+  transform: none;
+}
+.scene-mainline-text.scene-mainline-text--subtitle .scene-mainline-page { width: 100% !important; justify-self: start; text-align: left; }
+.scene-mainline-subtitle-host,
+.scene-mainline-conversation-host {
+  position: absolute;
+  z-index: 90;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* Phone: the dark band thickens from its transparent top edge towards the dark bottom (same idea as the wide
+   column, which thickens from its transparent left edge towards the dark right). Very soft edge, no visible sweep line. */
+.scene-mainline-subtitle-stack {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Lines that grow past the top fade out instead of being cut off. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+}
+.scene-mainline-subtitle-stack__content {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+/* Every piece fades by itself at one common speed (--fade-rate is the time for a full 0 to 1), so a part that only goes
+   to 50% finishes sooner than a part that goes to 91%; nothing is revealed or removed as one block. */
+.scene-mainline-subtitle-host { --fade-rate: 1400ms; }
+.scene-mainline-subtitle-stack__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(to top, rgba(8, 10, 13, .84) 0%, rgba(8, 10, 13, .62) 55%, rgba(8, 10, 13, 0) 100%);
+  pointer-events: none;
+}
+.scene-mainline-subtitle-host:not([data-display-entered="true"]):not(.is-leaving) .scene-mainline-subtitle-stack__backdrop { animation: mainline-backdrop-in var(--fade-rate) linear backwards; }
+.scene-mainline-subtitle-host.is-leaving { pointer-events: none; }
+.scene-mainline-subtitle-host.is-leaving .scene-mainline-subtitle-stack__backdrop { animation: mainline-backdrop-out var(--fade-rate) linear both; }
+@keyframes mainline-backdrop-in { from { opacity: 0; } }
+@keyframes mainline-backdrop-out { from { opacity: 1; } to { opacity: 0; } }
+.scene-mainline-subtitle-host .narrow-dialogue-content {
+  position: relative;
+  flex: none;
+  box-sizing: border-box;
+  max-height: none;
+  padding: 0;
+  color: #f1f0ec;
+  pointer-events: auto;
+}
+.scene-mainline-subtitle-host .narrow-dialogue-slot {
+  inset: var(--narrow-dialogue-safe-top) var(--narrow-dialogue-safe-right) var(--narrow-dialogue-safe-bottom) var(--narrow-dialogue-safe-left);
+  z-index: 1;
+  padding: 0;
+  text-align: center;
+}
+.scene-mainline-subtitle-host__history {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  box-sizing: border-box;
+  padding: 36px max(20px, env(safe-area-inset-right)) 10px max(20px, env(safe-area-inset-left));
+  color: #f1f0ec;
+  font-size: 18px;
+  line-height: 1.45;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .9);
+  pointer-events: none;
+}
+.scene-mainline-subtitle-host__line { flex: 0 0 auto; max-width: 88%; overflow-wrap: anywhere; opacity: var(--line-target, 1); transition: opacity calc(.15 * var(--fade-rate)) linear; }
+.scene-mainline-subtitle-host.is-leaving .scene-mainline-subtitle-host__line { opacity: 0; transition: opacity calc(var(--line-target, 1) * var(--fade-rate)) linear; }
+.scene-mainline-subtitle-host__line.is-npc { align-self: flex-start; text-align: left; }
+.scene-mainline-subtitle-host__line.is-player { align-self: flex-end; text-align: right; }
+.scene-mainline-subtitle-host__line p { margin: 0; white-space: pre-wrap; }
+.scene-mainline-subtitle-host__speaker { display: block; margin-bottom: 1px; font-size: 14px; }
+@keyframes mainline-subtitle-history-in { from { opacity: 0; } }
+.scene-mainline-subtitle-host .narrow-dialogue-choice { pointer-events: none; }
+.scene-mainline-subtitle-host .dialogue-choice-wheel { pointer-events: auto; }
+.scene-mainline-conversation-host .scene-mainline-conversation { pointer-events: none; }
+.scene-mainline-conversation-host .dialogue-choice-wheel { pointer-events: auto; }
+.scene-mainline-conversation-host .dialogue-choice-wheel--wide-right { width: min(300px, 30vw); right: clamp(12px, 2vw, 24px); }
+.scene-mainline-conversation {
+  position: absolute;
+  z-index: 32;
+  top: max(24px, env(safe-area-inset-top));
+  right: 0;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  width: clamp(320px, 34vw, 460px);
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 24px clamp(24px, 3vw, 42px) 28px 36px;
+  overflow: hidden;
+  color: #f3f0e9;
+  font-family: "Noto Serif SC", Georgia, serif;
+  font-size: clamp(17px, 1.35vw, 21px);
+  line-height: 1.68;
+  background: linear-gradient(to left, rgba(11, 13, 17, .91) 0%, rgba(11, 13, 17, .76) 56%, rgba(11, 13, 17, .38) 82%, rgba(11, 13, 17, 0) 100%);
+  pointer-events: none;
+  /* The dark backdrop spreads from the transparent left edge towards the right (not right-to-left). */
+  /* A very wide, soft edge: no visible line sweeps across, the backdrop just thickens from left to right. */
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 62.5%, transparent 100%);
+  -webkit-mask-size: 400% 100%;
+  -webkit-mask-position: 0 0;
+  mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 62.5%, transparent 100%);
+  mask-size: 400% 100%;
+  mask-position: 0 0;
+}
+.scene-mainline-conversation:not(.is-leaving) { animation: mainline-conversation-reveal 800ms cubic-bezier(.4, 0, .3, 1) both; }
+@keyframes mainline-conversation-reveal {
+  from { -webkit-mask-position: 100% 0; mask-position: 100% 0; opacity: 0; }
+  to { -webkit-mask-position: 0 0; mask-position: 0 0; opacity: 1; }
+}
+.scene-mainline-conversation.is-leaving { animation: mainline-conversation-exit 220ms ease-in both; }
+@keyframes mainline-conversation-exit {
+  from { opacity: 1; transform: translate3d(0, 0, 0); }
+  to { opacity: 0; transform: translate3d(110%, 0, 0); }
+}
+.scene-mainline-conversation--short-prompt {
+  top: auto;
+  min-height: 92px;
+  max-height: min(34vh, 260px);
+}
+.scene-mainline-conversation__history {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  overflow: hidden;
+  mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 65%, transparent 100%);
+}
+.scene-mainline-conversation-line {
+  flex: 0 0 auto;
+  max-width: 94%;
+  text-shadow: 0 1px 5px rgba(0, 0, 0, .75);
+  overflow-wrap: anywhere;
+}
+.scene-mainline-conversation-line.is-npc { align-self: flex-start; text-align: left; }
+.scene-mainline-conversation-line.is-player { align-self: flex-end; text-align: right; }
+.scene-mainline-conversation-line__speaker { display: block; margin-bottom: 3px; color: var(--active); font-size: .78em; letter-spacing: .04em; }
+.scene-mainline-conversation-line__speaker .scene-mainline-text__speaker { font-size: 14px; }
+.scene-mainline-conversation-line p { margin: 0; white-space: pre-wrap; }
+.scene-mainline-conversation-line--current { max-height: min(38vh, 320px); overflow-y: auto; }
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-subtitle-host,
+  .scene-mainline-subtitle-stack__backdrop,
+  .scene-mainline-text.scene-mainline-text--subtitle,
+  .scene-mainline-conversation { animation-duration: 1ms !important; }
+}
+.scene-mainline-text--menu .scene-mainline-page { white-space: pre-wrap; }
+.scene-menu-description { font-size: 0.666667em; }
+.scene-menu-measure { position: absolute; top: 0; left: 0; width: max-content; max-width: 100%; white-space: pre-wrap; visibility: hidden; pointer-events: none; }
+.scene-menu-reading-frame { inset: auto; top: -6px; left: 50%; transform: translateX(-50%); }
+.scene-menu-reading-frame path { transition: none; }
+@media (max-width: 600px) and (orientation: portrait) { .scene-mainline-text--menu { line-height: 1.6; } }
+.scene-mainline-text__dialogue { position: absolute; inset: calc(5px + max(19.44px, 1.1988em)) 0 2px; display: block; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; text-align: inherit; }
+.scene-mainline-page-stack { position: relative; left: 50%; top: 50%; display: grid; grid-template-rows: minmax(0, 1fr); overflow: hidden; transform: translate(-50%, -50%); }
+.scene-mainline-page { grid-area: 1 / 1; justify-self: center; display: block; min-width: 0; min-height: 0; white-space: pre-line; transform: translate3d(0, 0, 0); }
+.scene-mainline-page--outgoing { transform: translate3d(0, var(--reading-page-out-y, 0%), 0); }
+.scene-mainline-page--incoming { transform: translate3d(0, var(--reading-page-in-y, -100%), 0); }
+.scene-mainline-page--current { transform: translate3d(0, 0, 0); }
 .scene-mainline-text--dialogue { z-index: 14; isolation: isolate; color: var(--active); }
 .scene-mainline-object__focus-host {
   position: absolute;
@@ -1094,24 +1474,22 @@
 }
 @keyframes mainline-text-leave {
   from { opacity: 1; transform: translate(-50%, -50%); }
-  to { opacity: 0; transform: translate(-50%, calc(-50% - 4px)); }
+  to { opacity: 0; transform: translate(-50%, -50%); }
 }
-@keyframes mainline-echo-segment-scroll-down {
-  from { opacity: 0; transform: translateY(100%); }
-  to { opacity: 1; transform: translateY(0); }
-}/* A one-shot world-space story trigger marker. */
+/* A one-shot world-space story trigger marker. */
 
 .scene-commercial-question-mark {
   position: absolute;
   z-index: 7;
   color: var(--active);
   font-family: Georgia, "Noto Serif SC", serif;
-  font-size: clamp(22px, 3.1cqw, 38px);
+  font-size: 38px;
   line-height: 1;
   pointer-events: none;
   transform: translate(-50%, -50%);
   animation: scene-commercial-question-mark-pulse 1600ms ease-in-out infinite;
 }
+.scene-commercial-question-mark__visual { display: inline-block; }
 @keyframes scene-commercial-question-mark-pulse {
   0%, 100% { opacity: .7; transform: translate(-50%, -50%) scale(.94); }
   50% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
@@ -1125,12 +1503,8 @@
   transform: translate(-50%, -50%);
   animation: mainline-text-arrive 160ms ease-out both;
 }
-.scene-mainline-action .shared-entry-control {
-  padding: 0;
-}
 .scene-dialogue-dimmer {
   position: absolute;
-  inset: 0;
   z-index: 10;
   background: rgb(5, 5, 5);
   opacity: 0;
@@ -1139,6 +1513,72 @@
 }
 .scene-dialogue-dimmer--observation { opacity: .18; }
 .scene-dialogue-dimmer--dialogue { opacity: .42; }
+.scene-dialogue-dimmer-mask-defs { position: absolute; width: 0; height: 0; overflow: hidden; pointer-events: none; }
+.scene-mainline-focus-group.scene-mainline-menu-feature,
+.scene-mainline-focus-group.scene-mainline-menu-feature.scene-mainline-interaction--normal-unexplored,
+.scene-mainline-focus-group.scene-mainline-menu-feature.scene-mainline-interaction--explored,
+.scene-mainline-focus-group.scene-mainline-menu-feature.scene-mainline-interaction--active {
+  color: var(--interaction-normal);
+  opacity: 1;
+}
+.scene-mainline-menu-feature:hover,
+.scene-mainline-menu-feature:focus-visible,
+.scene-mainline-menu-feature.is-active,
+.scene-mainline-menu-feature:hover > .scene-mainline-focus-group__glyph,
+.scene-mainline-menu-feature:focus-visible > .scene-mainline-focus-group__glyph,
+.scene-mainline-menu-feature.is-active > .scene-mainline-focus-group__glyph,
+.scene-mainline-menu-feature:hover .scene-mainline-focus-group__glyph-visual,
+.scene-mainline-menu-feature:focus-visible .scene-mainline-focus-group__glyph-visual,
+.scene-mainline-menu-feature.is-active .scene-mainline-focus-group__glyph-visual {
+  color: var(--interaction-normal);
+}
+.scene-mainline-menu-feature:focus-visible {
+  outline: 1px dashed currentColor;
+  outline-offset: 3px;
+}
+.scene-mainline-action .shared-entry-control {
+  padding: 0;
+}
+.scene-mainline-action--reading {
+  flex-wrap: wrap;
+  gap: 2px;
+  box-sizing: border-box;
+  animation: none;
+}
+.scene-mainline-action--reading[data-scene-action-overflow-y="true"] {
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+.scene-mainline-action--reading .shared-entry-control.is-content-sized {
+  min-width: 0;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 0;
+  font: inherit;
+  color: var(--active);
+}
+.scene-mainline-action--reading .shared-entry-control.is-content-sized .shared-entry-text { color: var(--active); }
+.scene-mainline-action--reading .shared-entry-control.is-content-sized:disabled { color: color-mix(in srgb, var(--active) 60%, var(--soft)); }
+.scene-mainline-action--reading .shared-entry-control.is-content-sized:disabled .shared-entry-text { color: color-mix(in srgb, var(--active) 60%, var(--soft)); }
+.scene-mainline-action--reading .shared-entry-control.is-content-sized:focus-visible {
+  outline-color: color-mix(in srgb, var(--active) 42%, transparent);
+  outline-offset: 3px;
+}
+.scene-mainline-action--reading .shared-entry-control.is-content-sized .shared-entry-content {
+  box-sizing: border-box;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 4px 10px;
+}
+.scene-mainline-action--reading .shared-entry-control.is-content-sized .entry-text-flip__slot {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.scene-mainline-action--reading .shared-entry-frame {
+  stroke-width: .9;
+}
 .scene-dialogue-shield {
   position: absolute;
   inset: 0;
@@ -1153,6 +1593,10 @@
   color: transparent;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-appearance: none;
+  appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
 }
 .scene-dialogue-shield:focus-visible { outline: 1px solid rgba(240, 204, 123, .48); outline-offset: -5px; }/* Commercial street keeps the same text-first language as the other mainline
    locations; its wall/storefront composition comes from compiled geometry. */
@@ -1294,14 +1738,14 @@
     width: max-content;
     max-width: calc(100% - 8px);
     padding: 0;
-    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
+    font-size: var(--scene-mainline-object-font-size, 16px);
     letter-spacing: 0;
   }
   .scene-mainline-wall,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
+    font-size: var(--scene-mainline-object-font-size, 16px);
   }
   .scene-mainline-text { max-width: calc(100% - 24px); max-height: 38%; padding: 2px 0; }
   .scene-mainline-text, .scene-mainline-speaker-anchor { font-size: 12px; line-height: 1.5; }
@@ -1316,12 +1760,12 @@
   .scene-shell__state { min-width: 70px; padding-left: 8px; font-size: 9px; }
   .scene-shell__state strong { font-size: 12px; }
   .scene-stage { height: clamp(300px, calc(100svh - 100px), 560px); min-height: 300px; }
-  .scene-mainline-object { min-width: 0; min-height: 0; width: max-content; padding: 0; font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px)); }
+  .scene-mainline-object { min-width: 0; min-height: 0; width: max-content; padding: 0; font-size: var(--scene-mainline-object-font-size, 16px); }
   .scene-mainline-wall,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--fixture,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--table,
   [data-mainline-scene="commercial-cafe"] .scene-mainline-object--seat {
-    font-size: var(--scene-mainline-object-font-size, clamp(9px, 1.15vmin, 16px));
+    font-size: var(--scene-mainline-object-font-size, 16px);
   }
   .scene-spatial-glyph--door { min-width: 42px; }
   .scene-object--fixture,
@@ -1352,3 +1796,397 @@
 @keyframes phone-app-enter { from { opacity: .6; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
 @keyframes phone-call-pulse { 0%, 60%, 100% { opacity: .28; transform: scale(.8); } 30% { opacity: .9; transform: scale(1.2); } }
 @keyframes phone-place-card-enter { from { opacity: .7; transform: translateX(10px) scale(.94); } to { opacity: 1; transform: translateX(0) scale(1); } }
+
+/* World text has one authored size. Legacy spatial/UI media rules above must
+   not resize mainline furniture or people independently of the world. */
+.scene-mainline-world .scene-spatial-labels,
+.scene-mainline-world .scene-object--fixture,
+.scene-mainline-world .scene-object--character,
+.scene-mainline-world .scene-actor__label,
+.scene-mainline-world .scene-table-text,
+.scene-mainline-world .scene-chair-text {
+  font-size: var(--scene-mainline-object-font-size, 16px);
+}
+
+/* At 16-unit type, adjacent furniture glyphs already have a 16-unit advance.
+   Extra tracking would enlarge both horizontal and upright vertical runs. */
+.scene-mainline-world .scene-mainline-object--fixture .scene-mainline-object__label,
+.scene-mainline-world .scene-mainline-object--table .scene-mainline-object__label,
+.scene-mainline-world .scene-mainline-object--seat .scene-mainline-object__label {
+  letter-spacing: 0;
+}
+
+/* Question-mark monologue: text sits mid-screen; the dark backdrop only surrounds it and fades in gradually. */
+.scene-mainline-conversation--question-panel {
+  top: 50%;
+  bottom: auto;
+  height: 150px;
+  justify-content: center;
+  transform: translateY(-50%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 32%, #000 68%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 32%, #000 68%, transparent 100%);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+}
+.scene-mainline-conversation--question-panel:not(.is-leaving) { animation: mainline-question-panel-in 700ms ease-out both; }
+.scene-mainline-conversation--question-panel.is-leaving { animation: mainline-question-panel-out 420ms ease-in both; }
+@keyframes mainline-question-panel-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mainline-question-panel-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* The conversation stack moves as one piece; the choice wheel floats in a slot reserved under it. */
+.scene-mainline-conversation__stack {
+  display: flex;
+  min-height: 0;
+  flex: 0 1 auto;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.scene-mainline-conversation__stack.has-choice-slot { padding-bottom: calc(var(--wide-wheel-h, 84px) + 12px); }
+
+/* A new line reserves its name row and one text row up front, so the stack grows once and the name fades in. */
+.scene-mainline-conversation-line--current p { min-height: 1.68em; }
+.scene-mainline-conversation-line--current .scene-mainline-conversation-line__speaker { animation: mainline-conversation-name-in 220ms ease-out both; }
+@keyframes mainline-conversation-name-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Untyped remainder keeps the line's final size (no growth while typing). */
+.scene-mainline-conversation-line__pending { visibility: hidden; }
+/* Player lines hug the right edge, but the text inside the box reads left-to-right. */
+.scene-mainline-conversation-line.is-player p { text-align: left; }
+.scene-mainline-conversation-line.is-player .scene-mainline-conversation-line__speaker { text-align: right; }
+.scene-mainline-conversation--question-panel .scene-mainline-conversation-line { align-self: center; text-align: center; }
+.scene-mainline-conversation--question-panel .scene-mainline-conversation-line p { text-align: center; }
+
+/* ---- Conversation column: one bottom-anchored stack that grows upward (no inner scrolling), so every
+   new line / option block moves the whole stack with the same glide, full or not. ---- */
+.scene-mainline-conversation__viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to top, #000 0%, #000 74%, transparent 100%);
+  mask-image: linear-gradient(to top, #000 0%, #000 74%, transparent 100%);
+}
+.scene-mainline-conversation__stack {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-bottom: 0;
+}
+.scene-mainline-conversation__history {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+/* Compact panels (question monologue, short prompt, wall menu) size to their content and sit mid-column. */
+.scene-mainline-conversation--question-panel .scene-mainline-conversation__viewport,
+.scene-mainline-conversation--short-prompt .scene-mainline-conversation__viewport {
+  flex: 0 0 auto;
+  overflow: visible;
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+.scene-mainline-conversation--question-panel .scene-mainline-conversation__stack,
+.scene-mainline-conversation--short-prompt .scene-mainline-conversation__stack { position: relative; }
+.scene-mainline-conversation--short-prompt {
+  /* A compact block mid-right with the same left-to-right backdrop as the long conversation. */
+  top: 50%;
+  bottom: auto;
+  height: auto;
+  min-height: 120px;
+  max-height: min(78vh, 700px);
+  justify-content: center;
+  padding-top: 52px;
+  padding-bottom: 52px;
+  transform: translateY(-50%);
+  -webkit-mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 62.5%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+  mask-image: linear-gradient(to right, #000 0%, #000 25%, transparent 62.5%, transparent 100%), linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+  -webkit-mask-size: 400% 100%, 100% 100%;
+  mask-size: 400% 100%, 100% 100%;
+  -webkit-mask-position: 0 0, 0 0;
+  mask-position: 0 0, 0 0;
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+.scene-mainline-conversation--short-prompt:not(.is-leaving) { animation: mainline-short-prompt-reveal 800ms cubic-bezier(.4, 0, .3, 1) both; }
+
+/* Phone: a menu viewed on its own sits in the middle of the screen, full width, over a dark band whose top and bottom edges fade. */
+.scene-mainline-conversation--phone-menu {
+  left: 0;
+  right: 0;
+  width: auto;
+  padding: 64px max(24px, env(safe-area-inset-right)) 64px max(24px, env(safe-area-inset-left));
+  background: rgba(8, 10, 13, .86);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+  -webkit-mask-composite: source-over;
+  mask-composite: add;
+}
+.scene-mainline-conversation--phone-menu:not(.is-leaving) { animation: mainline-phone-menu-in 1200ms cubic-bezier(.4, 0, .3, 1) both; }
+@keyframes mainline-phone-menu-in { from { opacity: 0; } to { opacity: 1; } }
+.scene-mainline-conversation--short-prompt.is-leaving { animation: mainline-question-panel-out 360ms ease-in both; }
+@keyframes mainline-short-prompt-reveal {
+  from { -webkit-mask-position: 100% 0, 0 0; mask-position: 100% 0, 0 0; opacity: 0; }
+  to { -webkit-mask-position: 0 0, 0 0; mask-position: 0 0, 0 0; opacity: 1; }
+}
+
+/* Priced menu (read-only wall menu): name left, price right, small description under each name. */
+.scene-mainline-conversation-line.has-menu { align-self: stretch; max-width: 100%; text-align: left; }
+.conversation-menu-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 12px;
+}
+.conversation-menu-panel.is-fading-in { animation: mainline-conversation-text-in 420ms ease-out both; }
+.conversation-menu-panel.is-fading-out { animation: mainline-conversation-text-out 260ms ease-in both; }
+.conversation-menu-panel__item { display: flex; flex-direction: column; gap: 1px; }
+.conversation-menu-panel__line { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.conversation-menu-panel__price { font-variant-numeric: tabular-nums; }
+.conversation-menu-panel__desc { font-size: .72em; line-height: 1.4; color: rgba(243, 240, 233, .62); }
+@keyframes mainline-conversation-text-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes mainline-conversation-text-out { from { opacity: 1; } to { opacity: 0; } }
+
+/* Restroom fixtures show that they are in use. */
+.scene-mainline-object.scene-mainline-restroom-fixture--bright[aria-label^="洗手台"] {
+  animation: restroom-breathe 2.4s ease-in-out infinite;
+}
+.scene-mainline-object.scene-mainline-restroom-fixture--bright[aria-label^="洗手台"] .scene-mainline-object__label {
+  background: linear-gradient(to bottom, currentColor 0%, currentColor 30%, color-mix(in srgb, currentColor 35%, white) 50%, currentColor 70%, currentColor 100%);
+  background-size: 100% 300%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: restroom-water-flow 1.6s linear infinite;
+}
+.scene-mainline-object.scene-mainline-restroom-fixture--bright[aria-label^="马桶"] {
+  animation: restroom-flash 1.5s ease-out 1 both;
+}
+@keyframes restroom-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .72; } }
+@keyframes restroom-water-flow { from { background-position: 0 100%; } to { background-position: 0 0; } }
+@keyframes restroom-flash { 0% { opacity: .5; filter: brightness(2); } 25% { opacity: 1; filter: brightness(1.6); } 100% { opacity: 1; filter: brightness(1); } }
+
+/* Conversation column (wide, short prompt, question panel, phone menu): the section itself no longer sweeps or slides as one block.
+   The dark backdrop lives on ::before and fades by itself; each history row fades by itself, all at the same speed. */
+.scene-mainline-conversation-host .scene-mainline-conversation {
+  --fade-rate: 1400ms;
+  background: none;
+  -webkit-mask-image: none;
+  mask-image: none;
+  animation: none !important;
+}
+.scene-mainline-conversation-host .scene-mainline-conversation > * { position: relative; z-index: 1; }
+.scene-mainline-conversation-host .scene-mainline-conversation::before {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(to left, rgba(11, 13, 17, .91) 0%, rgba(11, 13, 17, .76) 56%, rgba(11, 13, 17, .38) 82%, rgba(11, 13, 17, 0) 100%);
+  animation: mainline-backdrop-in var(--fade-rate) linear backwards;
+}
+.scene-mainline-conversation-host .scene-mainline-conversation--short-prompt::before,
+.scene-mainline-conversation-host .scene-mainline-conversation--question-panel::before {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 24%, #000 76%, transparent 100%);
+}
+.scene-mainline-conversation-host .scene-mainline-conversation--phone-menu::before {
+  background: rgba(8, 10, 13, .86);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 26%, #000 74%, transparent 100%);
+}
+.scene-mainline-conversation-host .scene-mainline-conversation.is-leaving::before { animation: mainline-backdrop-out var(--fade-rate) linear both; }
+.scene-mainline-conversation-host .scene-mainline-conversation-line { opacity: var(--line-target, 1); transition: opacity calc(.15 * var(--fade-rate)) linear; }
+.scene-mainline-conversation-host .scene-mainline-conversation.is-leaving .scene-mainline-conversation-line { opacity: 0; transition: opacity calc(var(--line-target, 1) * var(--fade-rate)) linear; }
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-conversation-host .scene-mainline-conversation::before { animation-duration: 1ms !important; }
+}
+
+/* Phone options: the same transparent choices as the wide column, laid out in rows under the conversation (wrapping when a row is full). */
+.scene-mainline-subtitle-host__choices {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  max-height: 40vh;
+  overflow-y: auto;
+  padding: 4px max(20px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  color: #f1f0ec;
+  pointer-events: auto;
+  touch-action: pan-y;
+}
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles { gap: 12px 16px; margin-top: 0; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles__item { min-height: 44px; padding: 8px 20px; font-size: 17px; max-width: 100%; }
+/* While only options are shown the (empty) text window gives its height back. */
+.scene-mainline-subtitle-host .narrow-dialogue-content[data-narrow-dialogue-content="options"] { height: 0; min-height: 0; }
+
+/* Locked options keep their space (hidden, not removed) so the line above never drops and rises again; a new set waits until the picked label has landed in the history, then fades in. */
+.scene-mainline-subtitle-host__choices .dialogue-choice-menu { animation: dialogue-choice-after-line 260ms linear 450ms both; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles { animation: none; }
+/* After a pick the other options stay (dimmed) so there is no empty gap; the picked one is gone (its label flies to the history); the next set replaces them in place and fades in. */
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles.is-locked:not(.is-soft) { display: flex; pointer-events: none; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-menu.is-locked { display: none; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles__item { animation: dialogue-choice-after-line 260ms linear 450ms both; }
+/* The options come in after the sentence has been read, not together with it (hidden, so not tappable, until then). */
+@keyframes dialogue-choice-after-line { from { opacity: 0; visibility: hidden; } to { opacity: 1; visibility: visible; } }
+/* A question with options below it is only as tall as its text, so the options sit right under it. */
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt,
+.scene-mainline-subtitle-host .narrow-dialogue-content--fit { height: auto; }
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt .narrow-dialogue-slot--current,
+.scene-mainline-subtitle-host .narrow-dialogue-content--fit .narrow-dialogue-slot--current {
+  position: relative;
+  inset: auto;
+  padding: 4px var(--narrow-dialogue-safe-right) 2px var(--narrow-dialogue-safe-left);
+}
+
+/* The options that will follow a line reserve their room while it is still being read, so they do not lift it when they appear. */
+.scene-mainline-subtitle-host__choices.is-placeholder { visibility: hidden; pointer-events: none; }
+.scene-mainline-subtitle-host__choices.is-placeholder .dialogue-choice-bubbles { animation: none; }
+.scene-mainline-subtitle-host__choices.is-placeholder .dialogue-choice-bubbles__item { animation: none; visibility: hidden; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles__item.is-picked { animation: none; }
+.scene-mainline-subtitle-host__choices .dialogue-choice-bubbles__item:active:not(:disabled), .scene-mainline-subtitle-host__choices .dialogue-choice-menu__row:active:not(:disabled) { animation: none; opacity: .7; }
+
+/* No blue flash on touch. */
+.center-experience, .center-experience * { -webkit-tap-highlight-color: transparent; }
+
+/* A window that is only as tall as its text starts at the top, so the name row is not lifted out of it (that lift is for the fixed-height centred window). */
+.scene-mainline-subtitle-host .narrow-dialogue-content--fit .narrow-dialogue-copy--speaker,
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt .narrow-dialogue-copy--speaker { transform: none; }
+.scene-mainline-subtitle-host .narrow-dialogue-content--fit .narrow-dialogue-slot--current { padding-top: 6px; padding-bottom: 6px; }
+
+/* Wide: a picked ordering menu stays on screen (dimmed, not tappable) instead of vanishing. */
+.scene-mainline-conversation .dialogue-choice-menu.is-locked { display: none; }
+.scene-mainline-subtitle-host__choices.is-placeholder .dialogue-choice-menu { animation: none; visibility: hidden; }
+.scene-mainline-subtitle-host__choices.is-placeholder .dialogue-choice-menu * { visibility: hidden; }
+
+/* Phone: ordering questions (sugar, ice, …) use the same type size as every other line; the old compact 14px was for the retired bottom wheel. */
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt .narrow-dialogue-text { font-size: 18px; line-height: 1.45; }
+.scene-mainline-subtitle-host .narrow-dialogue-content--choice-prompt .narrow-dialogue-speaker { font-size: 18px; line-height: 1.45; margin-bottom: 0.35em; }
+
+/* The ordering menu kept in the conversation after a pick: dimmed, not tappable; the picked row stays bright. */
+.dialogue-choice-menu--history { animation: none; pointer-events: none; }
+.dialogue-choice-menu--history .dialogue-choice-menu__row:not(.is-picked) { opacity: .4; }
+.dialogue-choice-menu--history .dialogue-choice-menu__row { cursor: default; }
+
+/* Phone: the real options are mounted as soon as they exist (so their true height is reserved while the question still types) but stay invisible and untappable until the question is finished; then they fade in. */
+.scene-mainline-subtitle-host__choices.is-pending { visibility: hidden; pointer-events: none; }
+.scene-mainline-subtitle-host__choices.is-pending .dialogue-choice-bubbles__item,
+.scene-mainline-subtitle-host__choices.is-pending .dialogue-choice-menu { animation: none; visibility: hidden; }
+.scene-mainline-subtitle-host__choices.is-pending .dialogue-choice-menu * { visibility: hidden; }
+.scene-mainline-subtitle-host__line .dialogue-choice-menu--history,
+.scene-mainline-conversation-line .dialogue-choice-menu--history { align-self: stretch; width: 100%; box-sizing: border-box; }
+
+/* ---- Phone conversation: the very same column as the wide screen, laid out for a narrow screen (full width, bottom-anchored, history fades at the top). ---- */
+.scene-mainline-conversation-host .scene-mainline-conversation--phone {
+  top: max(12px, env(safe-area-inset-top));
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  gap: 8px;
+  padding: 0 max(20px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  font-family: inherit;
+  font-size: 18px;
+  line-height: 1.45;
+  color: #f1f0ec;
+  pointer-events: auto;
+}
+.scene-mainline-conversation-host .scene-mainline-conversation--phone::before {
+  background: linear-gradient(to top, rgba(8, 10, 13, .84) 0%, rgba(8, 10, 13, .62) 55%, rgba(8, 10, 13, 0) 100%);
+}
+.scene-mainline-conversation--phone .scene-mainline-conversation__viewport {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 18%, #000 100%);
+}
+.scene-mainline-conversation--phone .scene-mainline-conversation__stack,
+.scene-mainline-conversation--phone .scene-mainline-conversation__history { gap: 8px; }
+.scene-mainline-conversation--phone .scene-mainline-conversation__stack { padding-top: 36px; }
+.scene-mainline-conversation--phone .scene-mainline-conversation-line { max-width: 88%; }
+.scene-mainline-conversation--phone .scene-mainline-conversation-line--current { max-height: none; overflow: visible; }
+.scene-mainline-conversation--phone .scene-mainline-conversation-line p { min-height: 0; }
+.scene-mainline-conversation--phone .scene-mainline-conversation-line__speaker { margin-bottom: 1px; font-size: 14px; color: inherit; }
+.scene-mainline-conversation--phone .dialogue-choice-bubbles { gap: 12px 16px; margin-top: 0; }
+.scene-mainline-conversation--phone .dialogue-choice-bubbles__item { min-height: 44px; padding: 8px 20px; font-size: 17px; max-width: 100%; }
+.scene-mainline-conversation-line:has(> .dialogue-choice-menu--history), .scene-mainline-subtitle-host__line:has(> .dialogue-choice-menu--history) { align-self: stretch; max-width: 100%; }
+
+/* Phone conversation: the dark band hangs on the content stack itself, so it is as tall as what is shown (one line: a thin band; a longer talk: thicker). */
+.scene-mainline-conversation-host .scene-mainline-conversation--phone { padding: 0; }
+.scene-mainline-conversation-host .scene-mainline-conversation--phone::before { display: none; }
+.scene-mainline-conversation--phone .scene-mainline-conversation__stack {
+  padding: 0 max(20px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+.scene-mainline-conversation--phone .scene-mainline-conversation__stack::before {
+  position: absolute;
+  z-index: -1;
+  top: -56px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  content: '';
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(8, 10, 13, .84) 0%, rgba(8, 10, 13, .62) 55%, rgba(8, 10, 13, 0) 100%);
+  animation: mainline-backdrop-in var(--fade-rate) linear backwards;
+}
+.scene-mainline-conversation--phone.is-leaving .scene-mainline-conversation__stack::before { animation: mainline-backdrop-out var(--fade-rate) linear both; }
+/* Lines with no speaker (narration, "……") sit in the middle, not on the player's side. */
+.scene-mainline-conversation-line.is-narration { align-self: center; max-width: 88%; text-align: center; }
+.scene-mainline-conversation-line.is-narration p { text-align: center; }
+/* The options you did not pick fade out (instead of dimming and vanishing). */
+.dialogue-choice-bubbles .dialogue-choice-bubbles__item:disabled:not(.is-picked) { opacity: 0; transition: opacity 220ms linear; }
+
+/* Old locust tree: a permanent light drift across the glyphs (leaves in the
+   wind), plus a few yard stones that dim and brighten slowly like canopy shade. */
+.scene-mainline-tree-shimmer > .scene-mainline-object__grid-content > .scene-mainline-object__label {
+  color: transparent;
+  background-image: linear-gradient(105deg,
+    color-mix(in srgb, var(--interaction-normal) 55%, #000) 0%, color-mix(in srgb, var(--interaction-normal) 55%, #000) 34%,
+    #fff1c8 50%,
+    color-mix(in srgb, var(--interaction-normal) 55%, #000) 66%, color-mix(in srgb, var(--interaction-normal) 55%, #000) 100%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: scene-tree-shimmer 3.6s ease-in-out infinite;
+}
+.scene-mainline-tree-shimmer:hover > .scene-mainline-object__grid-content > .scene-mainline-object__label,
+.scene-mainline-tree-shimmer:focus-visible > .scene-mainline-object__grid-content > .scene-mainline-object__label,
+.scene-mainline-tree-shimmer.is-active > .scene-mainline-object__grid-content > .scene-mainline-object__label {
+  animation: none;
+  background-image: none;
+  color: var(--active);
+}
+@keyframes scene-tree-shimmer {
+  0% { background-position: 120% 0; }
+  100% { background-position: -20% 0; }
+}
+.scene-mainline-stone-shade > .scene-mainline-object__grid-content {
+  animation: scene-stone-shade 6s ease-in-out infinite;
+}
+.scene-mainline-stone-shade--0 > .scene-mainline-object__grid-content { animation-delay: -0.6s; }
+.scene-mainline-stone-shade--1 > .scene-mainline-object__grid-content { animation-delay: -1.9s; }
+.scene-mainline-stone-shade--2 > .scene-mainline-object__grid-content { animation-delay: -3.1s; }
+.scene-mainline-stone-shade--3 > .scene-mainline-object__grid-content { animation-delay: -4.3s; }
+.scene-mainline-stone-shade--4 > .scene-mainline-object__grid-content { animation-delay: -5.2s; }
+@keyframes scene-stone-shade {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .38; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-mainline-tree-shimmer > .scene-mainline-object__grid-content > .scene-mainline-object__label { animation: none; background-image: none; color: var(--interaction-normal); }
+  .scene-mainline-stone-shade > .scene-mainline-object__grid-content { animation: none; }
+}

@@ -1,6 +1,10 @@
+import { fixedMainlineWallGlyphGrid } from './mainlineWallGlyphGrid'
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import { mainlineSceneBlueprints } from './mainlineSceneModel'
-import { boundaryGridCellRange, boundaryGridStepsFromScreenSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
+import { initialMainlineSceneId } from './mainlineInitialState'
+import { restrictStorefrontPortalAccess } from './storefrontAccess'
+import { mapLegacyCafePoint, canonicalCafeEntityId } from './continuousCafe'
+import { boundaryGridCellRange, boundaryGridStepsFromReferenceSpacing, compileSharedFrame, defaultSceneScreenMetrics, sharedBoundaryScreenSpacingPx, sceneDesignReferenceMetrics, type SceneScreenMetrics, type SharedBoundaryCell, type SharedBoundaryFrame, type SharedBoundaryOpening } from './sceneBoundaryGrid'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
 import type { StorefrontPresentationPhase } from './storefrontPresentation'
 import type {
@@ -83,6 +87,7 @@ export type {
 export type MainlineStructure = {
   id: string
   type: 'frame' | 'room' | 'lane' | 'alley' | 'divider' | 'line' | 'connection'
+  readingProtection?: 'preserve'
   bounds?: CollisionBox
   start?: Point
   length?: number
@@ -91,6 +96,7 @@ export type MainlineStructure = {
   variant?: string
   boundaryGeometrySource?: 'anchor' | 'cell-range'
   boundaryCoordinateCount?: { horizontal?: number; vertical?: number }
+  boundaryWorldGrid?: { origin: Point; pitchPx: number }
   /** Refit fixed boundary coordinates to the measured stage spacing. */
   boundaryProjection?: 'screen-spacing'
   boundaryVisualEndpoints?: {
@@ -110,6 +116,8 @@ export type MainlineSceneVisualCell = {
   y: number
   kind: 'wall' | 'door' | 'opening' | 'feature' | 'storefront'
   glyph?: string
+  /** Wall glyph restored when an embedded feature is not being shown. */
+  baselineGlyph?: string
   label?: string
   displayLabel?: string
   doorLabelPart?: string
@@ -120,6 +128,8 @@ export type MainlineSceneVisualCell = {
   storefrontId?: string
   storefrontStyle?: MainlineStorefrontSlot['style']
   storefrontRole?: MainlineStorefrontRole
+  /** Axis along the wall/grid that owns this cell; distinct from glyph writing direction. */
+  layoutOrientation?: 'horizontal' | 'vertical'
   orientation?: 'horizontal' | 'vertical'
   baseline?: boolean
   baselineVisible?: boolean
@@ -138,6 +148,7 @@ export type MainlineSceneGeometryUnit = CollisionBox & {
   id: string
   ownerId: string
   sourceWallId?: string
+  readingProtection?: 'preserve'
   edge?: MainlineWallOpening['edge']
   geometryKind: 'boundary' | 'air-wall' | 'blocker'
   surface: 'wall' | 'storefront' | 'door' | 'feature' | 'opening' | 'air-wall' | 'blocker'
@@ -291,8 +302,11 @@ type MainlinePassageGeometry = Pick<MainlineScenePassage, 'id' | 'portalId' | 'e
 
 function mainlineBoundaryCell(cell: SharedBoundaryCell, structure: MainlineStructure): MainlineSceneVisualCell {
   const kind = cell.role === 'door' ? 'door' : cell.role === 'opening' ? 'opening' : cell.role === 'feature' ? 'feature' : 'wall'
-  const glyph = kind === 'wall' && structure.wallGlyphs?.length
+  const structuralWallGlyph = structure.wallGlyphs?.length
     ? structure.wallGlyphs[cell.gridIndex % structure.wallGlyphs.length]
+    : structure.wallGlyph ?? 'ǽ'
+  const glyph = kind === 'wall' && structure.wallGlyphs?.length
+    ? structuralWallGlyph
     : cell.glyph
   return {
     id: `${structure.id}-${cell.boundaryId}-${cell.gridIndex}`,
@@ -300,13 +314,15 @@ function mainlineBoundaryCell(cell: SharedBoundaryCell, structure: MainlineStruc
     y: cell.y,
     kind,
     glyph,
+    baselineGlyph: kind === 'feature' || kind === 'door' ? structuralWallGlyph : cell.baselineGlyph,
     label: kind === 'door' ? (cell.label ?? cell.glyph) : undefined,
     displayLabel: kind === 'door' ? cell.displayLabel : undefined,
     doorLabelPart: kind === 'door' ? cell.doorLabelPart : undefined,
-    entityId: cell.featureCellRole === 'flank' ? cell.doorId : cell.interactionId ?? cell.doorId,
+    entityId: cell.interactionId ?? cell.doorId,
     doorBehavior: cell.doorBehavior,
     access: cell.access,
     lockedText: cell.lockedText,
+    layoutOrientation: cell.layoutOrientation,
     orientation: cell.glyphOrientation,
     baseline: cell.baseline,
     baselineVisible: cell.baselineVisible,
@@ -390,6 +406,10 @@ function compileMainlineFrameUnits(
         length: axisEnd - axisStart,
         geometrySource: structure.boundaryGeometrySource ?? 'anchor',
         coordinateCount: structure.boundaryCoordinateCount?.[orientation],
+        grid: structure.boundaryWorldGrid ? {
+          origin: structure.boundaryWorldGrid.origin[horizontal ? 'x' : 'y'],
+          step: structure.boundaryWorldGrid.pitchPx / (horizontal ? 1920 : 1080) * 100,
+        } : undefined,
         visualEndpoints: structure.boundaryVisualEndpoints?.[orientation],
         baselineEvery: config.baselineEvery,
         openings: sharedOpenings,
@@ -475,17 +495,31 @@ function compileMainlineFrameUnits(
         : undefined
       const door = passageId ? objects.find((entity) => entity.id === passageId) : undefined
       const vertical = edge === 'left' || edge === 'right'
-      const canonicalStorefrontCells = placement.gridIndices
-        .map((gridIndex) => {
-          const cellRange = boundaryGridCellRange(edgeCompilation.coordinates, gridIndex)
-          if (!cellRange) return null
+      const fixedCellCount = storefront.composition?.fixedCellCount
+      const canonicalStorefrontCells = fixedCellCount
+        ? Array.from({ length: fixedCellCount }, (_, gridIndex) => {
+          const step = (placement.resolvedEnd - placement.resolvedStart) / fixedCellCount
+          const cellRange = {
+            start: placement.resolvedStart + step * gridIndex,
+            end: placement.resolvedStart + step * (gridIndex + 1),
+          }
           return {
             gridIndex,
             cellRange,
             center: edgeGeometryCenter(structure.bounds!, edge, cellRange.start, cellRange.end),
           }
         })
-        .filter((cell): cell is NonNullable<typeof cell> => cell !== null)
+        : placement.gridIndices
+          .map((gridIndex) => {
+            const cellRange = boundaryGridCellRange(edgeCompilation.coordinates, gridIndex)
+            if (!cellRange) return null
+            return {
+              gridIndex,
+              cellRange,
+              center: edgeGeometryCenter(structure.bounds!, edge, cellRange.start, cellRange.end),
+            }
+          })
+          .filter((cell): cell is NonNullable<typeof cell> => cell !== null)
       if (canonicalStorefrontCells.length === 0) return
       const hasNearProjection = storefrontHasNearProjection(storefront)
 
@@ -493,11 +527,45 @@ function compileMainlineFrameUnits(
       // shop sign is only painted over that base; it must never replace the
       // door or become a second navigation/collision source.
       if (hasNearProjection && door && passageId) {
-        const baseRoles: readonly MainlineStorefrontRole[] = ['wall', 'door', 'wall']
-        baseRoles.forEach((role, index) => {
+        const doorCoordinate = vertical ? door.position.y : door.position.x
+        const doorIndex = canonicalStorefrontCells.reduce((bestIndex, cell, index) => {
+          const bestDistance = Math.abs(canonicalStorefrontCells[bestIndex]!.center[vertical ? 'y' : 'x'] - doorCoordinate)
+          const distance = Math.abs(cell.center[vertical ? 'y' : 'x'] - doorCoordinate)
+          return distance < bestDistance ? index : bestIndex
+        }, 0)
+        const authoredDoorIndices = fixedCellCount
+          ? storefrontRolesForVariant(storefront, 'near').flatMap((role, index) => role === 'door' ? [index] : [])
+          : []
+        const baseDoorIndices = authoredDoorIndices.length ? authoredDoorIndices : [doorIndex]
+        // The continuous Cafe has visible wall/window cells across its whole
+        // facade. They are physical boundary cells too; visual-only overlays
+        // must not leave a route behind the windows. Keep this fix scoped to
+        // the Cafe migration, with the existing door and flank IDs unchanged.
+        const completeCafeBoundary = Boolean(fixedCellCount && storefront.id === 'commercial-cafe-slot')
+        const baseIndices = completeCafeBoundary
+          ? canonicalStorefrontCells.map((_, index) => index)
+          : [...new Set(baseDoorIndices.flatMap(index => [index - 1, index, index + 1]))]
+            .filter(index => index >= 0 && index < canonicalStorefrontCells.length)
+        baseIndices.forEach((index) => {
+          const role: MainlineStorefrontRole = baseDoorIndices.includes(index) ? 'door' : 'wall'
           const canonicalCell = canonicalStorefrontCells[index]
           if (!canonicalCell) return
-          const cell = {
+          const cell = fixedCellCount && role === 'door'
+            ? {
+              id: `${storefront.id}-base-cell-${index}`,
+              x: canonicalCell.center.x,
+              y: canonicalCell.center.y,
+              kind: 'storefront' as const,
+              glyph: '',
+              storefrontId: storefront.id,
+              storefrontRole: 'blank' as const,
+              orientation: vertical ? 'vertical' as const : 'horizontal' as const,
+              cellStart: canonicalCell.cellRange.start,
+              cellEnd: canonicalCell.cellRange.end,
+              access: passage?.access,
+              lockedText: passage?.lockedText,
+            }
+            : {
             id: `${storefront.id}-base-cell-${index}`,
             x: canonicalCell.center.x,
             y: canonicalCell.center.y,
@@ -516,8 +584,13 @@ function compileMainlineFrameUnits(
             edge,
             geometryKind: 'boundary',
             surface: role === 'door' ? 'door' : 'wall',
-            visual: { kind: role === 'door' ? 'door' : 'wall', cells: [cell] },
-            navigation: { blocked: true, passageId },
+            // Fixed-grid storefronts render their entrance from the same
+            // character slot as the facade. Keep this base unit solely as
+            // passage/collision geometry so it cannot paint a second door.
+            visual: fixedCellCount && role !== 'door'
+              ? { kind: 'none' as const, cells: [] }
+              : { kind: role === 'door' ? 'door' : 'storefront', cells: [cell] },
+            navigation: { blocked: true, ...(baseDoorIndices.some(doorIndex => Math.abs(index - doorIndex) <= 1) ? { passageId } : {}) },
             ...(role === 'door' ? { entityId: door.id } : {}),
             storefrontId: storefront.id,
           })
@@ -526,11 +599,12 @@ function compileMainlineFrameUnits(
 
       const variants: Array<'baseline' | 'near'> = hasNearProjection ? ['baseline', 'near'] : ['baseline']
       variants.forEach((variant) => {
-        const roles = fitStorefrontRoles(storefrontRolesForVariant(storefront, variant), canonicalStorefrontCells.length)
+        const authoredRoles = storefrontRolesForVariant(storefront, variant)
+        const roles = fixedCellCount ? authoredRoles : fitStorefrontRoles(authoredRoles, canonicalStorefrontCells.length)
         roles.forEach((role, index) => {
           const canonicalCell = canonicalStorefrontCells[index]
           if (!canonicalCell) return
-          const overlayHidden = hasNearProjection && variant === 'near'
+          const overlayHidden = hasNearProjection && !fixedCellCount && variant === 'near'
           const glyph = storefrontGlyph(role, storefront.label, roles, index)
           const cell = {
             id: `${storefront.id}-cell-${index}`,
@@ -539,7 +613,7 @@ function compileMainlineFrameUnits(
             kind: 'storefront' as const,
             ...(glyph ? { glyph } : {}),
             ...(role === 'door' ? { label: storefront.label } : {}),
-            ...(role === 'door' && !hasNearProjection && door
+            ...(role === 'door' && (fixedCellCount || !hasNearProjection) && door
               ? { entityId: door.id, doorBehavior: door.doorBehavior, access: passage?.access, lockedText: passage?.lockedText }
               : {}),
             storefrontId: storefront.id,
@@ -583,7 +657,7 @@ const defaultStorefrontComposition: MainlineStorefrontComposition = {
 function expandStorefrontRoles(roles: readonly MainlineStorefrontRole[], label: string): MainlineStorefrontRole[] {
   return roles.flatMap((role) => {
     if (role === 'sign') return Array.from(label, () => 'sign' as const)
-    if (role === 'glass') return ['glass', 'glass'] as const
+    if (role === 'glass' || role === 'window') return [role, role] as const
     return [role]
   })
 }
@@ -593,6 +667,9 @@ function storefrontRolesForVariant(storefront: MainlineStorefrontSlot, variant: 
   if (mode === 'content') return ['blank', ...Array.from(storefront.label, () => 'sign' as const), 'blank']
   if (mode === 'door') return ['wall', 'door', 'wall']
   const composition = storefront.composition ?? defaultStorefrontComposition
+  if (composition.fixedCellCount) {
+    return [...(variant === 'baseline' ? composition.baseline : composition.near ?? composition.baseline)]
+  }
   const baseline = expandStorefrontRoles(composition.baseline, storefront.label)
   if (variant === 'baseline') return baseline
   const near = expandStorefrontRoles(composition.near ?? composition.baseline, storefront.label)
@@ -623,17 +700,17 @@ function fitStorefrontRoles(roles: readonly MainlineStorefrontRole[], cellCount:
   if (cellCount <= 0) return []
   if (roles.length <= cellCount) return roles.slice(0, cellCount)
 
-  // Preserve the authored glass / sign / glass order while a responsive
-  // storefront has enough cells for every sign glyph and at least one glass
+  // Preserve the authored window / sign / window order while a responsive
+  // storefront has enough cells for every sign glyph and at least one window
   // glyph on each side. Narrower projections still prioritize the sign.
   const signStart = roles.indexOf('sign')
   const signEnd = roles.lastIndexOf('sign')
-  const isGlassSignGlass = signStart > 0
+  const isWindowSignWindow = signStart > 0
     && signEnd < roles.length - 1
-    && roles.slice(0, signStart).every((role) => role === 'glass')
+    && roles.slice(0, signStart).every((role) => role === 'glass' || role === 'window')
     && roles.slice(signStart, signEnd + 1).every((role) => role === 'sign')
-    && roles.slice(signEnd + 1).every((role) => role === 'glass')
-  if (isGlassSignGlass) {
+    && roles.slice(signEnd + 1).every((role) => role === 'glass' || role === 'window')
+  if (isWindowSignWindow) {
     const signs = roles.slice(signStart, signEnd + 1)
     if (cellCount <= signs.length) return signs.slice(0, cellCount)
     const glassCount = cellCount - signs.length
@@ -672,6 +749,7 @@ function storefrontGlyph(role: MainlineStorefrontRole, label: string, roles: rea
   }
   if (role === 'door') return '门'
   if (role === 'wall') return '墙'
+  if (role === 'window') return '\u7a97'
   if (role === 'glass') {
     const glassIndex = roles.slice(0, index).filter((candidate) => candidate === 'glass').length
     return ['玻', '璃'][glassIndex % 2]
@@ -723,7 +801,7 @@ function compileMainlineGeometry(
   passages: readonly MainlinePassageGeometry[],
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
 ): MainlineSceneGeometryUnit[] {
-  const steps = boundaryGridStepsFromScreenSpacing(sharedBoundaryScreenSpacingPx, screenMetrics)
+  const steps = boundaryGridStepsFromReferenceSpacing(sharedBoundaryScreenSpacingPx)
   const projectedStructures = structures.map((structure) => {
     if (structure.boundaryProjection !== 'screen-spacing' || !structure.bounds) return structure
     const verticalCoordinateCount = structure.boundaryCoordinateCount?.vertical
@@ -789,7 +867,17 @@ function compileMainlineGeometry(
     navigation: { blocked: true },
   }))
   units.push(...curveGeometryUnits(curves))
-  return units
+  // Fixed-count retail frames already derive their extent from 28-unit
+  // cells. Other frames keep their authored doors/physical endpoints and
+  // receive fixed world glyph coordinates instead of fitted wall labels.
+  const fixedGlyphOwners = new Set(frameEdgeConfigs.filter(config => {
+    const orientation = config.edge === 'top' || config.edge === 'bottom' ? 'horizontal' : 'vertical'
+    return !config.structure.boundaryCoordinateCount?.[orientation] && !config.structure.boundaryWorldGrid
+  }).map(config => `${config.structure.id}:${config.edge}`))
+  return fixedMainlineWallGlyphGrid(units, fixedGlyphOwners).map(unit => {
+    const source = projectedStructures.find(structure => structure.id === unit.sourceWallId)
+    return source?.readingProtection === 'preserve' ? { ...unit, readingProtection: 'preserve' as const } : unit
+  })
 }
 
 function geometryCollisionForPassage(units: readonly MainlineSceneGeometryUnit[], passageId: string): CollisionBox {
@@ -868,7 +956,9 @@ export function validateMainlineSceneGeometry(scene: Pick<MainlineSceneDefinitio
     if (unit.width <= 0 || unit.height <= 0) issues.push(`${unit.id}: geometry must have positive dimensions`)
     if (unit.visual.kind !== 'none' && unit.visual.cells.length === 0) issues.push(`${unit.id}: visual geometry has no cells`)
     unit.visual.cells.forEach((cell) => {
-      if (cell.x < unit.x || cell.x > unit.x + unit.width || cell.y < unit.y || cell.y > unit.y + unit.height) {
+      const cellBoundsTolerance = .001
+      if (cell.x < unit.x - cellBoundsTolerance || cell.x > unit.x + unit.width + cellBoundsTolerance
+        || cell.y < unit.y - cellBoundsTolerance || cell.y > unit.y + unit.height + cellBoundsTolerance) {
         issues.push(`${unit.id}: visual cell ${cell.id} is outside its collision rectangle`)
       }
     })
@@ -953,7 +1043,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     )))
   })
 
-  const storefronts = (data.storefronts ?? []).map((storefront): MainlineStorefrontSlot => ({
+  let storefronts = (data.storefronts ?? []).map((storefront): MainlineStorefrontSlot => ({
     ...storefront,
     mode: storefront.mode ?? 'commercial',
   }))
@@ -968,9 +1058,11 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       id: wall.id,
       type: wall.type,
       bounds: wall.bounds,
+      readingProtection: wall.readingProtection,
       variant: wall.variant,
        boundaryGeometrySource: wall.boundaryGeometrySource,
        boundaryCoordinateCount: wall.boundaryCoordinateCount,
+      boundaryWorldGrid: wall.boundaryWorldGrid,
        boundaryProjection: wall.boundaryProjection,
       boundaryVisualEndpoints: wall.boundaryVisualEndpoints,
       wallGlyphs: wall.wallGlyphs,
@@ -995,7 +1087,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     })
   })
 
-  const passageGeometry = portals.flatMap((portal): (MainlinePassageGeometry & Omit<MainlineScenePassage, keyof MainlinePassageGeometry | 'collision' | 'doorway'>)[] => {
+  let passageGeometry = portals.flatMap((portal): (MainlinePassageGeometry & Omit<MainlineScenePassage, keyof MainlinePassageGeometry | 'collision' | 'doorway'>)[] => {
     const endpoint = portal.endpoint
     return [{
       id: portal.id,
@@ -1017,16 +1109,69 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     }]
   })
 
-  const geometry = compileMainlineGeometry(
+  const sceneObjects = [...objectById.values()]
+  let geometry = compileMainlineGeometry(
     structures,
     storefronts,
-    [...objectById.values()],
+    sceneObjects,
     data.wallDensity,
     data.airWalls,
     [...data.blockers, ...(data.continuousStructures ?? [])],
     data.curves ?? [],
     passageGeometry,
   )
+  // Fixed character grids are fitted to the shared frame lattice. Resolve
+  // each portal from the actual revealed door cell, then reuse that point for
+  // the portal entity, threshold and approach so the visual entrance and
+  // navigation target cannot drift apart.
+  let portalsAdjusted = false
+  const portalDoorPositions = new Map<string, Point>()
+  storefronts = storefronts.map((storefront) => {
+    if (!storefront.composition?.fixedCellCount || !storefront.portalId) return storefront
+    const sourceRoomId = portals.find(portal => portal.id === storefront.portalId)?.fromRoomId
+    if (data.rooms?.some(room => room.id === sourceRoomId && room.kind !== 'corridor')) return storefront
+    const doorCells = geometry
+      .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'near')
+      .flatMap((unit) => unit.visual.cells)
+      .filter((cell) => cell.storefrontRole === 'door')
+    if (doorCells.length === 0) return storefront
+    const doorCenter = doorCells.reduce((center, cell) => ({ x: center.x + cell.x / doorCells.length, y: center.y + cell.y / doorCells.length }), { x: 0, y: 0 })
+    const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
+      : storefront.edge === 'bottom' ? { x: 0, y: 1 }
+        : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+    const approach = { x: doorCenter.x + outward.x * 6, y: doorCenter.y + outward.y * 6 }
+    portalDoorPositions.set(storefront.portalId, doorCenter)
+    const entity = objectById.get(storefront.portalId)
+    if (entity) objectById.set(storefront.portalId, { ...entity, position: doorCenter })
+    portalsAdjusted = true
+    return { ...storefront, approach }
+  })
+  if (portalsAdjusted) {
+    passageGeometry = passageGeometry.map((passage) => {
+      const position = portalDoorPositions.get(passage.portalId)
+      if (!position) return passage
+      const storefront = storefronts.find((slot) => slot.portalId === passage.portalId)
+      const approach = storefront?.approach ?? position
+      const outward = storefront?.edge === 'top' ? { x: 0, y: -1 }
+        : storefront?.edge === 'bottom' ? { x: 0, y: 1 }
+          : storefront?.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+      const interiorTarget = { x: position.x - outward.x * 6, y: position.y - outward.y * 6 }
+      // The first endpoint is the safe public-side approach; the paired
+      // crossing target lies beyond the door on the interior side. This keeps
+      // the real facade normal non-zero for passage-side and footprint math.
+      return { ...passage, thresholds: [approach, interiorTarget], crossingTargets: [interiorTarget, approach] }
+    })
+    geometry = compileMainlineGeometry(
+      structures,
+      storefronts,
+      [...objectById.values()],
+      data.wallDensity,
+      data.airWalls,
+      [...data.blockers, ...(data.continuousStructures ?? [])],
+      data.curves ?? [],
+      passageGeometry,
+    )
+  }
   const passages: MainlineScenePassage[] = passageGeometry.map((passage) => {
     const collision = geometryCollisionForPassage(geometry, passage.id)
     const doorway = geometryDoorwayForPassage(geometry, passage)
@@ -1036,6 +1181,15 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
       collision,
     }
   })
+  const ambientNpcRoutes = (data.ambientNpcRoutes ?? []).map((route) => ({
+    ...route,
+    steps: route.steps.map((step) => {
+      if (step.kind !== 'storefront-visit') return step
+      const storefront = storefronts.find((candidate) => candidate.id === step.storefrontId)
+      if (!storefront?.approach) return step
+      return { ...step, target: storefront.approach, reentry: storefront.approach }
+    }),
+  }))
 
   const compiledScene = {
     walkBounds: data.walkBounds,
@@ -1071,7 +1225,7 @@ function compileMainlineSceneData(data: MainlineSceneData, portals: readonly Mai
     objects: [...objectById.values()],
     npcs: data.npcs ?? [],
     npcPlacements: data.npcPlacements ?? [],
-    ambientNpcRoutes: data.ambientNpcRoutes ?? [],
+    ambientNpcRoutes,
     npcBehaviorTargets: data.npcBehaviorTargets ?? [],
     npcBehaviors: data.npcBehaviors ?? [],
     furnitureGroups: data.furnitureGroups,
@@ -1104,7 +1258,7 @@ function projectedBoundaryStructure(structure: MainlineStructure, screenMetrics:
   if (structure.boundaryProjection !== 'screen-spacing' || !structure.bounds) return structure
   const verticalCoordinateCount = structure.boundaryCoordinateCount?.vertical
   if (!verticalCoordinateCount || verticalCoordinateCount < 2) return structure
-  const steps = boundaryGridStepsFromScreenSpacing(sharedBoundaryScreenSpacingPx, screenMetrics)
+  const steps = boundaryGridStepsFromReferenceSpacing(sharedBoundaryScreenSpacingPx)
   const height = steps.vertical * (verticalCoordinateCount - 1)
   const centerY = structure.bounds.y + structure.bounds.height / 2
   return {
@@ -1154,7 +1308,29 @@ function projectedSceneGeometry(scene: MainlineSceneDefinition, screenMetrics: S
 }
 
 function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneDefinition {
-  const compiledScene = compileMainlineSceneData(blueprint.scene, blueprint.portals)
+  const storefrontPortalIds = new Set((blueprint.scene.storefronts ?? []).flatMap(storefront => storefront.portalId ? [storefront.portalId] : []))
+  const authorizedPortals = restrictStorefrontPortalAccess(blueprint.id, blueprint.portals, storefrontPortalIds)
+  const compiledScene = compileMainlineSceneData(blueprint.scene, authorizedPortals)
+  const portals = authorizedPortals.map((portal) => {
+    const storefront = compiledScene.storefronts.find((slot) => slot.portalId === portal.id)
+    const entity = compiledScene.objects.find((candidate) => candidate.id === portal.entity.id)
+    if (!storefront?.composition?.fixedCellCount || !entity) return portal
+    if (blueprint.scene.rooms?.some(room => room.id === portal.fromRoomId && room.kind !== 'corridor')) return portal
+    const approach = storefront.approach ?? entity.position
+    const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
+      : storefront.edge === 'bottom' ? { x: 0, y: 1 }
+        : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+    const interiorTarget = { x: entity.position.x - outward.x * 6, y: entity.position.y - outward.y * 6 }
+    return {
+      ...portal,
+      endpoint: {
+        ...portal.endpoint,
+        doorPosition: entity.position,
+        threshold: approach,
+        crossingTarget: interiorTarget,
+      },
+    }
+  })
 
   return {
     id: blueprint.id,
@@ -1164,7 +1340,7 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
     hint: blueprint.hint,
     areaLabel: blueprint.areaLabel,
     presentation: blueprint.presentation,
-    portals: blueprint.portals,
+    portals,
     interactionText: blueprint.interactionText,
     explorationText: blueprint.explorationText,
     echoPool: blueprint.echoPool,
@@ -1176,6 +1352,23 @@ function compileMainlineScene(blueprint: MainlineSceneBlueprint): MainlineSceneD
 export const mainlineScenes: Record<MainlineSceneId, MainlineSceneDefinition> = Object.fromEntries(
   Object.entries(mainlineSceneBlueprints).map(([id, blueprint]) => [id, compileMainlineScene(blueprint)]),
 ) as Record<MainlineSceneId, MainlineSceneDefinition>
+
+// Compatibility lookup only: the legacy ID shares the exact live world object.
+Object.defineProperty(mainlineScenes, 'commercial-cafe', { get: () => mainlineScenes['commercial-street'] })
+
+export function legacyCafeEntryPosition(point?: Point): Point {
+  const street = mainlineScenes['commercial-street']
+  const room = street.rooms.find(room => room.id === 'commercial-north-cafe-interior')!
+  if (point) return mapLegacyCafePoint(point, room.bounds)
+  return { ...street.passages.find(passage => passage.id === 'street-cafe-entry')!.crossingTargets[0] }
+}
+
+export function resolveLegacyCafeEntryPosition(search?: string): Point | undefined {
+  const query = new URLSearchParams(search ?? (typeof window === 'undefined' ? '' : window.location.search))
+  if (query.get('scene') !== 'commercial-cafe') return undefined
+  const x = Number(query.get('entryX')), y = Number(query.get('entryY'))
+  return legacyCafeEntryPosition(query.has('entryX') && query.has('entryY') && Number.isFinite(x) && Number.isFinite(y) ? { x, y } : undefined)
+}
 
 export function mainlineSceneAreaLabel(scene: MainlineSceneDefinition, position: Point) {
   if (typeof scene.areaLabel === 'function') return scene.areaLabel(position)
@@ -1193,16 +1386,59 @@ export function mainlineSceneGeometryUnits(
   screenMetrics?: SceneScreenMetrics,
   storefrontPresentation?: ReadonlyMap<string, StorefrontPresentationPhase>,
 ): MainlineSceneGeometryUnit[] {
-  const geometry = screenMetrics ? projectedSceneGeometry(scene, screenMetrics) : scene.geometry
+  const geometry = mainlineCanonicalSceneGeometryUnits(scene, screenMetrics)
+  const storefrontsById = new Map(scene.storefronts.map((storefront) => [storefront.id, storefront] as const))
+  const storefrontsWithNearProjection = new Set(scene.geometry.flatMap((unit) => (
+    unit.storefrontId && unit.variant === 'near' ? [unit.storefrontId] : []
+  )))
+  type StorefrontProjection = {
+    storefront: MainlineStorefrontSlot
+    hasNearProjection: boolean
+    phase: StorefrontPresentationPhase | undefined
+    near?: boolean
+  }
+  const storefrontProjectionCache = new Map<string, StorefrontProjection>()
+  const projectionFor = (storefrontId: string) => {
+    const cached = storefrontProjectionCache.get(storefrontId)
+    if (cached) return cached
+    const storefront = storefrontsById.get(storefrontId)
+    if (!storefront) return undefined
+    const projection = {
+      storefront,
+      hasNearProjection: storefrontsWithNearProjection.has(storefrontId),
+      phase: storefrontPresentation?.get(storefrontId),
+    }
+    storefrontProjectionCache.set(storefrontId, projection)
+    return projection
+  }
+  const nearFor = (projection: StorefrontProjection) => {
+    if (projection.near !== undefined) return projection.near
+    projection.near = projection.phase
+      ? projection.phase === 'revealed' || projection.phase === 'lingering'
+      : isMainlineStorefrontNear(scene, projection.storefront, position)
+    return projection.near
+  }
   return geometry.flatMap((unit) => {
     if (!unit.storefrontId) return [unit]
-    const storefront = scene.storefronts.find((candidate) => candidate.id === unit.storefrontId)
-    if (!storefront) return []
-    const hasNearProjection = scene.geometry.some((candidate) => (
-      candidate.storefrontId === unit.storefrontId && candidate.variant === 'near'
-    ))
+    const projection = projectionFor(unit.storefrontId)
+    if (!projection) return []
+    const { storefront, hasNearProjection, phase } = projection
+    if (storefront.composition?.fixedCellCount && unit.variant) {
+      return unit.variant === (nearFor(projection) ? 'near' : 'baseline') ? [unit] : []
+    }
+    // Portal storefronts keep their authored compact facade in every view.
+    // Proximity only uncovers the one compiled, traversable door; it must not
+    // replace the sign/glass with a second wall-door-wall facade.
+    if (storefront.portalId && storefront.characterSwitch && hasNearProjection) {
+      const near = nearFor(projection)
+      if (unit.variant === 'baseline') return [unit]
+      if (unit.variant === 'near') return []
+      const doorCell = unit.visual.cells.some(cell => cell.kind === 'door' && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId))
+      if (!near || !doorCell) return [{ ...unit, visual: { kind: 'none' as const, cells: [] } }]
+      return [unit]
+    }
     if (!hasNearProjection) return unit.variant === 'baseline' ? [unit] : []
-    const presentationPhase = storefrontPresentation?.get(storefront.id)
+    const presentationPhase = phase
     if (presentationPhase) {
       // The base wall-door-wall geometry is already canonical. Presentation
       // chooses only whether the distant sign cover is painted above it.
@@ -1212,7 +1448,7 @@ export function mainlineSceneGeometryUnits(
         ? [{ ...unit, visual: { kind: 'none' as const, cells: [] } }]
         : [unit]
     }
-    const near = storefront.portalId ? isMainlineStorefrontNear(scene, storefront, position) : false
+    const near = storefront.portalId ? nearFor(projection) : false
     if (unit.variant) {
       if (near && unit.variant === 'baseline') {
         // The close-up wall/door projection must not make the storefront's
@@ -1231,6 +1467,14 @@ export function mainlineSceneGeometryUnits(
     // become visible again.
     return near ? [unit] : [{ ...unit, visual: { kind: 'none' as const, cells: [] } }]
   })
+}
+
+/** Screen-specific canonical geometry before storefront presentation filtering. */
+export function mainlineCanonicalSceneGeometryUnits(
+  scene: MainlineSceneDefinition,
+  screenMetrics?: SceneScreenMetrics,
+): readonly MainlineSceneGeometryUnit[] {
+  return screenMetrics ? projectedSceneGeometry(scene, screenMetrics) : scene.geometry
 }
 
 /**
@@ -1269,7 +1513,24 @@ export function mainlineStorefrontAnchor(scene: MainlineSceneDefinition, storefr
   return { x: structure.bounds.x, y: (storefront.start + storefront.end) / 2 }
 }
 
-export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot): Point {
+export function mainlineStorefrontApproach(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot, screenMetrics?: SceneScreenMetrics): Point {
+  const sourceRoomId = scene.passages.find(passage => passage.portalId === storefront.portalId)?.fromRoomId
+  const sourceRoom = scene.rooms.find(room => room.id === sourceRoomId)
+  // An attached room is approached from inside its parent, not outward from
+  // the outer facade normal. Keep the actual authored public threshold.
+  if (sourceRoom && sourceRoom.kind !== 'corridor' && storefront.approach) return storefront.approach
+  if (storefront.composition?.fixedCellCount) {
+    const door = mainlineCanonicalSceneGeometryUnits(scene, screenMetrics)
+      .filter((unit) => unit.storefrontId === storefront.id && unit.variant === 'near')
+      .flatMap((unit) => unit.visual.cells)
+      .find((cell) => cell.storefrontRole === 'door')
+    if (door) {
+      const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
+        : storefront.edge === 'bottom' ? { x: 0, y: 1 }
+          : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
+      return { x: door.x + outward.x * 6, y: door.y + outward.y * 6 }
+    }
+  }
   if (storefront.approach) return storefront.approach
   const anchor = mainlineStorefrontAnchor(scene, storefront)
   const approachDistance = 6
@@ -1316,13 +1577,37 @@ export function isMainlineStorefrontPresentationInRange(
     : 0
   const authoredRadius = storefront.nearRadius ?? 10
   const departureRadius = mainlineStorefrontDepartureRadius(scene, storefront)
-  const radius = departureRadius !== undefined && alongInward < 0 ? departureRadius : authoredRadius
-  return Math.hypot(position.x - approach.x, position.y - approach.y) <= radius
+  const previousRadius = departureRadius !== undefined && alongInward < 0 ? departureRadius : authoredRadius
+  // Keep the authored approach center and interaction/collision geometry.
+  // Commercial shop signs keep their reduced range; the Cafe restroom keeps
+  // its authored radius so nearby seats and fixtures can still reveal it.
+  const radiusScale = scene.id === 'commercial-street' && storefront.id !== 'cafe-restroom-sign' ? .5 : 1
+  const radius = previousRadius * radiusScale
+  if (storefront.presentationFrontage) {
+    // The reduced radius is measured from the true doorway for this opt-in
+    // frontage. The old road-centered approach otherwise leaves a dead strip
+    // immediately in front of the door. Navigation approach is unchanged.
+    // Restrict it to the actual doorway's public-side two-cell frontage;
+    // a six-cell lane's third-cell center and neighboring shop fronts cannot
+    // trigger this shop. This is presentation only, never collision/click area.
+    const step = { horizontal: sharedBoundaryScreenSpacingPx / sceneDesignReferenceMetrics.width * 100, vertical: sharedBoundaryScreenSpacingPx / sceneDesignReferenceMetrics.height * 100 }
+    const vertical = storefront.edge === 'left' || storefront.edge === 'right'
+    const outward = storefront.edge === 'right' || storefront.edge === 'bottom' ? 1 : -1
+    const normal = ((vertical ? position.x - anchor.x : position.y - anchor.y) * outward) / (vertical ? step.horizontal : step.vertical)
+    const tangent = Math.abs(vertical ? position.y - anchor.y : position.x - anchor.x) / (vertical ? step.vertical : step.horizontal)
+    if (normal < -1e-6 || normal > storefront.presentationFrontage.depthCells + 1e-6 || tangent > storefront.presentationFrontage.halfSpanCells + 1e-6) return false
+  }
+  const triggerCenter = storefront.presentationFrontage ? anchor : approach
+  return Math.hypot(position.x - triggerCenter.x, position.y - triggerCenter.y) <= radius
 }
 
 /** A storefront interaction is the outward half-disc of its authored facade. */
 export function mainlineStorefrontInteractionRegion(scene: MainlineSceneDefinition, storefront: MainlineStorefrontSlot) {
   const center = mainlineStorefrontAnchor(scene, storefront)
+  const approach = mainlineStorefrontApproach(scene, storefront)
+  const length = Math.hypot(approach.x - center.x, approach.y - center.y)
+  const sourceRoomId = scene.passages.find(passage => passage.portalId === storefront.portalId)?.fromRoomId
+  if (scene.rooms.some(room => room.id === sourceRoomId && room.kind !== 'corridor') && length > 0) return { center, outward: { x: (approach.x - center.x) / length, y: (approach.y - center.y) / length }, radius: 6 }
   const outward = storefront.edge === 'top' ? { x: 0, y: -1 }
     : storefront.edge === 'bottom' ? { x: 0, y: 1 }
       : storefront.edge === 'left' ? { x: -1, y: 0 } : { x: 1, y: 0 }
@@ -1375,16 +1660,16 @@ function createMainlineSceneSlice(scene: MainlineSceneDefinition): MainlineScene
   }
 }
 
-export const mainlineSceneSlices: Record<MainlineSceneId, MainlineSceneSliceDefinition> = {
+export const mainlineSceneSlices = {
   'jijia-ancestral-home': createMainlineSceneSlice(mainlineScenes['jijia-ancestral-home']),
   'jijia-ancestral-interior': { ...createMainlineSceneSlice(mainlineScenes['jijia-ancestral-interior']), id: 'jijia-ancestral-interior-slice' },
   'commercial-street': createMainlineSceneSlice(mainlineScenes['commercial-street']),
-  'commercial-cafe': createMainlineSceneSlice(mainlineScenes['commercial-cafe']),
   'yonghe-mining-perimeter': createMainlineSceneSlice(mainlineScenes['yonghe-mining-perimeter']),
   'yonghe-eatery': createMainlineSceneSlice(mainlineScenes['yonghe-eatery']),
   'zhongshuyuan-passage': createMainlineSceneSlice(mainlineScenes['zhongshuyuan-passage']),
   'zhongshuyuan-office': createMainlineSceneSlice(mainlineScenes['zhongshuyuan-office']),
-}
+} as Record<MainlineSceneId, MainlineSceneSliceDefinition>
+Object.defineProperty(mainlineSceneSlices, 'commercial-cafe', { get: () => mainlineSceneSlices['commercial-street'] })
 
 /**
  * The world map has one canonical destination for each playable landmark.
@@ -1392,7 +1677,7 @@ export const mainlineSceneSlices: Record<MainlineSceneId, MainlineSceneSliceDefi
  * the map always returns to the yard so a map jump never respawns inside a
  * building.
  */
-export const mainlineRespawnSceneId: MainlineSceneId = 'jijia-ancestral-home'
+export const mainlineRespawnSceneId: MainlineSceneId = initialMainlineSceneId
 
 export type MainlineMapWorld = 'surface' | 'inner'
 
@@ -1433,6 +1718,7 @@ export const mainlineMapLandmarksByWorld: Record<MainlineMapWorld, readonly Main
 export type MainlineSpawnMode = 'resume' | 'ride'
 
 export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Point, spawnMode?: MainlineSpawnMode) {
+  if (sceneId === 'commercial-cafe') return mainlineSceneRoute('commercial-street', legacyCafeEntryPosition(entryPosition), spawnMode)
   const route = '/?scene=' + sceneId
   const entry = entryPosition ? '&entryX=' + entryPosition.x + '&entryY=' + entryPosition.y : ''
   const spawn = spawnMode === 'ride' ? '&spawn=ride' : ''
@@ -1442,11 +1728,12 @@ export function mainlineSceneRoute(sceneId: MainlineSceneId, entryPosition?: Poi
 export function resolveMainlineSceneId(search?: string): MainlineSceneId | null {
   const query = new URLSearchParams(search ?? (typeof window === 'undefined' ? '' : window.location.search))
   const value = query.get('scene')
+  if (value === 'commercial-cafe') return 'commercial-street'
   return value && value in mainlineScenes ? value as MainlineSceneId : null
 }
 
 export function getMainlineSceneEntity(scene: MainlineSceneDefinition, id: string) {
-  const entity = scene.objects.find((object) => object.id === id)
+  const entity = scene.objects.find((object) => object.id === (scene.id === 'commercial-street' ? canonicalCafeEntityId(id) : id))
   if (!entity) throw new Error(`Unknown ${scene.id} scene entity: ${id}`)
   return entity
 }

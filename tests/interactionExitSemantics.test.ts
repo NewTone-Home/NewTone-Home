@@ -1,3 +1,6 @@
+import { currentCafeStart, currentCafeOptions, currentCafeRoom } from './helpers/currentCafe'
+import { mainlineNpcLabelFootprint } from '../src/center/runtime/sceneLayout'
+import { mainlineNpcStagedPoint } from '../src/center/runtime/mainlineNpcStaging'
 import {readFileSync} from 'node:fs'
 import {describe,it,expect} from 'vitest'
 import {mainlineScenes} from '../src/center/runtime/mainlineScenes'
@@ -34,9 +37,9 @@ describe('interaction stance, service edge and external exit semantics',()=>{
   }
  })
  it('derives every service destination at the real table edge on its authored side',()=>{
-  const scene=mainlineScenes['commercial-cafe'],metrics={width:1280,height:720},snapshot=createMainlineSceneGeometrySnapshot(scene,scene.initialPlayerPosition,{},metrics),body=mainlineLabelFootprint('店员',scene.initialPlayerPosition,metrics,{lineHeight:1}),options={screenMetrics:metrics,geometrySnapshot:snapshot,actorId:'cafe-floor-server'}
-  let from=scene.initialPlayerPosition
-  const tables=scene.objects.filter(o=>o.kind==='table'&&o.id!==commercialCafeStoryTableId)
+  const scene=mainlineScenes['commercial-street'],metrics=currentCafeOptions.screenMetrics,snapshot=createMainlineSceneGeometrySnapshot(scene,currentCafeStart,{},metrics),body=mainlineNpcLabelFootprint(scene,'cafe-floor-server',currentCafeStart,metrics),options={screenMetrics:metrics,geometrySnapshot:snapshot,actorId:'cafe-floor-server',actorFootprint:{width:body.width,height:body.height}}
+  let from=mainlineNpcStagedPoint(scene,'cafe-floor-server')!
+  const tables=scene.objects.filter(o=>o.kind==='table'&&o.roomId===currentCafeRoom.id&&o.id!==commercialCafeStoryTableId)
   for(let i=0;i<tables.length;i++){
     const table=tables[i],intent=resolveCommercialCafeFloorServiceIntent(scene,i)!,geometry=snapshot.objects.get(table.id)!,expected=edgeContactPoint(geometry.position,geometry.collision!,table.approach!,body),target=commercialCafeFloorServiceTarget(scene,from,intent,{},options)!
     expect(target).toEqual(expected)

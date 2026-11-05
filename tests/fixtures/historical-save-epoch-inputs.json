@@ -1,0 +1,37 @@
+[
+  {
+    "id": "2b7a099",
+    "raw": "{\"_version\":1,\"currentSceneId\":\"commercial-street\",\"currentPosition\":null,\"scenePositions\":{},\"phoneDevice\":\"surface\",\"sceneState\":{},\"phoneNotifications\":[],\"updatedAt\":123456789}",
+    "sha256": "963ef8029bebabf76197b4845240cfc275e85f490883e4ec1be649fdd485f6c0",
+    "source": "C:\\Users\\Tony_Li\\Documents\\Codex\\2026-10-30\\task\\newtone-save-entry-20261104-evidence\\terra-production-v1\\service-results.json",
+    "origin": "Terra historical createInitialPlayerSave + savePlayerSave using synthetic memory; no real user storage"
+  },
+  {
+    "id": "147520e",
+    "raw": "{\"_version\":1,\"currentSceneId\":\"commercial-street\",\"currentPosition\":null,\"scenePositions\":{},\"phoneDevice\":\"surface\",\"sceneState\":{},\"phoneNotifications\":[],\"updatedAt\":123456789}",
+    "sha256": "963ef8029bebabf76197b4845240cfc275e85f490883e4ec1be649fdd485f6c0",
+    "source": "C:\\Users\\Tony_Li\\Documents\\Codex\\2026-10-30\\task\\newtone-save-entry-20261104-evidence\\terra-production-v1\\service-results.json",
+    "origin": "Terra historical createInitialPlayerSave + savePlayerSave using synthetic memory; no real user storage"
+  },
+  {
+    "id": "024c7eac",
+    "raw": "{\"_version\":1,\"currentSceneId\":\"commercial-street\",\"currentPosition\":null,\"scenePositions\":{},\"phoneDevice\":\"surface\",\"storyClock\":{\"dayId\":\"story-day-001\",\"stage\":\"commercial-street\",\"month\":4,\"day\":12,\"weekday\":6,\"hour\":11,\"minute\":0,\"weatherCycle\":\"sunny\"},\"sceneState\":{},\"phoneNotifications\":[],\"phoneNotes\":[{\"id\":\"story-opening\",\"kind\":\"story\",\"title\":\"当前事项\",\"body\":\"去里世界商业街咖啡馆找老周。\",\"status\":\"current\",\"pinned\":false,\"pinAvailable\":false,\"storyStage\":\"opening\",\"createdAt\":0,\"updatedAt\":0}],\"phoneContactNotes\":{},\"phoneCallHistory\":[],\"updatedAt\":123456789}",
+    "sha256": "71ac2ae189066a5e050579dee51d652f2679ef74a0af70c5749343971e7f4a6e",
+    "source": "C:\\Users\\Tony_Li\\Documents\\Codex\\2026-10-30\\task\\newtone-save-entry-20261104-evidence\\terra-production-v1\\service-results.json",
+    "origin": "Terra historical createInitialPlayerSave + savePlayerSave using synthetic memory; no real user storage"
+  },
+  {
+    "id": "8220392",
+    "raw": "{\"_version\":2,\"currentSceneId\":\"commercial-street\",\"currentPosition\":null,\"scenePositions\":{},\"phoneDevice\":\"inner\",\"storyClock\":{\"dayId\":\"story-day-001\",\"stage\":\"commercial-street\",\"month\":4,\"day\":12,\"weekday\":6,\"hour\":11,\"minute\":0,\"weatherCycle\":\"sunny\"},\"sceneState\":{},\"phoneNotifications\":[],\"phoneNotes\":[{\"id\":\"story-opening\",\"kind\":\"story\",\"title\":\"当前事项\",\"body\":\"去里世界商业街咖啡馆找老周。\",\"status\":\"current\",\"pinned\":false,\"pinAvailable\":false,\"storyStage\":\"opening\",\"createdAt\":0,\"updatedAt\":0}],\"phoneContactNotes\":{},\"phoneCallHistory\":[],\"updatedAt\":123456789}",
+    "sha256": "77e9900c05c7e4c16196a92b6cac306721050b1fb6969e153b0f1056df32c2d0",
+    "source": "C:\\Users\\Tony_Li\\Documents\\Codex\\2026-10-30\\task\\newtone-save-entry-20261104-evidence\\terra-historical-v2\\service-results.json",
+    "origin": "Terra historical createInitialPlayerSave + savePlayerSave using synthetic memory; no real user storage"
+  },
+  {
+    "id": "6dc1596",
+    "raw": "{\"worldGridVersion\":1,\"miningLayoutVersion\":2,\"_version\":2,\"currentSceneId\":\"commercial-street\",\"currentPosition\":null,\"scenePositions\":{},\"phoneDevice\":\"inner\",\"storyClock\":{\"dayId\":\"story-day-001\",\"stage\":\"commercial-street\",\"month\":4,\"day\":12,\"weekday\":6,\"hour\":11,\"minute\":0,\"weatherCycle\":\"sunny\"},\"sceneState\":{},\"phoneNotifications\":[],\"phoneNotes\":[{\"id\":\"story-opening\",\"kind\":\"story\",\"title\":\"当前事项\",\"body\":\"去里世界商业街咖啡馆找老周。\",\"status\":\"current\",\"pinned\":false,\"pinAvailable\":false,\"storyStage\":\"opening\",\"createdAt\":0,\"updatedAt\":0}],\"phoneContactNotes\":{},\"phoneCallHistory\":[],\"updatedAt\":123456789}",
+    "sha256": "65914ab028f589b768b998a8589f59eae8ed6cc65bc3a81dcd7710d0e5555e94",
+    "source": "C:\\Users\\Tony_Li\\Documents\\Codex\\2026-10-30\\task\\newtone-save-entry-20261104-evidence\\terra-historical-v2\\service-results.json",
+    "origin": "Terra historical createInitialPlayerSave + savePlayerSave using synthetic memory; no real user storage"
+  }
+]

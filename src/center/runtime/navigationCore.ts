@@ -104,6 +104,80 @@ export function canTravelAlongSegment(
   return true
 }
 
+/**
+ * Try a small, deterministic detour around exactly one dynamic rectangle.
+ * Every candidate edge is still checked by the caller's live movement rules;
+ * this helper never relaxes static geometry, doors, permissions, or barriers.
+ */
+export function findSingleDynamicObstacleDetour(
+  start: Point,
+  target: Point,
+  dynamicObstacles: readonly CollisionBox[],
+  actorFootprint: NavigationActorFootprint,
+  canTravel: (from: Point, to: Point) => boolean,
+): Point[] | null {
+  const halfWidth = actorFootprint.width / 2
+  const halfHeight = actorFootprint.height / 2
+  const directSteps = Math.max(1, Math.ceil(Math.hypot(target.x - start.x, target.y - start.y) / sharedNavigationTraversalStep))
+  const directBlockers = new Set<number>()
+  for (let step = 1; step < directSteps; step += 1) {
+    const progress = step / directSteps
+    const point = { x: start.x + (target.x - start.x) * progress, y: start.y + (target.y - start.y) * progress }
+    const actor = navigationActorBox(point, actorFootprint)
+    dynamicObstacles.forEach((obstacle, index) => {
+      const padding = obstacle.padding ?? 0
+      const expanded = {
+        x: obstacle.x - padding,
+        y: obstacle.y - padding,
+        width: obstacle.width + padding * 2,
+        height: obstacle.height + padding * 2,
+      }
+      if (actor.x < expanded.x + expanded.width && actor.x + actor.width > expanded.x
+        && actor.y < expanded.y + expanded.height && actor.y + actor.height > expanded.y) directBlockers.add(index)
+    })
+  }
+  if (directBlockers.size !== 1) return null
+
+  const obstacle = dynamicObstacles[[...directBlockers][0]!]!
+  const padding = obstacle.padding ?? 0
+  const gap = .05
+  const left = obstacle.x - padding - halfWidth - gap
+  const right = obstacle.x + obstacle.width + padding + halfWidth + gap
+  const top = obstacle.y - padding - halfHeight - gap
+  const bottom = obstacle.y + obstacle.height + padding + halfHeight + gap
+  // Fixed six-node graph: start, target, and the four clearance corners.
+  const nodes = [start, target, { x: left, y: top }, { x: right, y: top }, { x: right, y: bottom }, { x: left, y: bottom }]
+  const costs = nodes.map(() => Infinity)
+  const previous = nodes.map(() => -1)
+  const visited = nodes.map(() => false)
+  costs[0] = 0
+  for (let iteration = 0; iteration < nodes.length; iteration += 1) {
+    let current = -1
+    for (let index = 0; index < nodes.length; index += 1) {
+      if (!visited[index] && (current < 0 || costs[index]! < costs[current]!)) current = index
+    }
+    if (current < 0 || !Number.isFinite(costs[current])) break
+    if (current === 1) break
+    visited[current] = true
+    for (let next = 0; next < nodes.length; next += 1) {
+      if (next === current || visited[next] || !canTravel(nodes[current]!, nodes[next]!)) continue
+      const candidate = costs[current]! + Math.hypot(nodes[next]!.x - nodes[current]!.x, nodes[next]!.y - nodes[current]!.y)
+      if (candidate < costs[next]!) {
+        costs[next] = candidate
+        previous[next] = current
+      }
+    }
+  }
+  if (!Number.isFinite(costs[1])) return null
+  const route: Point[] = []
+  for (let index = 1; index >= 0; index = previous[index]!) {
+    route.unshift(nodes[index]!)
+    if (index === 0) break
+    if (previous[index]! < 0) return null
+  }
+  return route
+}
+
 /** Resolve the nearest clear point beside any rectangular scene object. */
 export function edgeContactPoint(center: Point, collision: CollisionBox, from: Point, actorFootprint: NavigationActorFootprint): Point {
   const dx = from.x - center.x

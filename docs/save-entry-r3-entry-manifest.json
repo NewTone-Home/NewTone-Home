@@ -1,0 +1,17 @@
+{
+  "base": "7d5fa3181d8c80d2deee10b9df222082b01498cc",
+  "testsRun": false,
+  "buildRun": false,
+  "files": {
+    "src/App.jsx": "bb08d10d8a27b70eaaaa62e42f7c016ea004727b392da926da8c95676fb198f7",
+    "src/services/runtimeRecovery.mjs": "d2c671c541d03693ef58d3da3e2b97433942ef8c20f5942614721ad7ae7ccbfe",
+    "src/services/runtimeEntryIdentity.mjs": "52397ff2ee2effdd51f295994320e9e65b4f9b99c91b6190927106bc7c056d7f",
+    "src/services/runtimeEntryIdentity.test.mjs": "d110b039e5dc7af72215deb8991e68cb058a001b16c470ecb87def9df9b102ec",
+    "src/components/RuntimeRecoveryBoundary.jsx": "ca1555e524206e038e3a4081062c05e7bee25233597e7cc613b2e39331baad7a",
+    "src/components/RuntimeRecoveryBoundary.test.mjs": "ce09ceb7aa13e519e27e0f23a5beb3204a128355ad89f339398434a45222c768",
+    "e2e/saveEntryRecovery.spec.ts": "283027b80ea41a7af6bb56ea9da0087f24e9de3b6a9404eec7d25d91d5b7913b",
+    "tests/readerShellContract.test.js": "d84534c549c65e56fe0f30dade1222d19466880b5337bffffa448694a03ef9b0",
+    "vitest.save-entry.config.mjs": "968b1f29836e30164265f4e7070edc7e1779ef35acbb7911ef19453f6ddf93e1"
+  },
+  "aggregateSHA256": "0c558b57fee3b4fa56b736e25832b7f9b5032c189c87be64f8f611df2e36fe13"
+}

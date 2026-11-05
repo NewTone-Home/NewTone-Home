@@ -1,23 +1,45 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type AnimationEvent as ReactAnimationEvent, type FormEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
+import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type AnimationEvent as ReactAnimationEvent, type FormEvent, type TransitionEvent as ReactTransitionEvent } from 'react'
 import { type MainlineSceneId } from './mainlineScenes'
 import { getPhoneMapRegions, type PhoneMapZoomLevel } from './phoneMapModel'
 import { phoneInputOwner, phoneIsOnline, phoneRideAvailability, type PhoneDevice, type WorldLayer, type WorldPhonePhase } from './phoneState'
-import { commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
+import { milkTeaDrinks, milkTeaIceOptions, milkTeaSugarOptions, commercialStreetMilkTeaQueueStatus, formatCommercialStreetMilkTeaOrderNumber, type CommercialStreetMilkTeaOrder, type MilkTeaDrink, type MilkTeaIce, type MilkTeaSugar } from './commercialStreetMilkTea'
+import { ShopOrderApp, type ShopOrderProduct } from './ShopOrderApp'
+import { DrinkMarketApp } from './DrinkMarketApp'
+import { commercialStreetDrinkCatalog } from './commercialStreetDrinkCatalog'
+import { commercialCafeTakeawayCatalog } from './commercialCafeTakeawayCatalog'
+import { yongheTakeawayCatalog } from './yongheTakeawayCatalog'
+import { crossShopIds, type CrossShopOrder, type HeldConsumable , type ShopOrderHistoryEntry } from './crossShopOrders'
 
 import { type MainlineRideOrder, type MainlineRideVehicle, type MainlineRideRequestResult } from './mainlineRide'
 import { PhoneNotificationCapsule } from './PhoneNotificationCapsule'
 import type { PhoneNotification } from './phoneNotifications'
 import { phoneStoryHistory, type PhoneCallRecord, type PhoneNote } from './phonePersonalData'
-import { mainlineStoryDateLabel, mainlineStoryTimeLabel, mainlineWorldWeatherLabel, type MainlineStoryClock } from './mainlineStoryClock'
+import { daysInStoryMonth, mainlineStoryDateLabel, mainlineStoryTimeLabel, mainlineWorldWeatherLabel, storyCalendarLeadingBlankCount, type MainlineStoryClock } from './mainlineStoryClock'
 import './phone.css'
 import { PhoneMapCanvas } from './PhoneMapCanvas'
 import { PhoneRideApp } from './PhoneRideApp'
 import type { MainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { PhonePlaceDetails } from './PhonePlaceDetails'
+import { commercialCafeCompletionPhoneMessageReadyForAck } from './cafeCompletionPhone'
+import { laoZhouArrivalText } from './openingGuidance'
+import type { SessionGameActivitySource } from './sessionGameClock'
 
-type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'notes'
+type PhoneApp = 'map' | 'ride' | 'contacts' | 'feedback' | 'milk-tea' | 'fruit-tea' | 'yonghe-order' | 'cafe-takeaway' | 'notes'
+export function phoneAppForShopId(shopId: string): PhoneApp | null {
+  if (shopId === crossShopIds.milkTea || shopId === crossShopIds.fruitTea || shopId === crossShopIds.cafeTakeaway) return 'milk-tea'
+  if (shopId === crossShopIds.yonghe) return 'yonghe-order'
+  if (shopId === crossShopIds.cafeTakeaway) return 'cafe-takeaway'
+  return null
+}
+function shopTitleForId(shopId: string): string {
+  if (shopId === crossShopIds.milkTea) return '奶茶店'
+  if (shopId === crossShopIds.fruitTea) return '果茶店'
+  if (shopId === crossShopIds.yonghe) return '永和小馆'
+  if (shopId === crossShopIds.cafeTakeaway) return '咖啡馆'
+  return '店铺'
+}
 type FeedbackMode = 'phone'
 type FeedbackPayload = {
   freeText: string
@@ -26,21 +48,41 @@ type FeedbackPayload = {
 type FeedbackSubmitResult = { ok: boolean; reason?: string }
 type MapPoint = readonly [number, number]
 type ContactView = 'list' | 'detail' | 'messages' | 'call'
-type ContactId = 'lao-zhou'
+type ContactId = 'lao-zhou' | 'ruoyu'
+
+/** `sent` marks Xiujie's own bubbles; `date` starts a new dated group in the thread (history precedes live messages). */
+type ContactMessage = { text: string; sent?: boolean; date?: string }
 
 type ContactDefinition = {
   id: ContactId
   name: string
   detail: string
-  messages: readonly string[]
+  messages: readonly ContactMessage[]
 }
 
 const innerContacts: readonly ContactDefinition[] = [
   {
+    id: 'ruoyu',
+    name: '孙若雨',
+    detail: '中枢院 · 联系人',
+    messages: [
+      { text: '帮我查一下最近的转运记录。', sent: true, date: '周四' },
+      { text: '好的。' },
+      { text: '老地方？', date: '刚刚' },
+      { text: '好，见面说。', sent: true },
+    ],
+  },
+  {
     id: 'lao-zhou',
     name: '老周',
     detail: '中枢院 · 联系人',
-    messages: ['陈副部长失踪了。', '什么时候有空。', '周六。', '老地方。', '好。'],
+    messages: [
+      { text: '陈副部长失踪了。', date: '三天前' },
+      { text: '什么时候有空。', sent: true },
+      { text: '周六。' },
+      { text: '老地方。', sent: true },
+      { text: '好。' },
+    ],
   },
 ]
 
@@ -51,12 +93,14 @@ type WorldPhoneProps = {
   worldLayer: WorldLayer
   device: PhoneDevice
   open: boolean
+  dialogueActive?: boolean
   onOpen: () => void
   onClose: () => void
   onCloseComplete?: () => void
   rideOrder?: MainlineRideOrder | null
   notifications?: readonly PhoneNotification[]
   storyClock: MainlineStoryClock
+  gameTimeLabel?: string
   notificationScreen?: boolean
   onNotificationDismiss?: () => void
   onAppOpen?: (app: PhoneApp) => void
@@ -68,11 +112,30 @@ type WorldPhoneProps = {
   milkTeaAppUnlocked?: boolean
   milkTeaOrder?: CommercialStreetMilkTeaOrder | null
   milkTeaHeld?: boolean
-  requestedApp?: 'milk-tea' | null
+  ruoyuMessagesUnlocked?: boolean
+  requestedApp?: 'milk-tea' | 'fruit-tea' | 'yonghe-order' | 'cafe-takeaway' | 'lao-zhou-messages' | 'ruoyu-messages' | null
+  requestedShopId?: string | null
+  requestedShopProductId?: string | null
+  onShopOrderPlaced?: (selection: { shopId: string; productId: string }) => void
+  onShopOrderReady?: (order: { id: string; shopId: string; productId: string; productName: string }) => void
+  onShopNotificationOpen?: (shopId: string) => void
+  availableShopIds?: readonly string[]
+  shopOrders?: Readonly<Record<string, CrossShopOrder>>
+  shopOrderHistory?: readonly ShopOrderHistoryEntry[]
+  heldConsumable?: HeldConsumable | null
+  walletBalance?: number
+  gameTimeMs?: number
+  preparationConfiguredByShop?: Readonly<Record<string, boolean>>
+  onShopOrderConfirm?: (selection: { shopId: string; productId: string; idempotencyKey: string; options?: Record<string, string | number | boolean | null> }) => { ok: boolean; reason?: string }
+  onLegacyShopOrderCancel?: (shopId: string) => { ok: boolean; reason?: string }
   onRequestedAppHandled?: () => void
+  onLaoZhouMessagesDisplayed?: () => void
+  laoZhouArrivalLabel?: string | null
+  commercialMapGuide?: boolean
   onMilkTeaOrderConfirm?: (selection: { drink: MilkTeaDrink; sugar: MilkTeaSugar; ice: MilkTeaIce }) => void
   onMilkTeaOrderStarted?: () => void
   onMeaningfulActivity?: () => void
+  onClockActivitySourceChange?: (sourceId: string, source: SessionGameActivitySource | null) => void
   notes?: readonly PhoneNote[]
   yongheLeadUnlocked?: boolean
   contactNotes?: Readonly<Record<string, string>>
@@ -92,6 +155,7 @@ function PhoneAppIcon({ app }: { app: PhoneApp }) {
       {app === 'map' && <><path {...common} d="M12 21s7-6.4 7-12a7 7 0 1 0-14 0c0 5.6 7 12 7 12Z" /><circle {...common} cx="12" cy="9" r="2.3" /></>}
       {app === 'ride' && <><path {...common} d="m5 13 1.4-4.1A2 2 0 0 1 8.3 7.5h7.4a2 2 0 0 1 1.9 1.4L19 13v5h-2v-2H7v2H5v-5Z" /><path {...common} d="M5.5 13h13M8 10.5h.01M16 10.5h.01" /></>}
       {app === 'milk-tea' && <><path {...common} d="M7 8h10l-1 12H8L7 8Z" /><path {...common} d="m10 8 3-5M12 11v5M10 13h4" /></>}
+      {(app === 'fruit-tea' || app === 'yonghe-order' || app === 'cafe-takeaway') && <><path {...common} d="M5 8h14l-1.2 12H6.2L5 8Z" /><path {...common} d="M9 8V5h6v3M8 12h8" /></>}
       {app === 'contacts' && <><circle {...common} cx="9" cy="8" r="3" /><path {...common} d="M3.5 20a5.5 5.5 0 0 1 11 0M17 5.5a3 3 0 0 1 0 5.8M17 14a5 5 0 0 1 3.5 4.8" /></>}
       {app === 'feedback' && <><path {...common} d="M4 5.5h16v11H9l-5 3v-14Z" /><path {...common} d="M8 10h8M8 13h5" /></>}
       {app === 'notes' && <><path {...common} d="M6 3.5h9l3.5 3.7v13.3H6z" /><path {...common} d="M14.5 3.5v4H18M9 12h6M9 15h6" /></>}
@@ -185,7 +249,7 @@ function FeedbackApp({
     })
     setSubmitting(false)
     if (!result.ok) {
-      setError(result.reason === 'empty-feedback' ? '先写下一点内容。' : '暂时没有提交成功，请稍后再试。')
+      setError(result.reason === 'empty-feedback' ? '先写下一点内容' : '暂时没有提交成功，请稍后再试')
       return
     }
     setSubmitted(true)
@@ -195,7 +259,7 @@ function FeedbackApp({
     return (
       <section className="world-phone__feedback world-phone__feedback--result" aria-live="polite">
         <span className="world-phone__feedback-kicker">反馈</span>
-        <strong>已收到，谢谢</strong>
+        <strong>感谢你的反馈！</strong>
         <div className="world-phone__feedback-actions">
           <button type="button" onClick={onFinish}>返回手机</button>
         </div>
@@ -206,7 +270,7 @@ function FeedbackApp({
   return (
     <form className="world-phone__feedback" onSubmit={submit}>
       <span className="world-phone__feedback-kicker">反馈</span>
-      <p className="world-phone__feedback-intro">有什么想说的，可以写在这里。</p>
+      <p className="world-phone__feedback-intro">有什么问题或建议，可以写在这里</p>
       <textarea className="world-phone__feedback-textarea" value={freeText} maxLength={2000} onChange={event => setFreeText(event.target.value)} placeholder="写下你的反馈" aria-label="自定义反馈" />
       {error && <p className="world-phone__feedback-error" role="alert">{error}</p>}
       <button className="world-phone__feedback-submit" type="submit" disabled={submitting}>{submitting ? '提交中…' : '提交反馈'}</button>
@@ -214,35 +278,59 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, requestedApp = null, onRequestedAppHandled, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, dialogueActive = false, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, ruoyuMessagesUnlocked = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, onShopNotificationOpen, availableShopIds = [], shopOrders = {}, shopOrderHistory = [], heldConsumable = null, walletBalance = 800, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, laoZhouArrivalLabel = null, commercialMapGuide = false, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+  const clockSourceId = useId()
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
   const [phase, setPhase] = useState<WorldPhonePhase>('closed')
   const [leavingApp, setLeavingApp] = useState<PhoneApp | 'home' | null>(null)
   const [appOrigin, setAppOrigin] = useState('50% 80%')
   const phoneRef = useRef<HTMLElement>(null)
+  const swipeDownRef = useRef<{ pointerId: number; x: number; y: number } | null>(null)
+  const laoZhouMessageHandoffPendingRef = useRef(false)
   const [placeCall, setPlaceCall] = useState<string | null>(null)
   const [activeApp, setActiveApp] = useState<PhoneApp | null>(null)
   const [contactView, setContactView] = useState<ContactView>('list')
+  const [milkTeaClock, setMilkTeaClock] = useState(() => Date.now())
+  const [milkTeaDrink, setMilkTeaDrink] = useState<MilkTeaDrink | null>(null)
+  const [milkTeaSugar, setMilkTeaSugar] = useState<MilkTeaSugar | null>(null)
+  const [milkTeaIce, setMilkTeaIce] = useState<MilkTeaIce | null>(null)
+  const milkTeaOrderStartedRef = useRef(false)
+  const phoneReading = open && (notificationScreen || !['map', 'ride', 'feedback', 'milk-tea'].includes(activeApp ?? ''))
+  useEffect(() => {
+    const sourceId = `phone:${clockSourceId}:reading`
+    onClockActivitySourceChange?.(sourceId, phoneReading ? 'phone-reading' : null)
+    return () => onClockActivitySourceChange?.(sourceId, null)
+  }, [clockSourceId, onClockActivitySourceChange, phoneReading])
   const [selectedContactId, setSelectedContactId] = useState<ContactId>('lao-zhou')
   const [contactNoteDraft, setContactNoteDraft] = useState('')
   const [activeCallStartedAt, setActiveCallStartedAt] = useState<number | null>(null)
   const [locationCardOpen, setLocationCardOpen] = useState(false)
+  const [orientationPermission, setOrientationPermission] = useState<'idle' | 'granted' | 'denied'>('idle')
+  const [yonghePreviewMapZoom, setYonghePreviewMapZoom] = useState<PhoneMapZoomLevel>(1.65)
+  const [yonghePreviewMapPan, setYonghePreviewMapPan] = useState<MapPoint>([0, 0])
+  const [yongheMapHandoffPhase, setYongheMapHandoffPhase] = useState<'opening' | 'settled' | null>(null)
+  const placeMapCardRef = useRef<HTMLElement>(null)
+  const placeCardTiltRef = useRef<HTMLElement>(null)
+  const orientationBaselineRef = useRef<{ beta: number; gamma: number } | null>(null)
+  const mapHandoffLayerRef = useRef<HTMLDivElement>(null)
+  const mapHandoffSourceRectRef = useRef<DOMRect | null>(null)
+  const mapHandoffAnimationsRef = useRef<Animation[]>([])
+  const mapHandoffOwnerRef = useRef<symbol | null>(null)
   const [selectedMapPlaceId, setSelectedMapPlaceId] = useState<string | null>(null)
   const [mapFocusRequestId, setMapFocusRequestId] = useState<string | null>(null)
   const [mapSheetHeight, setMapSheetHeight] = useState(0)
   const [contactDirection, setContactDirection] = useState(1)
   const [mapZoom, setMapZoom] = useState<PhoneMapZoomLevel>(1)
   const [selectedRideDestinationId, setSelectedRideDestinationId] = useState<string | null>(null)
-  const [milkTeaDrink, setMilkTeaDrink] = useState<MilkTeaDrink | null>(null)
-  const [milkTeaSugar, setMilkTeaSugar] = useState<MilkTeaSugar | null>(null)
-  const [milkTeaIce, setMilkTeaIce] = useState<MilkTeaIce | null>(null)
-  const milkTeaOrderStartedRef = useRef(false)
+  const [activeShopId, setActiveShopId] = useState<string | null>(null)
+  const [preselectedShopProductId, setPreselectedShopProductId] = useState<string | null>(null)
+  // The drink market opens on its shop list from the home screen, and straight into a shop (or its orders) when something asked for that shop.
+  const [marketEntry, setMarketEntry] = useState<{ key: number; shopId: string | null; productId: string | null }>({ key: 0, shopId: null, productId: null })
   const openSessionRef = useRef(false)
   const closeCompletionReportedRef = useRef(false)
   const closeTransitionStartedRef = useRef(false)
   const [mapPan, setMapPan] = useState<MapPoint>([0, 0])
-  const [milkTeaClock, setMilkTeaClock] = useState(() => Date.now())
   const [rideClock, setRideClock] = useState(() => Date.now())
   useEffect(() => { setContactNoteDraft(contactNotes[selectedContactId] ?? '') }, [contactNotes, selectedContactId])
   useEffect(() => {
@@ -270,7 +358,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
         : phase
   const isInteractive = renderedPhase === 'opening' || renderedPhase === 'open'
   const inputOwner = phoneInputOwner(renderedPhase)
-  const handleIsInteractive = inputOwner === 'handle'
+  const handleIsInteractive = inputOwner === 'handle' && !dialogueActive
   const online = phoneIsOnline(displayDevice, worldLayer)
   const mapRegions = getPhoneMapRegions(displayDevice)
   const rideAvailability = phoneRideAvailability(displayDevice, worldLayer)
@@ -278,9 +366,58 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const batteryPercent = 72
   const isMapOpen = !notificationScreen && activeApp === 'map'
   const pinnedMemo = notes.find(note => note.status === 'current' && note.pinned)
+  const yongheLeadNote = notes.find(note => note.id === 'story-yonghe-lead')
   const widgetNotes = notes.filter(note => note.status === 'current' && note.id !== pinnedMemo?.id).slice(0, 2)
   const memo = pinnedMemo ?? widgetNotes[0] ?? null
   const selectedContact = innerContacts.find((contact) => contact.id === selectedContactId) ?? innerContacts[0]
+  const supportsOrientationPermission = typeof window !== 'undefined'
+    && typeof (window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> }).requestPermission === 'function'
+  const isTouchDevice = typeof navigator !== 'undefined' && (navigator.maxTouchPoints > 0 || (typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches))
+
+  const requestPlaceCardOrientation = async (event: { stopPropagation: () => void }) => {
+    event.stopPropagation()
+    const orientationEvent = window.DeviceOrientationEvent as typeof DeviceOrientationEvent & { requestPermission?: () => Promise<'granted' | 'denied'> }
+    if (!orientationEvent.requestPermission) return
+    try {
+      const result = await orientationEvent.requestPermission()
+      setOrientationPermission(result === 'granted' ? 'granted' : 'denied')
+    } catch {
+      setOrientationPermission('denied')
+    }
+  }
+
+  useEffect(() => {
+    if (!locationCardOpen || !isTouchDevice || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      orientationBaselineRef.current = null
+      placeCardTiltRef.current?.style.removeProperty('--place-tilt-x')
+      placeCardTiltRef.current?.style.removeProperty('--place-tilt-y')
+      return undefined
+    }
+    if (supportsOrientationPermission && orientationPermission !== 'granted') return undefined
+
+    const handleOrientation = (event: DeviceOrientationEvent) => {
+      if (event.beta === null || event.gamma === null) return
+      if (!orientationBaselineRef.current) orientationBaselineRef.current = { beta: event.beta, gamma: event.gamma }
+      const deltaBeta = Math.max(-8, Math.min(8, event.beta - orientationBaselineRef.current.beta))
+      const deltaGamma = Math.max(-8, Math.min(8, event.gamma - orientationBaselineRef.current.gamma))
+      const card = placeCardTiltRef.current
+      if (!card) return
+      card.style.setProperty('--place-tilt-x', `${deltaBeta * -0.22}deg`)
+      card.style.setProperty('--place-tilt-y', `${deltaGamma * 0.22}deg`)
+    }
+    window.addEventListener('deviceorientation', handleOrientation)
+    return () => {
+      window.removeEventListener('deviceorientation', handleOrientation)
+      orientationBaselineRef.current = null
+      placeCardTiltRef.current?.style.removeProperty('--place-tilt-x')
+      placeCardTiltRef.current?.style.removeProperty('--place-tilt-y')
+    }
+  }, [locationCardOpen, isTouchDevice, orientationPermission, supportsOrientationPermission])
+  const shopTitle = activeShopId ? shopTitleForId(activeShopId) : ''
+  const isDrinkMarketApp = (activeApp === 'milk-tea' || activeApp === 'fruit-tea' || activeApp === 'cafe-takeaway') && Boolean(activeShopId) && activeShopId !== crossShopIds.yonghe
+  const shopProducts: ShopOrderProduct[] = activeShopId === crossShopIds.milkTea || activeShopId === crossShopIds.fruitTea
+    ? commercialStreetDrinkCatalog.filter(product => product.storeId === activeShopId).map(product => ({ id: product.id, name: product.name, price: product.price, customization: product.customization }))
+    : activeShopId === crossShopIds.yonghe ? [...yongheTakeawayCatalog] : activeShopId === crossShopIds.cafeTakeaway ? [...commercialCafeTakeawayCatalog] : []
 
   // The parent may close the Phone in the first interactable frame of its
   // opening transition. Remember that a visible session exists during render
@@ -346,14 +483,22 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
       setAppOrigin(`${i.x + i.width / 2 - p.x}px ${i.y + i.height / 2 - p.y}px`)
     }
     onAppOpen?.(app)
+    setMarketEntry(current => ({ key: current.key + 1, shopId: null, productId: null }))
+    if (app === 'milk-tea') setActiveShopId(availableShopIds.includes(crossShopIds.milkTea) ? crossShopIds.milkTea : availableShopIds[0] ?? null)
+    else if (app === 'fruit-tea') setActiveShopId(crossShopIds.fruitTea)
+    else if (app === 'yonghe-order') setActiveShopId(crossShopIds.yonghe)
+    else if (app === 'cafe-takeaway') setActiveShopId(crossShopIds.cafeTakeaway)
+    else setActiveShopId(null)
     if (activeApp && activeApp !== app) setLeavingApp(app)
     else setActiveApp(app)
+    setYongheMapHandoffPhase(null)
     if (app !== 'contacts') setContactView('list')
     setLocationCardOpen(false)
   }
 
   const closeApp = () => {
     if (leavingApp) return
+    setYongheMapHandoffPhase(null)
     if (activeApp) setLeavingApp('home')
   }
 
@@ -374,9 +519,154 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const closePhone = useCallback(() => {
     setPlaceCall(null)
     setLeavingApp(null)
+    setYongheMapHandoffPhase(null)
     if (activeCallStartedAt !== null) finishCall()
     onClose()
   }, [activeCallStartedAt, finishCall, onClose])
+
+  // Swipe down on the phone to put it away. It never starts on the map (which pans) or on a list that is scrolled down.
+  const swipeDownBlocked = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return false
+    // Only the home screen closes on a swipe: with an app open the same gesture scrolls lists or pans the map.
+    if ((activeApp !== null && !notificationScreen) || placeCall) return true
+    for (let element: Element | null = target; element && element !== phoneRef.current; element = element.parentElement) {
+      if (element instanceof HTMLElement && element.scrollHeight > element.clientHeight + 1 && element.scrollTop > 0) return true
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) return true
+    }
+    return false
+  }
+  const handleSwipeDownStart = (event: React.PointerEvent<HTMLElement>) => {
+    if (!isInteractive || swipeDownBlocked(event.target)) { swipeDownRef.current = null; return }
+    swipeDownRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+  }
+  const handleSwipeDownMove = (event: React.PointerEvent<HTMLElement>) => {
+    const start = swipeDownRef.current
+    if (!start || start.pointerId !== event.pointerId) return
+    const dy = event.clientY - start.y
+    const dx = Math.abs(event.clientX - start.x)
+    if (dx > 40 && dx > dy) { swipeDownRef.current = null; return }
+    if (dy < 72 || dy < dx * 1.6) return
+    swipeDownRef.current = null
+    closePhone()
+  }
+  const handleSwipeDownEnd = () => { swipeDownRef.current = null }
+
+  const openYongheMapFromCard = (event: { stopPropagation: () => void }) => {
+    event.stopPropagation()
+    if (yongheMapHandoffPhase === 'opening' || leavingApp) return
+    const root = phoneRef.current
+    const preview = placeMapCardRef.current
+    const layer = mapHandoffLayerRef.current
+    const sourceRect = preview?.getBoundingClientRect() ?? null
+    if (root && preview && layer && sourceRect && sourceRect.width > 0 && sourceRect.height > 0) {
+      const clone = preview.cloneNode(true) as HTMLElement
+      clone.setAttribute('data-yonghe-handoff-map', 'true')
+      clone.setAttribute('aria-hidden', 'true')
+      clone.setAttribute('inert', '')
+      Object.assign(clone.style, {
+        position: 'absolute',
+        left: `${sourceRect.left - root.getBoundingClientRect().left}px`,
+        top: `${sourceRect.top - root.getBoundingClientRect().top}px`,
+        width: `${sourceRect.width}px`,
+        height: `${sourceRect.height}px`,
+        margin: '0',
+        transformOrigin: 'top left',
+        transform: 'none',
+        maxHeight: `${sourceRect.height}px`,
+        maxWidth: `${sourceRect.width}px`,
+        padding: '7px',
+        border: '1px solid #18191d35',
+        borderRadius: '12px',
+        background: '#eeeef0',
+        opacity: '1',
+        visibility: 'visible',
+        pointerEvents: 'none',
+        animation: 'none',
+        scale: '1',
+        zIndex: '1',
+      })
+      clone.querySelector('.world-phone__place-card-close')?.remove()
+      clone.querySelector('.world-phone__place-card-orientation')?.remove()
+      layer.replaceChildren(clone)
+      mapHandoffSourceRectRef.current = sourceRect
+    }
+    onAppOpen?.('map')
+    setSelectedMapPlaceId('yonghe-eatery')
+    setMapFocusRequestId('yonghe-eatery')
+    setMapZoom(1.65)
+    setMapPan([0, 0])
+    setContactView('list')
+    setLocationCardOpen(false)
+    setActiveApp('map')
+    setYongheMapHandoffPhase(sourceRect && root && layer ? 'opening' : 'settled')
+  }
+
+  useLayoutEffect(() => {
+    if (yongheMapHandoffPhase !== 'opening') return undefined
+    const owner = Symbol('yonghe-map-handoff')
+    mapHandoffOwnerRef.current = owner
+    const root = phoneRef.current
+    const layer = mapHandoffLayerRef.current
+    const clone = layer?.querySelector<HTMLElement>('[data-yonghe-handoff-map]')
+    const sourceRect = mapHandoffSourceRectRef.current
+    const mapView = root?.querySelector<HTMLElement>('.world-phone__app-view[data-app-view="map"]')
+    const target = mapView
+    if (!root || !layer || !clone || !sourceRect || !target || !mapView) {
+      layer?.replaceChildren()
+      mapHandoffSourceRectRef.current = null
+      if (mapHandoffOwnerRef.current === owner) mapHandoffOwnerRef.current = null
+      setYongheMapHandoffPhase('settled')
+      return undefined
+    }
+
+    const rootRect = root.getBoundingClientRect()
+    const targetRect = target.getBoundingClientRect()
+    const startLeft = sourceRect.left - rootRect.left
+    const startTop = sourceRect.top - rootRect.top
+    const targetLeft = targetRect.left - rootRect.left
+    const targetTop = targetRect.top - rootRect.top
+    const translateX = targetLeft - startLeft
+    const translateY = targetTop - startTop
+    const scaleX = targetRect.width / sourceRect.width
+    const scaleY = targetRect.height / sourceRect.height
+
+    const finishImmediately = () => {
+      if (mapHandoffOwnerRef.current !== owner) return
+      layer.replaceChildren()
+      mapHandoffSourceRectRef.current = null
+      setYongheMapHandoffPhase('settled')
+    }
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || typeof clone.animate !== 'function') {
+      finishImmediately()
+      return undefined
+    }
+
+    const duration = 560
+    const mapAnimation = clone.animate([
+      { transform: 'translate(0px, 0px) scale(1, 1)', opacity: 1, offset: 0 },
+      { transform: 'translate(0px, 0px) scale(1, 1)', opacity: 1, offset: 0.7 },
+      { transform: `translate(${translateX}px, ${translateY}px) scale(${scaleX}, ${scaleY})`, opacity: 0, offset: 1 },
+    ], { duration, easing: 'cubic-bezier(.22,.72,.25,1)', fill: 'forwards' })
+    const mapRevealAnimation = mapView.animate([
+      { opacity: 0, offset: 0 },
+      { opacity: 0, offset: 0.7 },
+      { opacity: 1, offset: 1 },
+    ], { duration, easing: 'linear', fill: 'forwards' })
+    mapHandoffAnimationsRef.current = [mapAnimation, mapRevealAnimation]
+    mapAnimation.onfinish = finishImmediately
+    window.addEventListener('resize', finishImmediately)
+
+    return () => {
+      window.removeEventListener('resize', finishImmediately)
+      if (mapHandoffOwnerRef.current === owner) {
+        mapHandoffAnimationsRef.current.forEach((animation) => animation.cancel())
+        mapHandoffAnimationsRef.current = []
+        layer.replaceChildren()
+        mapHandoffSourceRectRef.current = null
+        mapHandoffOwnerRef.current = null
+      }
+    }
+  }, [yongheMapHandoffPhase])
 
   useEffect(() => {
     if (!isInteractive) return
@@ -397,9 +687,53 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   useEffect(() => {
     if (!open || requestedApp !== 'milk-tea' || !milkTeaAppUnlocked) return
     onAppOpen?.('milk-tea')
+    setActiveShopId(availableShopIds[0] ?? null)
     setActiveApp('milk-tea')
     onRequestedAppHandled?.()
-  }, [milkTeaAppUnlocked, onAppOpen, onRequestedAppHandled, open, requestedApp])
+  }, [availableShopIds, milkTeaAppUnlocked, onAppOpen, onRequestedAppHandled, open, requestedApp])
+
+  useEffect(() => {
+    if (!open || (requestedApp !== 'lao-zhou-messages' && requestedApp !== 'ruoyu-messages')) return
+    laoZhouMessageHandoffPendingRef.current = requestedApp === 'lao-zhou-messages'
+    onAppOpen?.('contacts')
+    setActiveApp('contacts')
+    setSelectedContactId(requestedApp === 'ruoyu-messages' ? 'ruoyu' : 'lao-zhou')
+    setContactDirection(1)
+    setContactView('messages')
+    onRequestedAppHandled?.()
+  }, [onAppOpen, onRequestedAppHandled, open, requestedApp])
+
+  useEffect(() => {
+    if (!open || !requestedShopId) return
+    if ((requestedShopId === crossShopIds.milkTea || requestedShopId === crossShopIds.fruitTea)
+      && !availableShopIds.includes(requestedShopId)) {
+      onRequestedAppHandled?.()
+      return
+    }
+    const app = phoneAppForShopId(requestedShopId)
+    if (!app) return
+    setActiveShopId(requestedShopId)
+    setPreselectedShopProductId(requestedShopProductId ?? null)
+    setMarketEntry(current => ({ key: current.key + 1, shopId: requestedShopId, productId: requestedShopProductId ?? null }))
+    onAppOpen?.(app)
+    setActiveApp(app)
+    onRequestedAppHandled?.()
+  }, [availableShopIds, onAppOpen, onRequestedAppHandled, open, requestedShopId, requestedShopProductId])
+
+  useLayoutEffect(() => {
+    if (renderedPhase !== 'open') return
+    const messageThread = phoneRef.current?.querySelector('.world-phone__message-thread')
+    if (!commercialCafeCompletionPhoneMessageReadyForAck({
+      requested: laoZhouMessageHandoffPendingRef.current,
+      phoneOpen: open,
+      activeApp,
+      contactView,
+      selectedContactId,
+      messageThreadMounted: Boolean(messageThread),
+    })) return
+    laoZhouMessageHandoffPendingRef.current = false
+    onLaoZhouMessagesDisplayed?.()
+  }, [activeApp, contactView, onLaoZhouMessagesDisplayed, open, renderedPhase, selectedContactId])
 
   useEffect(() => {
     if (activeApp !== 'milk-tea') milkTeaOrderStartedRef.current = false
@@ -465,19 +799,24 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const selectedMapPoi = mapRegions.flatMap((region) => region.pois.map((poi) => ({ region, poi }))).find(({ poi }) => poi.id === selectedMapPlaceId) ?? null
   const selectedMapTitle = selectedMapPoi?.poi.label ?? selectedMapRegion?.label ?? null
 
-  const storyDate = mainlineStoryDateLabel()
-  const storyTime = mainlineStoryTimeLabel(storyClock.stage)
+  const storyDate = mainlineStoryDateLabel(storyClock)
+  const storyTime = gameTimeLabel ?? mainlineStoryTimeLabel(storyClock.stage)
   const worldWeather = mainlineWorldWeatherLabel(displayDevice, storyClock.weatherCycle)
+  const calendarYear = storyClock.year ?? 2025
+  const calendarMonth = storyClock.month ?? 4
+  const calendarDay = storyClock.day ?? 12
 
 
   return (
     <>
     {isInteractive && <div className="world-phone__dismiss-region" onPointerDown={event => { event.stopPropagation() }} onPointerUp={event => event.stopPropagation()} onClick={event => { event.preventDefault(); event.stopPropagation(); closePhone() }} />}
     <aside ref={phoneRef}
-      className={`world-phone world-phone--${displayDevice} world-phone--phase-${renderedPhase} ${isInteractive ? 'is-open' : ''} ${isMapOpen ? 'world-phone--map-app' : ''}`}
+      className={`world-phone world-phone--${displayDevice} world-phone--phase-${renderedPhase} ${isInteractive ? 'is-open' : ''} ${dialogueActive ? 'is-dialogue-active' : ''} ${isMapOpen ? 'world-phone--map-app' : ''}`}
       data-has-notifications={notifications.some(n => n.unread)}
+      data-yonghe-map-handoff={yongheMapHandoffPhase ?? 'idle'}
       data-phone-open={open}
       data-phone-phase={renderedPhase}
+      data-dialogue-active={dialogueActive}
       data-phone-device={displayDevice}
       data-world-layer={worldLayer}
       onClickCapture={onMeaningfulActivity} onClick={event => { event.stopPropagation(); if (!(event.target instanceof Element) || !event.target.closest(".world-phone__message-place")) setLocationCardOpen(false) }}
@@ -497,9 +836,9 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
       >
       </button>
 
-      <div inert={!isInteractive} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
-        <section className={`world-phone__panel ${isMapOpen ? 'world-phone__panel--map' : ''}`} role="dialog" aria-label="手机" aria-hidden={!isInteractive}>
-          <PhoneNotificationCapsule notifications={notifications} visible={handleIsInteractive && !open && !swapPending} />
+      <div inert={!isInteractive || yongheMapHandoffPhase === 'opening'} className="world-phone__body" onTransitionEnd={handleBodyTransitionEnd} onTransitionRun={handleBodyTransitionRun} onTransitionCancel={handleBodyTransitionCancel}>
+        <section className={`world-phone__panel ${isMapOpen ? 'world-phone__panel--map' : ''}${(activeApp === null || notificationScreen) && !placeCall ? ' is-home' : ''}`} role="dialog" aria-label="手机" aria-hidden={!isInteractive} onPointerDown={handleSwipeDownStart} onPointerMove={handleSwipeDownMove} onPointerUp={handleSwipeDownEnd} onPointerCancel={handleSwipeDownEnd}>
+          {(!dialogueActive || isInteractive) && <PhoneNotificationCapsule notifications={notifications} visible={handleIsInteractive && !open && !swapPending} />}
           <header className="world-phone__header">
             <span className="world-phone__world-status">{storyTime}　{storyDate}</span>
             <div className="world-phone__status" aria-label={`${online ? '有信号' : '无信号'}，电量${batteryPercent}%`}>
@@ -515,17 +854,17 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
                 <span>{storyDate}{displayDevice === 'inner' ? ` · ${worldWeather}` : ''}</span>
               </header>
               <span className="world-phone__lock-hint">点击空白进入手机</span>
-              {notifications.filter(n => n.unread).map(n => <button type="button" className="world-phone__notification" data-notification-app={n.app} key={n.id} onClick={event => { event.stopPropagation(); openApp(n.app) }}><strong>{n.title}</strong><span>{n.body}</span></button>)}
+              {notifications.filter(n => n.unread).map(n => <button type="button" className="world-phone__notification" data-notification-app={n.app} key={n.id} onClick={event => { event.stopPropagation(); n.shopId ? onShopNotificationOpen?.(n.shopId) : openApp(n.app) }}><strong>{n.title}</strong><span>{n.body}</span></button>)}
             </section>
           ) : activeApp === null ? (
             <section className="world-phone__home-screen" tabIndex={0} aria-label="手机主屏">
               <div className="world-phone__home-layout">
                 <section className="world-phone__home-calendar" aria-label="剧情日历">
-                  <strong>四月</strong>
+                  <strong>{calendarMonth}月</strong>
                   <div className="world-phone__calendar-grid">
                     {['一','二','三','四','五','六','日'].map(day => <small key={day}>{day}</small>)}
-                    <span />
-                    {Array.from({ length: 30 }, (_, i) => i + 1).map(day => <span key={day} aria-current={day === 12 ? 'date' : undefined} data-weather={displayDevice === 'inner' ? (Math.floor(day / 7) % 2 ? (storyClock.weatherCycle ?? 'sunny') : (storyClock.weatherCycle === 'rainy' ? 'sunny' : 'rainy')) : undefined}><b>{day}</b></span>)}
+                    {Array.from({ length: storyCalendarLeadingBlankCount(calendarYear, calendarMonth) }, (_, i) => <span key={`blank-${i}`} />)}
+                    {Array.from({ length: daysInStoryMonth(calendarYear, calendarMonth) }, (_, i) => i + 1).map(day => <span key={day} aria-current={day === calendarDay ? 'date' : undefined} data-weather={displayDevice === 'inner' ? (Math.floor(day / 7) % 2 ? (storyClock.weatherCycle ?? 'sunny') : (storyClock.weatherCycle === 'rainy' ? 'sunny' : 'rainy')) : undefined}><b>{day}</b></span>)}
                   </div>
                 </section>
                 <section className="world-phone__home-memo" aria-label="备忘录">
@@ -549,7 +888,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
                   </button>
                   {milkTeaAppUnlocked && <button type="button" data-app="milk-tea" data-unread={notifications.some(n => n.app === 'milk-tea' && n.unread)} onClick={() => openApp('milk-tea')}>
                     <span className="world-phone__app-icon"><PhoneAppIcon app="milk-tea" /></span>
-                    <span className="world-phone__app-label">奶茶</span>
+                    <span className="world-phone__app-label">饮品点单</span>
                   </button>}
                   <button type="button" data-app="contacts" onClick={() => openApp('contacts')}>
                     <span className="world-phone__app-icon"><PhoneAppIcon app="contacts" /></span>
@@ -565,24 +904,26 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
           ) : (
             <>
               <div key={activeApp} className={`world-phone__app-view ${leavingApp ? 'is-leaving' : ''}`} data-app-view={activeApp} style={{ transformOrigin: appOrigin }} onAnimationEnd={event => { if (event.target !== event.currentTarget || !leavingApp) return; if (leavingApp === 'home' && activeApp === 'feedback') onFeedbackModeChange?.(null); setActiveApp(leavingApp === 'home' ? null : leavingApp); setLeavingApp(null); setContactView('list') }}>
-              <div className="world-phone__app-bar">
+              {!isDrinkMarketApp && <div className="world-phone__app-bar">
                 {activeApp === 'contacts' && contactView !== 'list' && <button className="world-phone__app-back" type="button" onClick={() => { if (contactView === 'call') finishCall(); else { setContactDirection(-1); setContactView(contactView === 'messages' ? 'detail' : 'list') } }} aria-label="返回联系人"><span aria-hidden="true">‹</span><small>联系人</small></button>}
-                <div><strong>{activeAppLabel}</strong></div>
-              </div>
+                <div><strong>{activeApp === 'milk-tea' ? '\u996e\u54c1\u70b9\u5355' : activeAppLabel}</strong></div>
+              </div>}
               <div className="world-phone__app-content" tabIndex={0}>
             {activeApp === 'map' && (
               <div className="world-phone__map-frame">
                 <div className="world-phone__map-title">区域地图{!online ? ' · 离线' : ''}</div>
-                <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId={selectedMapPlaceId} onSelect={id => { setMapFocusRequestId(null); setSelectedMapPlaceId(id) }} mapZoom={mapZoom} setMapZoom={setMapZoom} mapPan={mapPan} setMapPan={setMapPan} focusId={mapFocusRequestId ?? selectedMapPlaceId} coveredHeight={mapSheetHeight} restoreOnBlank onBlank={() => { setSelectedMapPlaceId(null); setMapFocusRequestId(null) }} />
-                <PhonePlaceDetails id={selectedMapPlaceId} title={selectedMapTitle} onHeight={setMapSheetHeight} onRide={() => { setSelectedRideDestinationId(selectedMapRegion?.id ?? selectedMapPoi?.region.id ?? null); openApp('ride') }} onCall={() => setPlaceCall('中枢院 · 0000')} />
+                <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId={selectedMapPlaceId} onSelect={id => { setMapFocusRequestId(null); setSelectedMapPlaceId(id) }} mapZoom={mapZoom} setMapZoom={setMapZoom} mapPan={mapPan} setMapPan={setMapPan} focusId={mapFocusRequestId ?? selectedMapPlaceId} guideRegionId={commercialMapGuide ? 'commercial' : null} coveredHeight={mapSheetHeight} followFocus={yongheMapHandoffPhase === 'opening'} followFocusZoom={1.65} restoreOnBlank onBlank={() => { setSelectedMapPlaceId(null); setMapFocusRequestId(null) }} />
+                {yongheMapHandoffPhase !== 'opening' && <PhonePlaceDetails id={selectedMapPlaceId} title={selectedMapTitle} onHeight={setMapSheetHeight} onRide={() => { setSelectedRideDestinationId(selectedMapRegion?.id ?? selectedMapPoi?.region.id ?? null); openApp('ride') }} onCall={() => setPlaceCall('中枢院 · 0000')} />}
                 {!online && <p className="world-phone__offline-note">当前为离线地图，显示已缓存路线。</p>}
               </div>
             )}
 
-            {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} getRideMapSnapshot={getRideMapSnapshot} />}
+            {activeApp === 'ride' && <PhoneRideApp regions={mapRegions} device={displayDevice} currentLandmark={currentLandmark} currentSceneId={currentSceneId as MainlineSceneId} order={rideOrder} clock={rideClock} storyClock={storyClock} gameTimeMs={gameTimeMs} available={rideAvailability === 'available'} online={online} destinationId={selectedRideDestinationId} onDestination={setSelectedRideDestinationId} onConfirm={(sceneId,presentation) => onRideRequest?.(displayDevice, sceneId,presentation)} getPosition={getPlayerPosition} getRideMapSnapshot={getRideMapSnapshot} guideRegionId={commercialMapGuide ? 'commercial' : null} />}
 
-            {activeApp === 'milk-tea' && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
-              {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里已有一杯饮料</strong><small>暂时不能再下单。</small></div>
+            {isDrinkMarketApp && <DrinkMarketApp key={marketEntry.key} shopOrders={shopOrders} history={shopOrderHistory} gameTimeMs={gameTimeMs} preparationConfiguredByShop={preparationConfiguredByShop} availableShopIds={availableShopIds} initialShopId={marketEntry.shopId} initialProductId={marketEntry.productId} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onOrderPlaced={onShopOrderPlaced} onCancelLegacy={onLegacyShopOrderCancel} />}
+            {!isDrinkMarketApp && activeShopId && activeApp && shopProducts.length > 0 && <ShopOrderApp key={activeShopId} shopId={activeShopId} title={shopTitle} products={shopProducts} initialProductId={preselectedShopProductId} availableShops={availableShopIds.filter(id => id === crossShopIds.milkTea || id === crossShopIds.fruitTea || id === crossShopIds.cafeTakeaway).map(id => ({ id, label: shopTitleForId(id) }))} ordersByShop={shopOrders} onShopSelect={setActiveShopId} order={shopOrders[activeShopId] ?? null} heldConsumable={heldConsumable} walletBalance={walletBalance} gameTimeMs={gameTimeMs} preparationConfigured={Boolean(preparationConfiguredByShop[activeShopId])} onConfirm={selection => onShopOrderConfirm?.(selection) ?? { ok: false, reason: 'order-service-unavailable' }} onOrderPlaced={onShopOrderPlaced} onOrderReady={onShopOrderReady} onCancelLegacy={onLegacyShopOrderCancel} />}
+            {activeApp === 'milk-tea' && !activeShopId && <section className="world-phone__list-page world-phone__milk-tea" aria-label="奶茶">
+              {milkTeaHeld ? <div className="world-phone__list-heading"><span>奶茶</span><strong>手里还有饮料，暂时无法继续点单</strong></div>
                 : milkTeaOrder ? (() => {
                   const queue = commercialStreetMilkTeaQueueStatus(milkTeaOrder, milkTeaClock)
                   return <div className="world-phone__list-heading" data-milk-tea-status={queue.phase}>
@@ -609,22 +950,34 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
 
             {activeApp === 'contacts' && <div key={contactView} className="world-phone__subpage" data-direction={contactDirection}>{(
               contactView === 'messages' ? (
-                <section className="world-phone__message-thread" aria-label={`与${selectedContact.name}的短信`}>
+                <section className="world-phone__message-thread" data-contact-id={selectedContactId} aria-live={selectedContactId === 'ruoyu' ? 'polite' : undefined} aria-label={`与${selectedContact.name}的短信`}>
                   <div className="world-phone__message-person"><span>短信</span><strong>{selectedContact.name}</strong><small>{selectedContact.detail}</small></div>
-                  <div className="world-phone__message-date">三天前</div>
-                  {selectedContact.messages.map((message, index) => (
-                    <div className={`world-phone__message-bubble ${index % 2 === 0 ? 'world-phone__message-bubble--received' : 'world-phone__message-bubble--sent'}`} key={`${selectedContact.id}-${index}`}>
-                      {message}
-                    </div>
+                  {(selectedContact.id === 'lao-zhou' && laoZhouArrivalLabel ? [...selectedContact.messages, { text: laoZhouArrivalText, date: laoZhouArrivalLabel }] : selectedContact.messages).map((message, index) => (
+                    <Fragment key={`${selectedContact.id}-${index}`}>
+                      {message.date && <div className="world-phone__message-date">{message.date}</div>}
+                      <div className={`world-phone__message-bubble ${message.sent ? 'world-phone__message-bubble--sent' : 'world-phone__message-bubble--received'}`}>
+                        {message.text}
+                      </div>
+                    </Fragment>
                   ))}
                   {selectedContactId === 'lao-zhou' && displayDevice === 'inner' && yongheLeadUnlocked && (
-                    <div className={`world-phone__message-place ${locationCardOpen ? 'is-expanded' : ''}`} onMouseEnter={() => setLocationCardOpen(true)} onMouseLeave={() => setLocationCardOpen(false)} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('.world-phone__place-card')) setLocationCardOpen(true) }}>
-                      <div className="world-phone__message-bubble world-phone__message-bubble--received world-phone__message-bubble--place" role="button" tabIndex={0} aria-label="展开永和小馆地点卡" onKeyDown={event => { if (event.key === "Enter" || event.key === " ") setLocationCardOpen(true) }}>
-
-                        <p>查不到去了哪里。不过我在那边有个线人，据说有人好像在永和小馆那块见过陈副部长。</p>
-
+                    <div className={`world-phone__message-place ${locationCardOpen ? 'is-expanded' : ''}`} onMouseEnter={() => { if (!isTouchDevice) setLocationCardOpen(true) }} onMouseLeave={() => { if (!isTouchDevice) setLocationCardOpen(false) }} onClick={event => { if (!(event.target instanceof Element) || !event.target.closest('.world-phone__place-card')) setLocationCardOpen(true) }}>
+                      <div className="world-phone__place-anchor">
+                        <div className="world-phone__message-bubble world-phone__message-bubble--received world-phone__message-bubble--place" role="button" tabIndex={0} aria-label="打开永和小馆地点卡" aria-expanded={locationCardOpen} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setLocationCardOpen(true) }}>
+                          <p>永和小馆</p>
+                        </div>
+                        <section className="world-phone__place-card" ref={element => { placeMapCardRef.current = element; placeCardTiltRef.current = element }} data-yonghe-map-card aria-label="永和小馆地点卡" aria-hidden={!locationCardOpen} inert={!locationCardOpen} onClick={openYongheMapFromCard}>
+                          <div className="world-phone__place-card-content">
+                            <div className="world-phone__place-card-heading"><strong>永和小馆</strong></div>
+                            {locationCardOpen && <div className="world-phone__place-map-preview" data-yonghe-map-preview aria-hidden="true">
+                              <PhoneMapCanvas mapRegions={mapRegions} displayDevice={displayDevice} currentLandmark={currentLandmark} selectedMapPlaceId="yonghe-eatery" onSelect={() => {}} mapZoom={yonghePreviewMapZoom} setMapZoom={setYonghePreviewMapZoom} mapPan={yonghePreviewMapPan} setMapPan={setYonghePreviewMapPan} focusId="yonghe-eatery" followFocus followFocusZoom={1.65} />
+                            </div>}
+                            <div className="world-phone__place-card-copy"><span className="world-phone__place-card-clue-label">线索</span>{yongheLeadNote && <svg className="world-phone__place-card-scribble" viewBox="0 0 120 30" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M2 6 q5 -4 10 0 t10 0 t8 -2 t11 2 t7 -1 t12 1 t9 -2 t14 1 t10 0 t9 1" /><path d="M2 15 q6 -4 11 0 t9 1 t12 -2 t8 2 t13 -1 t10 0 t12 1" /><path d="M2 24 q5 -3 9 0 t11 -1 t9 2 t12 -1 t8 0" /></svg>}</div>
+                            {isTouchDevice && supportsOrientationPermission && orientationPermission !== 'granted' && <button type="button" className="world-phone__place-card-orientation" onClick={requestPlaceCardOrientation}>{orientationPermission === 'denied' ? '倾斜效果不可用' : '启用倾斜效果'}</button>}
+                            <button type="button" className="world-phone__place-card-close" aria-label="关闭地点卡" onClick={event => { event.stopPropagation(); setLocationCardOpen(false) }}>×</button>
+                          </div>
+                        </section>
                       </div>
-                      {locationCardOpen && <button type="button" className="world-phone__place-card" onClick={event => { event.stopPropagation(); setSelectedMapPlaceId('yonghe-eatery'); setMapFocusRequestId('yonghe-eatery'); setLocationCardOpen(false); openApp('map') }}><span aria-hidden="true">⌖</span><strong>永和小馆</strong></button>}
                     </div>
                   )}
                 </section>
@@ -654,7 +1007,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
               ) : (
                 <section className="world-phone__list-page" aria-label="联系人">
                   <ul className="world-phone__list">
-                    {innerContacts.map((contact) => (
+                    {innerContacts.filter(contact => ruoyuMessagesUnlocked || contact.id !== 'ruoyu').map((contact) => (
                       <li className="world-phone__list-row" key={contact.id}>
                         <button className="world-phone__contact-row" type="button" onClick={() => { setContactDirection(1); setSelectedContactId(contact.id); setContactView('detail') }}>
                           <span className="world-phone__contact-avatar" aria-hidden="true"><ContactAvatar /></span><span><strong>{contact.name}</strong><small>{contact.detail}</small></span>
@@ -682,6 +1035,7 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
           )}
         </section>
       </div>
+      <div ref={mapHandoffLayerRef} className={`world-phone__handoff-layer ${yongheMapHandoffPhase === 'opening' ? 'is-active' : ''}`} aria-hidden="true" />
     </aside>
     </>
   )

@@ -12,20 +12,22 @@ describe('first-release boundary', () => {
     expect(existsSync(`${root}/supabase/seed/reader-content-v1.json`)).toBe(false)
   })
 
-  it('keeps admin separate and clamps public history to Landing or Reader', () => {
+  it('keeps admin authenticated and independent of the public Center entry', () => {
     expect(source('src/main.jsx')).toContain("window.location.pathname === '/admin'")
-    expect(source('src/App.jsx')).not.toContain("from './views/Center'")
-    expect(source('src/App.jsx')).toContain("requestedView === 'reader' ? 'reader' : 'landing'")
     expect(source('src/views/Landing.jsx')).not.toContain('/admin')
+    expect(source('src/admin/AdminApp.jsx')).toContain("phase === 'ready' && draft")
+    expect(source('src/admin/AdminApp.jsx')).toContain('loadOwnerDraft(session.user.id)')
+    expect(source('src/admin/OwnerReaderPreview.jsx')).not.toContain("import('../App.jsx')")
+    expect(source('src/admin/ownerPreviewSession.mjs')).toContain('createReaderPreviewStores')
+    expect(source('src/admin/ownerPreviewSession.mjs')).not.toContain('installGameStorage')
   })
 
-  it('keeps the real Landing available with empty content and protects 9989 behind Supabase auth', () => {
-    expect(source('src/main.jsx')).toContain('<App contentStatus={result.status}')
+  it('keeps Center independent of Reader availability while preserving owner authentication and Reader tools', () => {
+    expect(source('src/main.jsx')).not.toContain('loadPublishedContent')
     expect(source('src/main.jsx')).not.toContain('<EmptyContentApp')
     expect(source('src/App.jsx')).toContain('<EntrySurface')
     expect(source('src/components/EntrySurface.jsx')).toContain('<Landing')
-    expect(source('src/App.jsx')).toContain('contentStatus={contentStatus}')
-    expect(source('src/App.jsx')).toContain('readerEntryHandoffPhase={readerEntryHandoffPhase}')
+    expect(source('src/admin/OwnerReaderPreviewHost.jsx')).toContain('<Reader')
     expect(source('src/views/ReaderOrchestrator.jsx')).toContain('<EmptyReaderOrchestrator')
     expect(source('src/views/ReaderStage.jsx')).toContain('<ReaderTools')
     expect(source('src/views/ReaderStage.jsx')).toContain('reader-empty-document')

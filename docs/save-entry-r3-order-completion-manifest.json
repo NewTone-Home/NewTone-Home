@@ -1,0 +1,26 @@
+{
+  "baseCommit": "7d5fa3181d8c80d2deee10b9df222082b01498cc",
+  "scope": "R3 order completion owner only; not joint R3 freeze",
+  "ownerSnapshotSha256": "e2fed802bf55e86d63471988d3f6ae987dd758d39481e38309695954edbeed30",
+  "algorithm": "sha256(sorted path+NUL+raw byte count+NUL+raw SHA256+LF)",
+  "files": [
+    {
+      "path": "src/center/runtime/shopOrderCompletion.test.ts",
+      "bytes": 9910,
+      "sha256": "2e400d2a27db64d452922f96235a7384fcd6da7188f4faf1bcab8b6cbbf7a7b2",
+      "lfSha256": "1a6249d60dc301f7f64cbd92bc9626bcc373fb8f9a5b48dff8831bc23f63cc46",
+      "baseSha256": "00c06a87489a5ac46939f6d90ffd53879bee5af93e58a67702b1436961e19126"
+    },
+    {
+      "path": "src/center/runtime/shopOrderCompletion.ts",
+      "bytes": 2064,
+      "sha256": "6b981f44698dd3afe8b320dcf5d30c8708174f456c60bb6056ddfcf59ec8550d",
+      "lfSha256": "e6cf2b2ab97c5d20ddf135fcb07cb55fc2b6cb5b25286ca215f675933b1b38c7",
+      "baseSha256": "d294edd24c7392e0f1c0185b4ba12495e300df0d2485003338c74072f6c9ffd6"
+    }
+  ],
+  "staticCheck": "Both TypeScript files parsed using existing createSourceFile, zero parse diagnostics. No runtime/typecheck/build/browser execution.",
+  "testsAdded": 5,
+  "existingTestsRetained": 2,
+  "authorizedExpectationUpdated": "Yonghe completion remains persisted; phone ready list excludes Yonghe, matching existing in-person cue policy."
+}

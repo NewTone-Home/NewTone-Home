@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { findMainlinePath, isWalkableMainlinePoint, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
-import { mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
+import { classifyMainlineWorldCommand, findMainlinePath, findMainlinePathThroughPassage, resolveMainlineNpcPosition, isWalkableMainlinePoint, mainlinePassageSide, resolveMainlineInteractionCandidates } from '../src/center/runtime/mainlineNavigation'
+import { mainlineCanonicalSceneGeometryUnits, mainlineSceneGeometryUnits, mainlineScenes, mainlineStorefrontApproach, mainlineStorefrontInteractionCandidates } from '../src/center/runtime/mainlineScenes'
 import { createNavigationRuntime } from '../src/center/runtime/navigationCore'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
+import { boundaryGridStepsFromReferenceSpacing, sceneDesignReferenceMetrics } from '../src/center/runtime/sceneBoundaryGrid'
+import { mainlineCameraOffset, mainlineCameraTarget } from '../src/center/runtime/mainlineViewport'
+import { storefrontAccessDeniedText } from '../src/center/runtime/storefrontAccess'
+import { storefrontCharacterCells, storefrontGeometryCellShouldRender } from '../src/center/runtime/storefrontPresentation'
 import {
   commercialStreetStorefrontInteractionDebounceMs,
   commercialStreetStorefrontInteractions,
@@ -15,13 +19,17 @@ import {
 } from '../src/center/runtime/commercialStreetStorefrontInteractions'
 
 const street = mainlineScenes['commercial-street']
+const enterableStreetPortalIds = new Set(['commercial-north-slot-1-entry', 'commercial-south-slot-5-entry', 'street-cafe-entry'])
+const referenceNavigation = { screenMetrics: sceneDesignReferenceMetrics }
+const commercialShopStorefronts = street.storefronts.filter((storefront) => /-slot(?:-\d+)?$/.test(storefront.id))
 
 describe('commercial street storefront interactions', () => {
-  it('defines exactly the 15 echo-capable storefronts plus the milk-tea order action, never Café', () => {
+  it('defines 14 ambient storefronts plus the milk-tea and fruit-tea order actions, never Café', () => {
     const interactions = Object.entries(commercialStreetStorefrontInteractions)
     expect(interactions).toHaveLength(16)
-    expect(interactions.filter(([, interaction]) => interaction.kind !== 'action')).toHaveLength(15)
+    expect(interactions.filter(([, interaction]) => interaction.kind !== 'action')).toHaveLength(14)
     expect(commercialStreetStorefrontInteractionFor('commercial-south-slot-5')).toEqual({ kind: 'action', action: 'milk-tea-order' })
+    expect(commercialStreetStorefrontInteractionFor('commercial-north-slot-1')).toEqual({ kind: 'action', action: 'fruit-tea-order' })
     expect(commercialStreetStorefrontInteractionFor('commercial-cafe-slot')).toBeUndefined()
   })
 
@@ -36,26 +44,328 @@ describe('commercial street storefront interactions', () => {
     expect(Object.keys(runtime)).toEqual(['lastShownByStorefront', 'comingSoonShown'])
   })
 
-  it('shows fruit tea Coming Soon once per scene runtime, then chooses non-repeating local text', () => {
+  it('routes fruit tea to the order action without consuming ambient text', () => {
     const runtime = createCommercialStreetStorefrontInteractionRuntime()
-    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)).toEqual({ kind: 'echo', text: 'Coming Soon' })
-    const second = resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)
-    const third = resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)
-    expect(second).toEqual({ kind: 'echo', text: '门边的立牌上画着几种颜色很亮的果饮。' })
-    expect(third).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
+    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', runtime, () => 0)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(runtime.lastShownByStorefront.size).toBe(0)
     const rebuiltRuntime = createCommercialStreetStorefrontInteractionRuntime()
-    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', rebuiltRuntime)).toEqual({ kind: 'echo', text: 'Coming Soon' })
+    expect(resolveCommercialStreetStorefrontInteraction('commercial-north-slot-1', rebuiltRuntime)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
   })
-
   it('uses existing legal navigation to reach representative storefront approaches before interaction', () => {
-    ['commercial-north-slot-1', 'commercial-north-slot-2', 'commercial-south-slot-5'].forEach((storefrontId) => {
+    // New games deliberately begin at the fruit-tea approach. Keep this
+    // movement test starting on the public lane, away from every sampled door.
+    const lane = street.rooms.find(room => room.id === 'commercial-street-public-lane')!
+    const from = { x: street.initialPlayerPosition.x, y: lane.bounds.y + lane.bounds.height / 2 }
+    const representativeStorefrontIds = ['commercial-north-slot-1', 'commercial-north-slot-2', 'commercial-south-slot-5']
+    representativeStorefrontIds.forEach((storefrontId) => {
       const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
       const approach = mainlineStorefrontApproach(street, storefront)
       expect(isWalkableMainlinePoint(approach, street)).toBe(true)
-      expect(findMainlinePath(street.initialPlayerPosition, approach, street)).not.toBeNull()
-      expect(Math.hypot(street.initialPlayerPosition.x - approach.x, street.initialPlayerPosition.y - approach.y)).toBeGreaterThan(.35)
+      expect(findMainlinePath(from, approach, street)).not.toBeNull()
+      expect(Math.hypot(from.x - approach.x, from.y - approach.y)).toBeGreaterThan(.35)
     })
   })
+
+  it('has a static street-to-fruit-door and return route, with exactly three enterable storefronts', () => {
+    const openStorefrontIds = street.storefronts
+      .filter((storefront) => storefront.id !== 'cafe-restroom-sign' && street.passages.some((passage) => passage.portalId === storefront.portalId && passage.access === 'open'))
+      .map((storefront) => storefront.id)
+      .sort()
+    expect(openStorefrontIds).toEqual(['commercial-cafe-slot', 'commercial-north-slot-1', 'commercial-south-slot-5'])
+
+    const fruit = street.storefronts.find((storefront) => storefront.id === 'commercial-north-slot-1')!
+    const frontPassage = street.passages.find((passage) => passage.portalId === fruit.portalId)!
+    const qaActorStart = { x: 22.2083, y: 39.4072 }
+    const fruitDoor = mainlineCanonicalSceneGeometryUnits(street, sceneDesignReferenceMetrics)
+      .flatMap((unit) => unit.visual.cells)
+      .find((cell) => cell.storefrontId === fruit.id && cell.storefrontRole === 'door')!
+    const clickedDoorCommand = classifyMainlineWorldCommand(street, qaActorStart, { x: fruitDoor.x, y: fruitDoor.y }, {}, referenceNavigation)
+    expect(clickedDoorCommand).toMatchObject({ kind: 'passage', passage: { id: frontPassage.id, access: 'open' } })
+    if (clickedDoorCommand.kind !== 'passage') throw new Error('Fruit door click must stay a passage command')
+    expect(clickedDoorCommand.approachPath).not.toBeNull()
+
+    const approach = findMainlinePathThroughPassage(street, frontPassage.id, street.initialPlayerPosition, {}, referenceNavigation)
+    expect(approach.path).not.toBeNull()
+    expect(approach.path!.at(-1)).toEqual(approach.target)
+    expect(isWalkableMainlinePoint(approach.target, street, {}, referenceNavigation)).toBe(true)
+
+    const outsideThreshold = frontPassage.thresholds[0]!
+    const insideThreshold = frontPassage.thresholds[1]!
+    const openDoorOptions = { ...referenceNavigation, openPassageIds: new Set([frontPassage.id]) }
+    const enterPath = findMainlinePath(outsideThreshold, insideThreshold, street, {}, openDoorOptions)
+    const returnPath = findMainlinePath(insideThreshold, outsideThreshold, street, {}, openDoorOptions)
+    expect(enterPath).not.toBeNull()
+    expect(returnPath).not.toBeNull()
+    expect(isWalkableMainlinePoint(outsideThreshold, street, {}, referenceNavigation)).toBe(true)
+    expect(isWalkableMainlinePoint(insideThreshold, street, {}, referenceNavigation)).toBe(true)
+  }, 120_000)
+  it('routes sign, door and behind-facade clicks to the matching locked northern, southern and side shop portals', () => {
+    const targets = ['commercial-north-slot-2', 'commercial-south-slot-5', 'commercial-cafe-slot', 'commercial-south-slot-2']
+    const canonical = mainlineCanonicalSceneGeometryUnits(street, { width: 1280, height: 720 })
+    for (const storefrontId of targets) {
+      const storefront = street.storefronts.find((candidate) => candidate.id === storefrontId)!
+      const passage = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
+      const door = canonical.flatMap((unit) => unit.visual.cells)
+        .find((cell) => cell.storefrontId === storefront.id && cell.storefrontRole === 'door')!
+      const sign = canonical.flatMap((unit) => unit.visual.cells)
+        .find((cell) => cell.storefrontId === storefront.id && cell.storefrontRole === 'sign')!
+      const bounds = street.structures.find((candidate) => candidate.id === storefront.wallId)!.bounds!
+      const behind = storefront.edge === 'top'
+        ? { x: door.x, y: bounds.y + 3 }
+        : storefront.edge === 'bottom'
+          ? { x: door.x, y: bounds.y + bounds.height - 3 }
+          : storefront.edge === 'left'
+            ? { x: bounds.x + 3, y: door.y }
+            : { x: bounds.x + bounds.width - 3, y: door.y }
+
+      for (const target of [{ x: sign.x, y: sign.y }, { x: door.x, y: door.y }, behind]) {
+        const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, target)
+        expect(command.kind, `${storefrontId} click ${target.x},${target.y}`).toBe('passage')
+        if (command.kind !== 'passage') continue
+        expect(command.passage.id, `${storefrontId} click ${target.x},${target.y}`).toBe(passage.id)
+        expect(command.passage.access).toBe(enterableStreetPortalIds.has(command.passage.portalId!) ? 'open' : 'locked')
+        if (!enterableStreetPortalIds.has(command.passage.portalId!)) expect(command.passage.lockedText).toBe(storefrontAccessDeniedText)
+        expect(command.approachPath).not.toBeNull()
+        const approachEnd = command.approachPath!.at(-1)!
+        expect(isWalkableMainlinePoint(approachEnd, street)).toBe(true)
+        expect(mainlinePassageSide(command.passage, approachEnd)).toBe(0)
+      }
+
+      const threshold = passage.thresholds[0]
+      const crossing = passage.crossingTargets[0]
+      const authoredApproach = mainlineStorefrontApproach(street, storefront)
+      expect(threshold.x).toBeCloseTo(authoredApproach.x)
+      expect(threshold.y).toBeCloseTo(authoredApproach.y)
+      expect(Math.abs(crossing.x - threshold.x) + Math.abs(crossing.y - threshold.y)).toBeGreaterThan(1)
+      expect(Math.abs(crossing.x - threshold.x) > Math.abs(crossing.y - threshold.y) ? 'x' : 'y')
+        .toBe(storefront.edge === 'left' || storefront.edge === 'right' ? 'x' : 'y')
+      if (storefront.edge === 'bottom') expect(crossing.y).toBeLessThan(threshold.y)
+      if (storefront.edge === 'top') expect(crossing.y).toBeGreaterThan(threshold.y)
+    }
+  })
+
+  // The attached restroom sign is also a storefront presentation, but is not a fifteenth shop.
+  it('routes all fourteen shop shells through the continuous street room with 13/25-wide shells and 24 depth anchors', () => {
+    const steps = boundaryGridStepsFromReferenceSpacing()
+    const roomSamples = commercialShopStorefronts.map((storefront) => {
+      const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
+      const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
+      const roomId = storefront.id === 'commercial-cafe-slot'
+        ? 'commercial-north-cafe-interior'
+        : `commercial-${side}-${side === 'north' ? 'n' : 's'}${slotNumber}-interior`
+      return { storefront, roomId, widthCells: storefront.composition!.fixedCellCount!, side }
+    })
+    expect(roomSamples).toHaveLength(14)
+    expect(street.storefronts).toHaveLength(15) // fourteen commercial shops plus the restroom sign
+    expect(street.rooms.filter((room) => room.id.endsWith('-interior'))).toHaveLength(15) // includes the attached restroom
+    expect(new Set(roomSamples.map((sample) => sample.roomId)).size).toBe(14)
+
+    for (const { storefront, roomId, widthCells, side } of roomSamples) {
+      const storefrontId = storefront.id
+      const room = street.rooms.find((candidate) => candidate.id === roomId)!
+      const entry = street.passages.find((candidate) => candidate.portalId === storefront.portalId)!
+      const rear = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
+      const shell = street.structures.find((candidate) => candidate.id === `${roomId}-shell`)!
+      const expectedDepth = steps.vertical * 23
+      const interior = entry.crossingTargets[0]
+      const rearActorId=street.npcs.find(n=>n.roomId===room.id&&street.actorAccess[n.id]?.includes('staff'))?.id??'protagonist'
+      const rearSize=rearActorId==='protagonist'?11:16
+      const rearNavigation={...referenceNavigation,actorId:rearActorId,actorFootprint:{width:rearSize/19.2,height:rearSize/10.8}}
+      const approach = mainlineStorefrontApproach(street, storefront)
+      const publicLanePath = findMainlinePath(street.initialPlayerPosition, approach, street, {}, referenceNavigation)
+      const openFrontNavigation={...referenceNavigation,openPassageIds:new Set([entry.id])}
+      const entryPath = findMainlinePath(approach, interior, street, {}, openFrontNavigation)
+      const storefrontIsOpen = enterableStreetPortalIds.has(entry.id)
+      const rearStart=rearActorId==='protagonist'?interior:resolveMainlineNpcPosition(street,rearActorId,{},rearNavigation)
+      const rearDoorApproachPath = findMainlinePath(rearStart, rear.thresholds[0], street, {}, rearNavigation)
+      if(rearActorId!=='protagonist'){
+        expect(isWalkableMainlinePoint(rearStart,street,{},rearNavigation)).toBe(true)
+        expect(findMainlinePath(interior,rear.thresholds[0],street,{},referenceNavigation)).toBeNull()
+      }
+      const command = classifyMainlineWorldCommand(street, street.initialPlayerPosition, interior)
+
+      expect(room.bounds.width).toBeCloseTo(steps.horizontal * (widthCells + 1))
+      expect(room.bounds.height).toBeCloseTo(expectedDepth)
+      expect(entry).toMatchObject({ access: storefrontIsOpen ? 'open' : 'locked', routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: roomId })
+      expect(entry.targetSceneId).toBeUndefined()
+      expect(rear).toMatchObject({ access: 'locked' })
+      expect(rear.targetSceneId).toBeUndefined()
+      expect(command.kind).toBe('passage')
+      if (command.kind === 'passage') expect(command.passage.id).toBe(entry.id)
+      const rearCommand = classifyMainlineWorldCommand(street, rear.thresholds[0], rear.crossingTargets[0], {}, rearNavigation)
+      expect(rearCommand.kind, `${storefrontId} rear-door approach`).toBe('passage')
+      if (rearCommand.kind === 'passage') expect(rearCommand.passage.id).toBe(rear.id)
+      const hasLaterShell = roomSamples.some((candidate) => candidate.side === side && candidate.storefront.start > storefront.start)
+      expect(shell?.wallEdges).toEqual([
+        side === 'north' ? 'top' : 'bottom',
+        'left',
+        ...(!hasLaterShell ? ['right'] : []),
+      ])
+      expect(isWalkableMainlinePoint(interior, street, {}, openFrontNavigation)).toBe(true)
+      expect(isWalkableMainlinePoint(interior, street, {}, referenceNavigation)).toBe(true)
+      expect(publicLanePath, `${storefrontId} street-to-approach path`).not.toBeNull()
+      expect(entryPath, `${storefrontId} front-to-room path`).not.toBeNull()
+      expect(entryPath?.length).toBeGreaterThan(1)
+      expect(rearDoorApproachPath, `${storefrontId} path to locked rear threshold`).not.toBeNull()
+      expect(findMainlinePath(entry.crossingTargets[0], interior, street, {}, referenceNavigation)).not.toBeNull()
+      expect(findMainlinePath(interior, entry.thresholds[0], street, {}, openFrontNavigation)).not.toBeNull()
+      expect(street.walkBounds.y).toBeLessThan(room.bounds.y)
+      expect(street.walkBounds.y + street.walkBounds.height).toBeGreaterThan(room.bounds.y + room.bounds.height)
+      expect(storefront.id === 'commercial-cafe-slot' ? roomId : entry.toRoomId).toBe(roomId)
+      expect(room.bounds.height / steps.vertical).toBeCloseTo(23)
+    }
+
+    for (const side of ['north', 'south'] as const) {
+      const row = roomSamples.filter((sample) => sample.side === side).sort((left, right) => left.storefront.start - right.storefront.start)
+      for (let index = 0; index < row.length - 1; index += 1) {
+        const current = row[index]!
+        const next = row[index + 1]!
+        const currentRoom = street.rooms.find((candidate) => candidate.id === current.roomId)!
+        const nextRoom = street.rooms.find((candidate) => candidate.id === next.roomId)!
+        const currentShell = street.structures.find((candidate) => candidate.id === `${current.roomId}-shell`)!
+        const nextShell = street.structures.find((candidate) => candidate.id === `${next.roomId}-shell`)!
+        expect(currentRoom.bounds.x + currentRoom.bounds.width).toBeCloseTo(nextRoom.bounds.x)
+        expect(currentShell.wallEdges).not.toContain('right')
+        expect(nextShell.wallEdges).toContain('left')
+      }
+    }
+
+    const northRoom = street.rooms.find((candidate) => candidate.id === 'commercial-north-n2-interior')!
+    const northInterior = { x: northRoom.bounds.x + northRoom.bounds.width / 2, y: northRoom.bounds.y + northRoom.bounds.height / 2 }
+    const offset = mainlineCameraOffset(street, northInterior)
+    const target = mainlineCameraTarget(street, northInterior, offset)
+    expect(offset.y).toBeGreaterThan(0)
+    expect(target.y).toBeGreaterThan(0)
+  }, 120_000)
+
+  it('compiles extended shell anchors and one shared separator at every supported viewport', () => {
+    const steps = boundaryGridStepsFromReferenceSpacing()
+    const metrics = [
+      { width: 1280, height: 720 },
+      { width: 1180, height: 757 },
+      { width: 390, height: 844 },
+    ]
+    const samples = commercialShopStorefronts.map((storefront) => {
+      const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
+      const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
+      const roomId = storefront.id === 'commercial-cafe-slot'
+        ? 'commercial-north-cafe-interior'
+        : `commercial-${side}-${side === 'north' ? 'n' : 's'}${slotNumber}-interior`
+      return {
+        storefront,
+        roomId,
+        characterCount: storefront.composition!.fixedCellCount!,
+        rearEdge: side === 'north' ? 'top' as const : 'bottom' as const,
+        facadeId: side === 'north' ? 'commercial-north-facade' : 'commercial-south-facade',
+        facadeEdge: side === 'north' ? 'bottom' as const : 'top' as const,
+      }
+    })
+
+    for (const { storefront, roomId, characterCount, rearEdge, facadeId, facadeEdge } of samples) {
+      const storefrontId = storefront.id
+      const shellId = `${roomId}-shell`
+      const room = street.rooms.find((candidate) => candidate.id === roomId)!
+      const canonicalFacadeXs = mainlineSceneGeometryUnits(
+        street,
+        street.initialPlayerPosition,
+        metrics[0],
+        new Map([[storefrontId, 'baseline']]),
+      ).flatMap((unit) => unit.visual.cells)
+        .filter((cell) => cell.storefrontId === storefrontId)
+        .map((cell) => cell.x)
+        .sort((left, right) => left - right)
+      expect(canonicalFacadeXs).toHaveLength(characterCount)
+
+      const anchorSignatures: string[] = []
+      for (const viewport of metrics) {
+        const units = mainlineCanonicalSceneGeometryUnits(street, viewport)
+        const shellUnits = units.filter((unit) => unit.sourceWallId === shellId)
+        const allShellCells = shellUnits.flatMap((unit) => unit.visual.cells).filter((cell) => cell.glyph !== '')
+        const cellsByCoordinate = new Map<string, (typeof allShellCells)[number][]>()
+        for (const cell of allShellCells) {
+          const key = `${cell.x.toFixed(3)}:${cell.y.toFixed(3)}`
+          cellsByCoordinate.set(key, [...(cellsByCoordinate.get(key) ?? []), cell])
+        }
+        const duplicateShellCoordinates = [...cellsByCoordinate.entries()].filter(([, cells]) => cells.length > 1)
+        const switchableStorefronts = street.storefronts.filter(candidate => candidate.portalId && candidate.characterSwitch)
+        const animatedCells = new Map(switchableStorefronts.map(candidate => [
+          candidate.id,
+          storefrontCharacterCells(street, candidate, units),
+        ]))
+        // A switchable sign intentionally compiles baseline text and its near
+        // wall/door/wall replacement at the same three coordinates. The
+        // renderer draws those through one animated host and filters both
+        // alternatives out of static geometry; structural collision stays in
+        // the geometry units independently of this visual filter.
+        duplicateShellCoordinates.forEach(([, cells]) => {
+          const storefrontId = cells[0]?.storefrontId
+          expect(storefrontId).toBe('cafe-restroom-sign')
+          expect(cells.every(cell => cell.storefrontId === storefrontId)).toBe(true)
+          expect(new Set(cells.map(cell => cell.kind === 'storefront' ? cell.storefrontRole : cell.kind)).size).toBe(2)
+          const slot = street.storefronts.find(candidate => candidate.id === storefrontId)!
+          expect(cells.every(cell => {
+            const unit = shellUnits.find(candidate => candidate.visual.cells.includes(cell))!
+            return !storefrontGeometryCellShouldRender(slot, unit, cell, animatedCells.get(slot.id))
+          })).toBe(true)
+        })
+        expect(duplicateShellCoordinates).toHaveLength(storefrontId === 'commercial-cafe-slot' ? 3 : 0)
+        const restroomPassage = street.passages.find(candidate => candidate.id === 'cafe-trial-customer-toilet-door')!
+        expect(restroomPassage.access).toBe('open')
+        expect(restroomPassage.collision.width).toBeGreaterThan(0)
+        expect(restroomPassage.doorway.width).toBeGreaterThan(0)
+        const rearCells = shellUnits.filter((unit) => unit.edge === rearEdge).flatMap((unit) => unit.visual.cells)
+        const rearPassage = street.passages.find((candidate) => candidate.id === `${roomId}-rear-door`)!
+        const rearDoorPosition = street.objects.find((candidate) => candidate.id === rearPassage.entityId)!.position
+        const rearXs = [...new Set(rearCells.map((cell) => Number(cell.x.toFixed(3))))].sort((left, right) => left - right)
+        expect(rearXs).toHaveLength(characterCount + 2)
+        expect(rearXs[0]).toBeCloseTo(canonicalFacadeXs[0]! - steps.horizontal, 2)
+        expect(rearXs.at(-1)).toBeCloseTo(canonicalFacadeXs.at(-1)! + steps.horizontal, 2)
+        rearXs.slice(1, -1).forEach((x, index) => expect(x).toBeCloseTo(canonicalFacadeXs[index]!, 2))
+        const rearDoorCell = rearCells.find((cell) => cell.kind === 'door')!
+        expect(rearDoorCell.x).toBeCloseTo(rearDoorPosition.x, 2)
+        expect(rearDoorCell.y).toBeCloseTo(rearDoorPosition.y, 2)
+
+        const facadeUnits = units.filter((unit) => unit.sourceWallId === facadeId && unit.edge === facadeEdge)
+        const facadeCells = facadeUnits.flatMap((unit) => unit.visual.cells)
+        const viewportSignature: string[] = []
+        const sideEdges = ['left', 'right'] as const
+        const rightWallOwner = samples
+          .filter((sample) => sample.storefront.edge === storefront.edge && sample.storefront.start > storefront.start)
+          .sort((left, right) => left.storefront.start - right.storefront.start)[0]
+        for (const sideEdge of sideEdges) {
+          const sideWallSourceId = sideEdge === 'right' && rightWallOwner ? `${rightWallOwner.roomId}-shell` : shellId
+          const sideWallEdge = sideEdge === 'right' && rightWallOwner ? 'left' : sideEdge
+          const sideUnits = units.filter((unit) => unit.sourceWallId === sideWallSourceId && unit.edge === sideWallEdge)
+          const sideCells = sideUnits.flatMap((unit) => unit.visual.cells)
+          const sideX = sideEdge === 'left'
+            ? canonicalFacadeXs[0]! - steps.horizontal
+            : canonicalFacadeXs.at(-1)! + steps.horizontal
+          const sideYs = new Set(sideCells.filter((cell) => Math.abs(cell.x - sideX) < .01).map((cell) => Number(cell.y.toFixed(3))))
+          const frontCorner = facadeCells.find((cell) => Math.abs(cell.x - sideX) < .01)
+          const rearCorner = rearCells.find((cell) => Math.abs(cell.x - sideX) < .01)
+          expect(frontCorner, `${viewport.width}x${viewport.height} ${sideEdge} front corner`).toBeDefined()
+          expect(rearCorner, `${viewport.width}x${viewport.height} ${sideEdge} rear corner`).toBeDefined()
+          expect(sideCells.some((cell) => cell.glyph !== '' && Math.abs(cell.x - frontCorner!.x) < .01 && Math.abs(cell.y - frontCorner!.y) < .01))
+            .toBe(false)
+          sideYs.add(Number(frontCorner!.y.toFixed(3)))
+          sideYs.add(Number(rearCorner!.y.toFixed(3)))
+          const continuousSide = [...sideYs].sort((left, right) => left - right)
+          expect(continuousSide).toHaveLength(24)
+          const pitch = room.bounds.height / 23
+          continuousSide.slice(1).forEach((y, index) => expect(y - continuousSide[index]).toBeCloseTo(pitch, 2))
+          viewportSignature.push(`${sideEdge}:${continuousSide.join(',')}`)
+        }
+        viewportSignature.push(`rear:${rearXs.join(',')}`)
+        anchorSignatures.push(viewportSignature.join('|'))
+        expect(room.bounds.width).toBeCloseTo((characterCount + 1) * (canonicalFacadeXs[1]! - canonicalFacadeXs[0]!))
+      }
+
+      expect(anchorSignatures[1]).toBe(anchorSignatures[0])
+      expect(anchorSignatures[2]).toBe(anchorSignatures[0])
+    }
+  })
+
 
   it('projects the contact onto the continuous facade span from left, centre, and right approaches', () => {
     const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
@@ -75,16 +385,83 @@ describe('commercial street storefront interactions', () => {
     const storefront = street.storefronts.find((candidate) => candidate.id === 'commercial-north-slot-2')!
     const approach = mainlineStorefrontApproach(street, storefront)
     const candidates = mainlineStorefrontInteractionCandidates(street, storefront, { x: (storefront.start + storefront.end) / 2, y: approach.y + 8 })
-    const centerX = (storefront.start + storefront.end) / 2
-    expect(candidates[0]).toEqual({ x: centerX, y: approach.y })
-    expect(candidates[18]).toEqual({ x: centerX, y: approach.y - 1.8 })
-    expect(candidates[36]).toEqual({ x: centerX, y: approach.y - 3.6 })
+    const anchor = street.objects.find(entity => entity.id === storefront.portalId)!.position
+    expect(Math.hypot(candidates[0]!.x - anchor.x, candidates[0]!.y - anchor.y)).toBeCloseTo(6)
+    expect(Math.hypot(candidates[18]!.x - anchor.x, candidates[18]!.y - anchor.y)).toBeCloseTo(4.2)
+    expect(Math.hypot(candidates[36]!.x - anchor.x, candidates[36]!.y - anchor.y)).toBeCloseTo(2.4)
   })
 
   it('keeps Café on the separate portal and reveal contract', () => {
     const cafe = street.storefronts.find((candidate) => candidate.id === 'commercial-cafe-slot')!
     expect(cafe.portalId).toBe('street-cafe-entry')
     expect(commercialStreetStorefrontInteractionFor(cafe.id)).toBeUndefined()
+  })
+
+  it('uses each shop name as its exact sign width and keeps the facade lattice fixed across viewports', () => {
+    const metrics = [
+      { width: 2048, height: 788 },
+      { width: 1180, height: 757 },
+      { width: 390, height: 844 },
+    ]
+    const expectedRoles = (label: string, wide: boolean) => {
+      const sign = Array.from(label, () => 'sign')
+      return wide
+        ? ['wall', ...sign, 'wall', 'window', 'window', 'window', 'window', 'window', 'wall', 'wall', 'wall', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'wall']
+        : ['wall', 'window', 'window', 'wall', ...sign, 'wall', 'window', 'window', 'wall']
+    }
+    const phases = new Map(commercialShopStorefronts.map((storefront) => [storefront.id, 'baseline' as const]))
+    const firstGrid = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
+      .flatMap((unit) => unit.visual.cells)
+      .filter((cell) => cell.storefrontId)
+      .map((cell) => `${cell.storefrontId}:${cell.x}:${cell.glyph}`)
+    for (const viewport of metrics.slice(1)) {
+      const projected = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, viewport, phases)
+        .flatMap((unit) => unit.visual.cells)
+        .filter((cell) => cell.storefrontId)
+        .map((cell) => `${cell.storefrontId}:${cell.x}:${cell.glyph}`)
+      expect(projected).toEqual(firstGrid)
+    }
+
+    for (const storefront of commercialShopStorefronts) {
+      const wide = storefront.id === 'commercial-cafe-slot' || storefront.id === 'commercial-south-slot-2'
+      const expected = expectedRoles(storefront.label, wide)
+      expect(storefront.composition?.baseline).toEqual(expected)
+      expect(storefront.composition?.fixedCellCount).toBe(expected.length)
+      const active = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
+        .flatMap((unit) => unit.visual.cells)
+        .filter((cell) => cell.storefrontId === storefront.id)
+      expect(active).toHaveLength(expected.length)
+      expect(new Set(active.map((cell) => cell.x)).size).toBe(expected.length)
+      expect(active.filter((cell) => cell.storefrontRole === 'sign').map((cell) => cell.glyph).join('')).toBe(storefront.label)
+      expect(active.filter((cell) => cell.storefrontRole === 'window')).toHaveLength(wide ? 14 : 4)
+
+      const near = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], new Map([[storefront.id, 'revealed']]))
+        .flatMap((unit) => unit.visual.cells)
+        .filter((cell) => cell.storefrontId === storefront.id)
+      expect(near).toHaveLength(expected.length)
+      expect(near.filter((cell) => cell.storefrontRole === 'door')).toHaveLength(1)
+      expect(near.filter((cell) => cell.storefrontRole === 'sign')).toHaveLength(0)
+      expect(near.filter((cell) => cell.storefrontRole === 'window').map((cell) => cell.x))
+        .toEqual(active.filter((cell) => cell.storefrontRole === 'window').map((cell) => cell.x))
+    }
+
+    for (const edge of ['top', 'bottom'] as const) {
+      const row = commercialShopStorefronts.filter((storefront) => storefront.edge === edge)
+      for (const [index, storefront] of row.slice(0, -1).entries()) {
+        const next = row[index + 1]!
+        expect(next.start - storefront.end).toBeCloseTo(boundaryGridStepsFromReferenceSpacing().horizontal)
+        const activeCells = mainlineSceneGeometryUnits(street, { x: 0, y: 0 }, metrics[0], phases)
+          .flatMap((unit) => unit.visual.cells)
+        const previousCells = activeCells.filter((cell) => cell.storefrontId === storefront.id).sort((a, b) => a.x - b.x)
+        const nextCells = activeCells.filter((cell) => cell.storefrontId === next.id).sort((a, b) => a.x - b.x)
+        const boundaryGapWalls = activeCells.filter((cell) => (
+          !cell.storefrontId && cell.glyph === '墙'
+          && cell.x > previousCells.at(-1)!.x && cell.x < nextCells[0]!.x
+          && Math.abs(cell.y - previousCells.at(-1)!.y) < .001
+        ))
+        expect(boundaryGapWalls).toHaveLength(1)
+      }
+    }
   })
 
   it('re-resolves a continuous facade when a live actor occupies the nearest projected contact', () => {
@@ -143,25 +520,17 @@ describe('commercial street storefront interactions', () => {
     expect(afterCooldown).not.toEqual(first)
   })
 
-  it('does not let the cooldown skip fruit-tea Coming Soon or repeat the milk-tea action', () => {
+  it('debounces repeated fruit-tea app actions without consuming ambient text', () => {
     const fruitRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const fruitExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
-    let firstChoiceCalls = 0
-    const firstChoice = () => {
-      firstChoiceCalls += 1
-      return 0
-    }
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1000, firstChoice)).toEqual({ kind: 'echo', text: 'Coming Soon' })
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1140, firstChoice)).toBeNull()
-    expect(firstChoiceCalls).toBe(0)
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1300, firstChoice)).toEqual({ kind: 'echo', text: '门边的立牌上画着几种颜色很亮的果饮。' })
-    expect(firstChoiceCalls).toBe(1)
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1600, firstChoice)).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
-
-    const secondChoiceRuntime = createCommercialStreetStorefrontInteractionRuntime()
-    const secondChoiceExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1000, () => .999)).toEqual({ kind: 'echo', text: 'Coming Soon' })
-    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', secondChoiceRuntime, secondChoiceExecutionRuntime, 1300, () => .999)).toEqual({ kind: 'echo', text: '招牌上的布还没有揭开。' })
+    let randomCalls = 0
+    const random = () => { randomCalls += 1; return 0 }
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1000, random)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1140, random)).toBeNull()
+    expect(randomCalls).toBe(0)
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1300, random)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(executeCommercialStreetStorefrontInteraction('commercial-north-slot-1', fruitRuntime, fruitExecutionRuntime, 1600, random)).toEqual({ kind: 'action', action: 'fruit-tea-order' })
+    expect(fruitRuntime.lastShownByStorefront.size).toBe(0)
 
     const milkRuntime = createCommercialStreetStorefrontInteractionRuntime()
     const milkExecutionRuntime = createCommercialStreetStorefrontExecutionRuntime()

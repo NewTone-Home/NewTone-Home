@@ -1,0 +1,32 @@
+{
+  "baseCommit": "ab098d7a96fe67adce16775aae5e450d4986f2dc",
+  "scope": "R4 save owner only, not joint freeze",
+  "ownerSnapshotSha256": "4dcf2d718e3fd722579d1314450d4bf61eb161529b3ec5770510422b2fc0401f",
+  "algorithm": "sha256(sorted path+NUL+raw byte count+NUL+raw SHA256+LF)",
+  "files": [
+    {
+      "path": "src/center/runtime/shopOrderCompletion.test.ts",
+      "bytes": 10367,
+      "sha256": "88b9177dcf72164734357c1f0ad49412b407b09fecbc9e56362398a5aff0e4b4",
+      "lfSha256": "9e26d4ca8e0180e71b7bb561338ee07956d8b2f52f7bdc163a7f24a43c7d9c38",
+      "baseSha256": "2e400d2a27db64d452922f96235a7384fcd6da7188f4faf1bcab8b6cbbf7a7b2"
+    },
+    {
+      "path": "src/save-session.mjs",
+      "bytes": 7216,
+      "sha256": "7f5e9668d06980cfdae176057145f61d2a5da7c9c47a68d6f0023339cb261942",
+      "lfSha256": "a3e79787959efd00eccd73e642798cb76d3d93a12f799e5def75ba68c83687e1",
+      "baseSha256": "a8f0189561f6ec726d1bdc31325280001d63236c79a8d5351a8951e99b549938"
+    },
+    {
+      "path": "tests/saveEntryService.test.mjs",
+      "bytes": 48611,
+      "sha256": "0798a97d5414f0abd153a145300520ff6f83ad395d910bc880a13d6a1a191218",
+      "lfSha256": "076f7588b3f7ba8782abe31b7bffb3eddcc47cf2227a716de5357a7024541170",
+      "baseSha256": "2cf68840420a063951b8b156e99c3605c5939d63d8f3f433a69f2a0159eb6596"
+    }
+  ],
+  "staticCheck": "Three source/test files parsed with existing TypeScript createSourceFile, zero parse diagnostics. No tests/typecheck/build/browser execution.",
+  "newFacadeTests": 2,
+  "typeFix": "Two test callbacks use a guarded string -> saved MainlineSceneId adapter; no any or assertion, production coordinator interface unchanged."
+}
