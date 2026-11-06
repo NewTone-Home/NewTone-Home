@@ -46,3 +46,7 @@ dist-ssr
 # Local Playwright runtime evidence
 /test-results/
 /playwright-report/
+
+# Local analytics verification caches (no player data or secrets)
+.analytics-vite-cache/
+supabase/.temp/

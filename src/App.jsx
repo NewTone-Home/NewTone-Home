@@ -27,6 +27,8 @@ export default function App() {
   const landingObserver = useRef(null)
   if (!landingObserver.current) landingObserver.current = createLandingEntryObserver()
   const adopted = useRef(null)
+  const entryIntent = useRef('recovered')
+  const enteredHandle = useRef(null)
   const runtimeObserver = useRef(null)
   const [recoveringRuntime, setRecoveringRuntime] = useState(false)
   const runtimeRecovery = useRef(null)
@@ -121,7 +123,11 @@ export default function App() {
     else {
       const previous = controller.getState().phase
       controller.submit(id)
-      if (previous !== 'committing' && controller.getState().phase === 'committing') trackEvent('center_entry_requested', { stepId: 'entry:center' })
+      if (previous !== 'committing' && controller.getState().phase === 'committing') {
+        entryIntent.current = id
+        trackEvent('center_entry_requested', { stepId: 'entry:center' })
+        trackEvent('center_entry_action', { eventData: { intent: id } })
+      }
     }
   }
   const ui = <SaveEntryMenu entry={entry} language={language} text={text}
@@ -162,7 +168,15 @@ export default function App() {
         } }).then(ok => {
           if (ok && controller.getState().phase === 'entering' && controller.getState().committed?.sessionHandle === handle && !runtimeRecovery.current.isTerminated(handle)) dispatch({ type: 'scene-ready' })
         })
-      }} onRevealComplete={() => dispatch({ type: 'reveal-complete' })} />}
+      }} onRevealComplete={() => {
+        const handle = runtime.sessionHandle
+        if (world.phase !== 'revealing' || !handle.isOpen || runtimeRecovery.current.isTerminated(handle)) return
+        if (enteredHandle.current !== handle) {
+          enteredHandle.current = handle
+          trackEvent('center_entry_completed', { eventData: { intent: entryIntent.current } })
+        }
+        dispatch({ type: 'reveal-complete' })
+      }} />}
     </RuntimeRecoveryBoundary>
     {recoveringRuntime && recoveryPanel}
     {world.phase === 'active' && warningMessages.length > 0 && <aside className="save-entry-warning-overlay" style={warningStyle} lang={language}>

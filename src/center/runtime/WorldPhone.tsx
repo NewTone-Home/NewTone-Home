@@ -104,6 +104,7 @@ type WorldPhoneProps = {
   notificationScreen?: boolean
   onNotificationDismiss?: () => void
   onAppOpen?: (app: PhoneApp) => void
+  onAppInteraction?: (app: PhoneApp, outcome: 'app-opened' | 'app-closed') => void
   onRideRequest?: (device: PhoneDevice, destinationSceneId: MainlineSceneId, presentation:{vehicle:MainlineRideVehicle;arrivalLabel?:string}) => MainlineRideRequestResult | void
   feedbackMode?: FeedbackMode | null
   onFeedbackModeChange?: (mode: FeedbackMode | null) => void
@@ -278,7 +279,7 @@ function FeedbackApp({
   )
 }
 
-export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, dialogueActive = false, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, ruoyuMessagesUnlocked = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, onShopNotificationOpen, availableShopIds = [], shopOrders = {}, shopOrderHistory = [], heldConsumable = null, walletBalance = 800, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, laoZhouArrivalLabel = null, commercialMapGuide = false, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
+export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentSceneId, worldLayer, device, open, dialogueActive = false, onOpen, onClose, onCloseComplete, onRideRequest, rideOrder = null, notifications = [], storyClock, gameTimeLabel, notificationScreen = false, onNotificationDismiss, onAppOpen, onAppInteraction, feedbackMode = null, onFeedbackModeChange, onFeedbackOpen, onFeedbackSubmit, milkTeaAppUnlocked = false, milkTeaOrder = null, milkTeaHeld = false, ruoyuMessagesUnlocked = false, requestedApp = null, requestedShopId = null, requestedShopProductId = null, onShopOrderPlaced, onShopOrderReady, onShopNotificationOpen, availableShopIds = [], shopOrders = {}, shopOrderHistory = [], heldConsumable = null, walletBalance = 800, gameTimeMs = 0, preparationConfiguredByShop = {}, onShopOrderConfirm, onLegacyShopOrderCancel, onRequestedAppHandled, onLaoZhouMessagesDisplayed, laoZhouArrivalLabel = null, commercialMapGuide = false, onMilkTeaOrderConfirm, onMilkTeaOrderStarted, onMeaningfulActivity, onClockActivitySourceChange, notes = [], yongheLeadUnlocked = false, contactNotes = {}, callHistory = [], onNoteCreate, onNoteChange, onNotePin, onContactNoteChange, onCallRecord }: WorldPhoneProps) {
   const clockSourceId = useId()
   const currentLandmark = landmarkForScene(currentSceneId)
   const [displayDevice, setDisplayDevice] = useState<PhoneDevice>(device)
@@ -290,6 +291,13 @@ export function WorldPhone({ getPlayerPosition, getRideMapSnapshot, currentScene
   const laoZhouMessageHandoffPendingRef = useRef(false)
   const [placeCall, setPlaceCall] = useState<string | null>(null)
   const [activeApp, setActiveApp] = useState<PhoneApp | null>(null)
+  const reportedAppRef = useRef<PhoneApp | null>(null)
+  useEffect(() => {
+    const shown = open && !notificationScreen ? activeApp : null
+    if (reportedAppRef.current && shown !== reportedAppRef.current) onAppInteraction?.(reportedAppRef.current, 'app-closed')
+    if (shown && shown !== reportedAppRef.current) onAppInteraction?.(shown, 'app-opened')
+    reportedAppRef.current = shown
+  }, [activeApp, open, notificationScreen, onAppInteraction])
   const [contactView, setContactView] = useState<ContactView>('list')
   const [milkTeaClock, setMilkTeaClock] = useState(() => Date.now())
   const [milkTeaDrink, setMilkTeaDrink] = useState<MilkTeaDrink | null>(null)

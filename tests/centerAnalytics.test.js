@@ -43,8 +43,10 @@ describe('Center minimal analytics contract', () => {
       expect(analytics).toContain(`'${eventName}'`)
       expect(migration).toContain(`'${eventName}'`)
     }
-    expect(experience).toContain("trackEvent('center_scene_entered'")
-    expect(experience).toContain("trackEvent('center_object_interacted'")
+    expect(experience).toContain("setAnalyticsLocation(sceneId,")
+    expect(analytics).toContain("trackEvent('center_scene_entered'")
+    expect(experience).toContain("getInteractionSessions()")
+    expect(analytics).toContain("buildAnalyticsEvent('center_object_interacted'")
     expect(experience).toContain("trackEvent('center_ride_ready'")
     expect(scene).toContain("onDoorEvent?.('attempted'")
     expect(scene).toContain("onObjectInteraction?.(entity,")

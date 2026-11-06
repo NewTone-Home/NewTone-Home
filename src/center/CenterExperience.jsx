@@ -7,6 +7,7 @@ import { LongDistanceTravel } from './runtime/LongDistanceTravel'
 import { enqueuePhoneNotification, readPhoneNotifications } from './runtime/phoneNotifications'
 import { commercialStreetMapGuideActive, laoZhouArrivalLabel, laoZhouArrivalShouldDeliver, laoZhouArrivalTimeKey } from './runtime/openingGuidance'
 import { WorldPhone } from './runtime/WorldPhone'
+import { mainlineSceneRoomAtPosition } from './runtime/mainlineSceneModel'
 import { storeOrderEntryRoute } from './runtime/storeOrderEntryPolicy'
 import {
   mainlineRespawnSceneId,
@@ -60,11 +61,16 @@ import {
   checkpointSessionActivityIfDue,
   markSessionActivity,
   setAnalyticsCurrentScene,
+  setAnalyticsLocation,
+  getInteractionSessions,
+  endAnalyticsLocation,
   setAnalyticsPhoneOpen,
   setCenterMovementActive,
   setCenterReadingActive,
   trackEvent,
 } from '../services/analytics'
+import { storyCompletionTransitions } from '../services/storyAnalytics'
+import { shopAnalyticsTransitions } from '../services/shopAnalytics'
 import { createCenterPositionSampler } from '../services/centerPositionSampler'
 import { submitCenterFeedback } from '../services/centerFeedback'
 import {
@@ -203,6 +209,8 @@ export default function CenterExperience({
     )
   }, [route.sceneId])
   const pendingInteractionRequestsRef = useRef(new Map())
+  const completedInteractionCandidatesRef = useRef(new Map())
+  const pendingBusinessFactsRef = useRef([])
   currentSceneIdRef.current = route.sceneId
   if (!positionSamplerRef.current) {
     positionSamplerRef.current = createCenterPositionSampler({
@@ -248,7 +256,15 @@ export default function CenterExperience({
     saveLifecycle.assertActive()
     const previous = playerSaveRef.current
     const next = positionSaveCoordinatorRef.current.commit(update)
-    if (next !== previous) setPlayerSave(next)
+    if (next !== previous) {
+      setPlayerSave(next)
+      // The persistence coordinator throws on failure before reaching this point.
+      const interactions=getInteractionSessions()
+      for (const event of [...shopAnalyticsTransitions(previous, next), ...storyCompletionTransitions(previous, next)]) {
+        if(event.objectKind==='story') interactions.instant({objectId:event.objectId,objectKind:event.objectKind,contentId:event.objectId},event.outcome)
+        else if(!(interactions.annotate('display',event.outcome) || interactions.annotate('phone',event.outcome))) pendingBusinessFactsRef.current.push(event)
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -300,6 +316,12 @@ export default function CenterExperience({
       return notifications === current.phoneNotifications ? current : { ...current, phoneNotifications: notifications }
     })
   }, [commitPlayerSave])
+  useEffect(() => saveLifecycle.onStop(() => endAnalyticsLocation()), [saveLifecycle])
+  const handlePhoneAppInteraction = useCallback((app, outcome) => {
+    const interactions=getInteractionSessions()
+    if(outcome==='app-opened')interactions.begin('phone',app,{objectId:`phone-app:${app}`,objectKind:'phone-app',contentId:app})
+    else interactions.finish('phone')
+  }, [])
   const readPhoneApp = useCallback((app) => {
     setPhoneNotificationScreen(false)
     if (!['ride', 'milk-tea', 'yonghe-order', 'cafe-takeaway'].includes(app)) return
@@ -646,10 +668,7 @@ export default function CenterExperience({
     if (sceneEnteredAtRef.current?.sceneId === route.sceneId) return
     const enteredAt = Date.now()
     sceneEnteredAtRef.current = { sceneId: route.sceneId, enteredAt }
-    trackEvent('center_scene_entered', {
-      sceneId: route.sceneId,
-      device: phoneDevice,
-    })
+    // Location entry is reported from the actual runtime position, not a door click or route intent.
     if (route.sceneId === 'commercial-street') {
       trackEvent('commercial_street_entered', { sceneId: route.sceneId })
     }
@@ -779,13 +798,7 @@ export default function CenterExperience({
       })
     }
     setLocalSlideHandoffRoute(startsLocalSlide ? nextRoute : null)
-    const currentScene = sceneEnteredAtRef.current
-    trackEvent('center_scene_exited', {
-      sceneId: route.sceneId,
-      destinationSceneId: nextSceneId,
-      dwellMs: currentScene?.sceneId === route.sceneId ? Date.now() - currentScene.enteredAt : undefined,
-      outcome: 'scene_change',
-    })
+    // Real-time location ledger closes the old visit when the new runtime position arrives.
     if (route.sceneId === 'commercial-street' && nextSceneId === 'commercial-cafe') {
       trackEvent('cafe_entered', { sceneId: nextSceneId })
     }
@@ -893,63 +906,47 @@ export default function CenterExperience({
     setRoute(nextRoute)
   }, [commitPlayerSave, route.entryPosition, route.sceneId, route.spawnMode])
 
-  const handleObjectInteraction = useCallback((entity, dwellMs) => {
-    trackEvent('center_object_interacted', {
-      sceneId: route.sceneId,
-      objectId: entity.id,
-      objectKind: entity.kind,
-      dwellMs,
-      outcome: 'revealed',
-    })
-  }, [route.sceneId])
-
+  const handleObjectInteraction = useCallback(() => {}, [])
   const handleDoorEvent = useCallback((phase, passage) => {
-    if (phase === 'attempted') handleMeaningfulActivity()
-    const eventName = phase === 'attempted'
-      ? 'center_door_attempted'
-      : phase === 'blocked'
-        ? 'center_door_blocked'
-        : 'center_door_crossed'
-    trackEvent(eventName, {
-      sceneId: route.sceneId,
-      objectId: passage.entityId,
-      objectKind: 'door',
-      destinationSceneId: passage.targetSceneId,
-      outcome: phase,
-    })
-    const interactionKey = `${route.sceneId}/${passage.entityId}/door`
-    const pending = pendingInteractionRequestsRef.current.get(interactionKey) ?? 0
-    if ((phase === 'crossed' || phase === 'blocked') && pending > 0) {
-      trackEvent(phase === 'crossed' ? 'center_interaction_completed' : 'center_interaction_blocked', {
-        sceneId: route.sceneId,
-        objectId: passage.entityId,
-        objectKind: 'door',
-        outcome: phase,
-      })
-      if (pending === 1) pendingInteractionRequestsRef.current.delete(interactionKey)
-      else pendingInteractionRequestsRef.current.set(interactionKey, pending - 1)
-    }
-  }, [handleMeaningfulActivity, route.sceneId])
-
+    if (phase === 'attempted') { handleMeaningfulActivity(); return }
+    if(phase==='crossed')getInteractionSessions().instant({objectId:passage.entityId,objectKind:'door',contentId:passage.id},'completed')
+    else if(phase==='blocked')completedInteractionCandidatesRef.current.set(passage.entityId,{objectId:passage.entityId,objectKind:'door',contentId:passage.id,result:'blocked'})
+  }, [handleMeaningfulActivity])
   const handleInteractionAnalytics = useCallback((phase, objectId, objectKind, outcome) => {
-    if (phase === 'requested') handleMeaningfulActivity()
-    const eventName = phase === 'requested'
-      ? 'center_interaction_requested'
-      : phase === 'completed'
-        ? 'center_interaction_completed'
-        : 'center_interaction_blocked'
-    trackEvent(eventName, {
-      sceneId: route.sceneId,
-      objectId,
-      objectKind,
-      outcome,
-    })
-    const key = `${route.sceneId}/${objectId}/${objectKind}`
-    const pending = pendingInteractionRequestsRef.current.get(key) ?? 0
-    if (phase === 'requested') pendingInteractionRequestsRef.current.set(key, pending + 1)
-    else if (pending > 1) pendingInteractionRequestsRef.current.set(key, pending - 1)
-    else pendingInteractionRequestsRef.current.delete(key)
+    const key = `${route.sceneId}/${objectId}`
+    const interactions=getInteractionSessions()
+    if(phase==='requested') { handleMeaningfulActivity();pendingInteractionRequestsRef.current.set(key,true);return }
+    if(phase==='ended') { interactions.finish(objectKind==='seat' ? 'seat' : `fixture:${objectId}`,outcome ?? 'completed');return }
+    if(phase==='blocked') {
+      if(pendingInteractionRequestsRef.current.delete(key))completedInteractionCandidatesRef.current.set(objectId,{objectId,objectKind,contentId:objectId,result:'blocked'})
+      return
+    }
+    if(!pendingInteractionRequestsRef.current.delete(key))return
+    if(objectKind==='choice')return // The already-active display owns its entire options chain.
+    if(objectKind==='seat' || objectKind==='fixture') {
+      interactions.begin(objectKind==='seat' ? 'seat' : `fixture:${objectId}`,objectId,{objectId,objectKind,contentId:objectId})
+    } else completedInteractionCandidatesRef.current.set(objectId,{objectId,objectKind,contentId:objectId})
   }, [handleMeaningfulActivity, route.sceneId])
+  const handleInteractionDisplay = useCallback(info => {
+    const interactions=getInteractionSessions()
+    if(info.active && info.objectId) {
+      const candidate=completedInteractionCandidatesRef.current.get(info.objectId)
+      interactions.begin('display',info.key,{objectId:info.objectId,objectKind:candidate?.objectKind ?? info.objectKind,contentId:info.contentId,sceneId:info.sceneId,roomId:info.roomId})
+      if(candidate?.result)interactions.annotate('display',candidate.result)
+      if(info.result==='cancelled')interactions.annotate('display','cancelled')
+      completedInteractionCandidatesRef.current.delete(info.objectId)
+    } else interactions.finish('display',info.result ?? 'completed')
+    if(info.seatId)interactions.begin('seat',info.seatId,{objectId:info.seatId,objectKind:'seat',contentId:info.seatId,sceneId:info.sceneId,roomId:info.roomId})
+    else interactions.finish('seat')
+    const facts=pendingBusinessFactsRef.current.splice(0)
+    if(info.active)for(const fact of facts)interactions.annotate('display',fact.outcome)
+    const candidates=[...completedInteractionCandidatesRef.current.values()]
+    if(!info.active) {
+      if(candidates.length)for(const candidate of candidates)interactions.instant(candidate,candidate.result ?? facts.at(-1)?.outcome ?? 'completed')
+      else for(const fact of facts)interactions.instant({objectId:fact.objectId,objectKind:fact.objectKind,contentId:fact.objectId},fact.outcome)
+    }
+    completedInteractionCandidatesRef.current.clear()
+  }, [])
 
   const boardRide = useCallback((order) => {
     const intent = mainlineLongDistanceTravelIntentForRide(order.sourceSceneId, order.targetSceneId)
@@ -1036,6 +1033,7 @@ export default function CenterExperience({
       })
     }
     cafeClockInsideRef.current = insideCafe
+    setAnalyticsLocation(sceneId, mainlineSceneRoomAtPosition(mainlineScenes[sceneId], position)?.id ?? 'unassigned')
     latestWorldPositionRef.current = { sceneId, position, context }
     rideBoardingRef.current(sceneId, position, context)
     if (sceneId === 'commercial-street') {
@@ -1134,6 +1132,7 @@ export default function CenterExperience({
       yongheReadyCue={yongheReadyCue}
       onDoorEvent={snapshot ? undefined : handleDoorEvent}
       onInteractionAnalytics={snapshot ? undefined : handleInteractionAnalytics}
+      onInteractionDisplay={snapshot ? undefined : handleInteractionDisplay}
       onMilkTeaAppOpen={snapshot ? undefined : openMilkTeaApp}
       onStorefrontAction={snapshot ? undefined : (action) => { if (action === 'fruit-tea-order') openShopOrderApp(crossShopIds.fruitTea) }}
       onMilkTeaOrderReady={snapshot ? undefined : handleMilkTeaOrderReady}
@@ -1230,6 +1229,7 @@ export default function CenterExperience({
           notificationScreen={phoneNotificationScreen}
           onNotificationDismiss={() => setPhoneNotificationScreen(false)}
           onAppOpen={readPhoneApp}
+          onAppInteraction={handlePhoneAppInteraction}
           milkTeaAppUnlocked={drinkOrderingAppUnlocked}
           ruoyuMessagesUnlocked={playerSave.sceneState['commercial-cafe']?.[ruoyuCafeUnlockedKey] === true}
           availableShopIds={availableDrinkShopIds}

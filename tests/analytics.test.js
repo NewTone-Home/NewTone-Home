@@ -85,7 +85,7 @@ describe('privacy-conscious analytics payload', () => {
     expect(selected).toMatchObject({ language: 'en', event_data: { languageSource: 'user_selected' } })
     expect(buildAnalyticsEvent('language_selected', {
       language: 'en', eventData: { languageSource: 'not-a-source' },
-    }, dependencies())?.event_data).toEqual({})
+    }, dependencies())?.event_data).toEqual({ release: '0.3.0', environment: 'development' })
   })
 
   it('preserves the normalized browser-back exit reason', () => {
@@ -135,6 +135,7 @@ describe('privacy-conscious analytics payload', () => {
     expect(checkpoint?.sequence).toBe(100_000)
     expect(checkpoint?.occurred_at).toBe('2027-01-15T08:00:00.000Z')
     expect(checkpoint?.event_data).toEqual({
+      release: '0.3.0', environment: 'development',
       elapsedMs: 50_001,
       foregroundMs: 40_000,
       engagedMs: 35_000,

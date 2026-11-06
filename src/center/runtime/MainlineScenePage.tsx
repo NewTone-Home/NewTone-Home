@@ -353,6 +353,7 @@ export function MainlineScenePage({
   onNpcInteraction,
   onDoorEvent,
   onInteractionAnalytics,
+  onInteractionDisplay,
   initialSceneState = {},
   interactionTutorialCompleted = false,
   onPlayerSceneStateChange,
@@ -407,7 +408,8 @@ export function MainlineScenePage({
   onChapterAnalytics?: (eventName: string, eventData?: Record<string, string | number>) => void
   onNpcInteraction?: (npcId: string) => void
   onDoorEvent?: (phase: 'attempted' | 'blocked' | 'crossed', passage: MainlineScenePassage) => void
-  onInteractionAnalytics?: (phase: 'requested' | 'completed' | 'blocked', objectId: string, objectKind: string, outcome?: string) => void
+  onInteractionAnalytics?: (phase: 'requested' | 'completed' | 'blocked' | 'ended', objectId: string, objectKind: string, outcome?: string) => void
+  onInteractionDisplay?: (info: { active: boolean; key?: string; objectId?: string; objectKind?: string; contentId?: string; result?: string; seatId?: string | null; sceneId: string; roomId?: string }) => void
   initialSceneState?: PlayerSceneState
   interactionTutorialCompleted?: boolean
   onPlayerSceneStateChange?: (sceneId: MainlineSceneId, key: string, value: PlayerChoiceValue) => void
@@ -698,6 +700,8 @@ export function MainlineScenePage({
   const [plantWateredAt, setPlantWateredAt] = useState<number | null>(() => typeof initialSceneState.plantWateredAt === 'number' ? initialSceneState.plantWateredAt : null)
   const [incenseClock, setIncenseClock] = useState(() => Date.now())
   const handleIncenseBurnComplete = useCallback(() => setIncenseClock(Date.now()), [])
+  const interactionExitResultRef = useRef('completed')
+  const interactionDisplayKeyRef = useRef<string | null>(null)
   const sceneEchoIdRef = useRef(0)
   const cafeAnalyticsMilestonesRef = useRef<Set<CommercialCafeAnalyticsStage>>(new Set())
   const shortInteractionCompletionFrameRef = useRef<number | null>(null)
@@ -787,6 +791,7 @@ export function MainlineScenePage({
   const dismissSceneEcho = useCallback(() => {
     const current = sceneEchoRef.current
     if (!current) return
+    if (current.phase !== 'leaving') interactionExitResultRef.current = 'cancelled'
     const next = current.phase === 'leaving' ? current : {
       ...current,
       phase: 'leaving' as const,
@@ -809,6 +814,7 @@ export function MainlineScenePage({
     )
     pendingSceneActionAfterExitRef.current = cancellation.pendingAction
     if (!current || current.phase !== 'active') return
+    interactionExitResultRef.current = intent === 'cancel' ? 'cancelled' : 'interrupted'
     const barrier = sceneActionExitBarrierRef.current
     if (!barrier || barrier.actionId !== current.id) {
       const pendingAction = pendingSceneActionAfterExitRef.current
@@ -1043,6 +1049,21 @@ export function MainlineScenePage({
     setSceneEcho(next)
   }, [wideEchoTextUnitKey])
   const conversationDisplayActive = Boolean(conversationDisplayContent && !(conversationDisplayContent.kind === 'text' && conversationDisplayContent.shortPrompt))
+  useLayoutEffect(() => {
+    if (presentationSnapshot || commercialCafeReplayView) return
+    const objectId = sceneEcho?.entityId ?? sceneAction?.entityId ?? activeDialogueSource?.triggerEntityId
+      ?? (commercialCafeNarrative ? 'lao-zhou' : undefined)
+    const active = Boolean(objectId && (conversationDisplayContent || sceneEcho || sceneAction || activeDialogueLine))
+    const key = active ? currentConversationDisplaySessionId ?? `interaction:${objectId}` : null
+    if (key && interactionDisplayKeyRef.current !== key) interactionExitResultRef.current = 'completed'
+    interactionDisplayKeyRef.current = key
+    onInteractionDisplay?.({active,key:key ?? undefined,objectId,
+      objectKind:scene.npcs.some(npc=>npc.id===objectId) ? 'npc' : scene.objects.find(entity=>entity.id===objectId)?.kind ?? 'object',
+      contentId:activeDialogueSource?.lines[0]?.id ?? objectId,
+      result:interactionExitResultRef.current,seatId:activePlayerSeatId,sceneId:scene.id,
+      roomId:mainlineActiveSpatialSpaceId(scene,position),
+    })
+  })
   const renderedDialogue = commercialCafeReplayView?.dialogue ?? activeDialogue
   const renderedDialogueLine = commercialCafeReplayView?.line ?? activeDialogueLine
   const renderedDialogueLineIndex = commercialCafeReplayView?.lineIndex ?? (commercialCafeNarrative ? commercialCafeStory.narrativeCursor : dialogueLineIndex)
@@ -1173,6 +1194,7 @@ export function MainlineScenePage({
     for (const targetId of targets) {
       const current = cafeRestroomFixtureUsesRef.current[targetId]
       if (requestId !== undefined && current?.requestId !== requestId) continue
+      if (current?.phase === 'using') onInteractionAnalytics?.('ended', targetId, 'fixture', 'interrupted')
       const frame = cafeRestroomFixtureUseFramesRef.current[targetId]
       if (frame !== undefined) window.cancelAnimationFrame(frame)
       delete cafeRestroomFixtureUseFramesRef.current[targetId]
@@ -1181,7 +1203,7 @@ export function MainlineScenePage({
       setCafeRestroomFixtureUsePhases((phases) => { const next = { ...phases }; delete next[targetId]; return next })
       setActiveObjectId((currentId) => currentId === targetId ? null : currentId)
     }
-  }, [])
+  }, [onInteractionAnalytics])
   useEffect(() => {
     clearCafeRestroomFixtureUse()
     return () => {
@@ -2368,6 +2390,7 @@ export function MainlineScenePage({
           cafeRestroomFixtureUseFramesRef.current[entityId] = window.requestAnimationFrame(finishWhenGameTimeElapsed)
           return
         }
+        onInteractionAnalytics?.('ended', entityId, 'fixture', 'completed')
         delete cafeRestroomFixtureUseFramesRef.current[entityId]
         cafeRestroomFixtureUseRequestIdsRef.current[entityId] = (cafeRestroomFixtureUseRequestIdsRef.current[entityId] ?? 0) + 1
         delete cafeRestroomFixtureUsesRef.current[entityId]
@@ -2400,6 +2423,7 @@ export function MainlineScenePage({
 
   const leavePlayerSeat = useCallback(() => {
     if (!activePlayerSeatId) return false
+    onInteractionAnalytics?.('ended', activePlayerSeatId, 'seat', 'completed')
     if (hasContinuousCafe(scene) && cafeStoryOrderDelivery?.tableDelivery()) cafeStoryOrderDelivery.retargetTableDelivery(null)
     if (hasContinuousCafe(scene) && typeof initialSceneState[commercialCafeTableDeliverySeatKey] === 'string') {
       recordSceneStatePatch('commercial-street', { [commercialCafeTableDeliverySeatKey]: null })
@@ -2410,7 +2434,7 @@ export function MainlineScenePage({
     resetMovement(standingPosition)
     navigationRuntime.updateActor('protagonist', standingPosition)
     return true
-  }, [activePlayerSeatId, cafeStoryOrderDelivery, getCurrentPosition, initialSceneState, layout, navigationRuntime, navigationOptions, recordSceneStatePatch, resetMovement, scene])
+  }, [onInteractionAnalytics, activePlayerSeatId, cafeStoryOrderDelivery, getCurrentPosition, initialSceneState, layout, navigationRuntime, navigationOptions, recordSceneStatePatch, resetMovement, scene])
 
   const startNpcDialogue = useCallback((resolution: NpcDialogueResolution, existingDisplaySessionId?: string) => {
     stopMovement()
@@ -2423,7 +2447,8 @@ export function MainlineScenePage({
     setDialogueLineIndex(0)
     startDialogueTextSession()
     if (resolution.promptSeatId) setPromptedSeatId(resolution.promptSeatId)
-  }, [recordSceneStatePatch, scene.id, startDialogueTextSession, stopMovement])
+    onInteractionAnalytics?.('completed', resolution.dialogue.triggerEntityId, 'npc', 'dialogue-started')
+  }, [onInteractionAnalytics, recordSceneStatePatch, scene.id, startDialogueTextSession, stopMovement])
   const presentRuoyuFollowup = useCallback(() => {
     const followup = ruoyuCafeFollowupLine(initialSceneState, 'ruoyu')
     if (!followup) return
@@ -2434,14 +2459,15 @@ export function MainlineScenePage({
     setConversationDisplaySessionId(displaySessionId)
     presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'ruoyu', followup.text,
       sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation', undefined, undefined, displaySessionId))
-  }, [activePlayerSeatId, activeViewportMetrics, cameraOffset, getCurrentPosition, getLiveNavigationOptions, initialSceneState, layout, leavePlayerSeat, moveAlong, navigationOptions, navigationRuntime, protagonistLocomotionOptions, readingMetrics, recordSceneState, resetMovement, scene, startNpcDialogue, stopMovement])
+    onInteractionAnalytics?.('completed', 'ruoyu', 'npc', 'dialogue-started')
+  }, [onInteractionAnalytics, activePlayerSeatId, activeViewportMetrics, cameraOffset, getCurrentPosition, getLiveNavigationOptions, initialSceneState, layout, leavePlayerSeat, moveAlong, navigationOptions, navigationRuntime, protagonistLocomotionOptions, readingMetrics, recordSceneState, resetMovement, scene, startNpcDialogue, stopMovement])
   const startRuoyuMeeting = useCallback(() => {
     const cursor = ruoyuCafeMeetingCursorFromSceneState(initialSceneState)
     startNpcDialogue({ kind: 'dialogue', dialogue: ruoyuCafeMeetingDialogue })
     setDialogueLineIndex(cursor)
     recordSceneState(scene.id, ruoyuCafeMeetingStatusKey, 'in-progress')
     recordSceneState(scene.id, ruoyuCafeMeetingCursorKey, cursor)
-  }, [initialSceneState, recordSceneState, scene.id, startNpcDialogue])
+  }, [onInteractionAnalytics, initialSceneState, recordSceneState, scene.id, startNpcDialogue])
   // Before the meeting, clicking Ruoyu only invites the player to sit (generic NPC flow); sitting across from her starts it.
   const interactRuoyuCafe = useCallback(() => {
     if (!hasContinuousCafe(scene) || !ruoyuCafeUnlocked) return
@@ -2458,7 +2484,8 @@ export function MainlineScenePage({
     sceneEchoIdRef.current += 1
     presentSceneEcho(createMainlineSceneEcho(sceneEchoIdRef.current, 'lao-zhou', followup.text,
       sceneTextPresentationPosition(scene, point, followup.text, readingMetrics, 'observation', mainlineWorldScale(activeViewportMetrics), mainlineReadingCameraOffset(scene, point, readingMetrics, mainlineWorldScale(activeViewportMetrics), cameraOffset)), 'scene-observation'))
-  }, [commercialCafeStory.status, laoZhouVisibleInCurrentVisit, activeViewportMetrics, cameraOffset, getCurrentPosition, initialSceneState, readingMetrics, recordSceneState, scene])
+    onInteractionAnalytics?.('completed', 'lao-zhou', 'npc', 'dialogue-started')
+  }, [onInteractionAnalytics, commercialCafeStory.status, laoZhouVisibleInCurrentVisit, activeViewportMetrics, cameraOffset, getCurrentPosition, initialSceneState, readingMetrics, recordSceneState, scene])
   const startCommercialCafeNarrative = useCallback(() => {
     if (!hasContinuousCafe(scene) || commercialCafeStory.status !== 'available') return
     stopMovement()
@@ -3275,10 +3302,16 @@ export function MainlineScenePage({
     queueManualShopOrderChoiceView(entityId, started.session, displaySessionId)
   }, [hasHeldConsumable, onShopOrderConfirm, presentCommercialDrinkEcho, queueManualShopOrderChoiceView, shopOrders, shopServiceMessage])
 
+  const reportedChoiceActionIdRef = useRef<number | null>(null)
   const chooseSceneEchoOption = useCallback((actionId: number, index: number) => {
     if (!sceneAction || sceneAction.id !== actionId || sceneAction.phase !== 'committing') return
     const option = sceneAction?.options[index]
     if (!option) return
+    if (reportedChoiceActionIdRef.current !== actionId && sceneAction.entityId) {
+      reportedChoiceActionIdRef.current = actionId
+      onInteractionAnalytics?.('requested', sceneAction.entityId, 'choice')
+      onInteractionAnalytics?.('completed', sceneAction.entityId, 'choice', 'option-confirmed')
+    }
     onMeaningfulActivity?.()
     const manualSession = manualShopOrderSessionRef.current
     const manualConversationSessionId = manualShopOrderConversationSessionRef.current
@@ -3286,6 +3319,7 @@ export function MainlineScenePage({
       const manualView = manualShopOrderView(manualSession)
       const manualChoice = manualView.choices[index]
       if (manualChoice) {
+        if (manualChoice.id === 'cancel') interactionExitResultRef.current = 'cancelled'
         const idempotencyKey = manualSession.idempotencyKey
         if (manualShopOrderSubmittingKeyRef.current === idempotencyKey
           || manualShopOrderSubmittedKeyRef.current === idempotencyKey) {
@@ -3448,7 +3482,7 @@ export function MainlineScenePage({
       setPlantWateredAt(resolution.stateChange.value)
     }
     commitSceneActionExit(actionId)
-  }, [beginManualShopOrder, carryingMilkTea, heldConsumable, resolvedHeldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onMeaningfulActivity, onShopOrderConfirm, presentCommercialDrinkEcho, presentYongheEcho, queueManualShopOrderChoiceView, recordSceneState, recordSceneStatePatch, scene, sceneAction, shopOrders, shopServiceMessage, startCafeRestroomFixtureUse, startNpcDialogue])
+  }, [beginManualShopOrder, carryingMilkTea, heldConsumable, resolvedHeldConsumable, carriedPhoneDevice, commercialCafeStory, commitSceneActionExit, initialSceneState, onChapterAnalytics, onDeskInteraction, onInteractionAnalytics, onMeaningfulActivity, onShopOrderConfirm, presentCommercialDrinkEcho, presentYongheEcho, queueManualShopOrderChoiceView, recordSceneState, recordSceneStatePatch, scene, sceneAction, shopOrders, shopServiceMessage, startCafeRestroomFixtureUse, startNpcDialogue])
 
   const requestSceneActionChoice = useCallback((actionId: number, index: number) => {
     if (sceneAction?.id === actionId && sceneAction.optionFlow === 'dialogue-choice' && sceneAction.phase === 'active') {
@@ -3472,6 +3506,7 @@ export function MainlineScenePage({
   }, [chooseSceneEchoOption, sceneAction])
 
   const finishSceneEchoReading = useCallback((current: MainlineSceneEcho) => {
+    interactionExitResultRef.current = 'completed'
     if (current.options && current.options.length > 0) {
       const nextAction = {
         entityId: current.entityId,
