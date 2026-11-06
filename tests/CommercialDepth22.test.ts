@@ -1,0 +1,29 @@
+import {describe,expect,it} from 'vitest'
+import {mainlineScenes,mainlineCanonicalSceneGeometryUnits} from '../src/center/runtime/mainlineScenes'
+import {createInitialPlayerSave,sanitizePlayerSave} from '../src/center/runtime/playerSave'
+import {mainlineEntityCollision} from '../src/center/runtime/sceneLayout'
+import {findMainlinePath,isWalkableMainlinePoint,findMainlinePathToEntity} from '../src/center/runtime/mainlineNavigation'
+import {sceneDesignReferenceMetrics} from '../src/center/runtime/sceneBoundaryGrid'
+const scene=mainlineScenes['commercial-street'],rooms=scene.rooms.filter(r=>r.id.startsWith('commercial-')&&r.id.endsWith('-interior')),options={screenMetrics:sceneDesignReferenceMetrics,actorId:'protagonist',actorFootprint:{width:11/19.2,height:11/10.8}}
+describe('all fourteen street rooms use22 internal rows and safe versioned saved positions',()=>{
+ it('keeps widths and fourteen real entry passages while every depth has24 anchors',()=>{
+  expect(rooms).toHaveLength(14)
+   const permitted=new Set(['commercial-north-slot-1-entry','commercial-south-slot-5-entry','street-cafe-entry'])
+   for(const room of rooms){expect(room.bounds.height*10.8).toBeCloseTo(644,5);expect(room.bounds.width*19.2).toBeCloseTo(room.id==='commercial-north-cafe-interior'||room.id==='commercial-south-s2-interior'?672:336,5);const front=scene.passages.find(p=>p.toRoomId===room.id&&p.routeThrough)!;expect(front.access,room.id).toBe(permitted.has(front.portalId!)?'open':'locked');expect(isWalkableMainlinePoint(front.crossingTargets[0],scene,{},options)).toBe(true);const rear=scene.passages.find(p=>p.id===room.id+'-rear-door')!;expect(rear.access).toBe('locked')}
+ })
+ it('keeps all visible room bodies and work areas inside the shortened shells',()=>{
+  for(const room of rooms){for(const body of scene.continuousStructures.filter(b=>b.counterSurface?.roomId===room.id)){expect(body.y).toBeGreaterThanOrEqual(room.bounds.y-.00001);expect(body.y+body.height).toBeLessThanOrEqual(room.bounds.y+room.bounds.height+.00001)}for(const entity of scene.objects.filter(o=>o.roomId===room.id&&o.surface==='floor')){expect(entity.position.y,entity.id).toBeGreaterThanOrEqual(room.bounds.y-.00001);expect(entity.position.y,entity.id).toBeLessThanOrEqual(room.bounds.y+room.bounds.height+.00001);const body=mainlineEntityCollision(scene,entity,{},sceneDesignReferenceMetrics);if(!body)continue;expect(body.y,entity.id).toBeGreaterThanOrEqual(room.bounds.y-.00001);expect(body.y+body.height,entity.id).toBeLessThanOrEqual(room.bounds.y+room.bounds.height+.00001)}}
+  const milk=rooms.find(r=>r.id==='commercial-south-s5-interior')!,region=scene.accessRegions.find(r=>r.id==='milk-tea-trial-staff-0')!;expect(region.y+region.height).toBeCloseTo(milk.bounds.y+milk.bounds.height,5)
+ })
+ it('keeps menus reachable from the public front landing',()=>{
+  for(const [roomId,id] of [['commercial-north-cafe-interior','commercial-cafe-menu'],['commercial-south-s5-interior','commercial-s5-milk-tea-menu-service-label'],['commercial-north-n1-interior','fruit-tea-trial-menu']]){const front=scene.passages.find(p=>p.toRoomId===roomId&&p.routeThrough)!;expect(findMainlinePathToEntity(scene,id,front.crossingTargets[0],{},options).path).not.toBeNull()}
+ })
+ it('moves an old attached-restroom memory once and does not double-map the old independent Cafe alias',()=>{
+  const room=scene.rooms.find(r=>r.id==='cafe-single-restroom-interior')!,old={x:room.bounds.x+room.bounds.width/2,y:room.bounds.y-56/10.8+room.bounds.height/2},initial=createInitialPlayerSave('commercial-street'),source={...initial,commercialDepthVersion:undefined,currentPosition:old,scenePositions:{'commercial-street':old}},save=sanitizePlayerSave(source,'commercial-street');expect(save.currentPosition!.y).toBeCloseTo(old.y+56/10.8,8);expect(save.scenePositions['commercial-street']).toEqual(save.currentPosition);expect(sanitizePlayerSave(save,'commercial-street').currentPosition).toEqual(save.currentPosition)
+  const legacy={...initial,commercialDepthVersion:undefined,currentSceneId:'commercial-cafe',currentPosition:{x:50,y:50},scenePositions:{'commercial-street':old}},mapped=sanitizePlayerSave(legacy,'commercial-street');expect(mapped.currentSceneId).toBe('commercial-street');expect(mapped.scenePositions['commercial-street']).toEqual(mapped.currentPosition)
+ })
+ it('maps former rooms by identity, preserves state and backups, and does not move a street continuation',()=>{
+  for(const room of rooms){const north=room.id.includes('-north-'),oldY=room.bounds.y-(north?56/10.8:0),front=scene.passages.find(p=>p.toRoomId===room.id&&p.routeThrough)!,x=front.crossingTargets[0].x-(room.id==='commercial-south-s5-interior'?56/19.2:0),old={x,y:oldY+658/10.8},initial=createInitialPlayerSave('commercial-street'),source={...initial,commercialDepthVersion:undefined,currentPosition:old,scenePositions:{'commercial-street':old},sceneState:{'commercial-street':{kept:'progress'}},phoneContactNotes:{kept:'note'}};const save=sanitizePlayerSave(source,'commercial-street');expect(save.currentPosition!.y).toBeGreaterThan(room.bounds.y);expect(save.currentPosition!.y).toBeLessThan(room.bounds.y+room.bounds.height);expect(save.currentPosition!.x).toBe(x);expect(save.sceneState).toEqual(source.sceneState);expect(save.phoneContactNotes).toEqual(source.phoneContactNotes);expect(save.commercialDepthBackup?.currentPosition).toEqual(old);expect(sanitizePlayerSave(save,'commercial-street').currentPosition).toEqual(save.currentPosition);expect(isWalkableMainlinePoint(save.currentPosition!,scene,{},options),room.id).toBe(true);expect(findMainlinePath(save.currentPosition!,front.crossingTargets[0],scene,{},options)).not.toBeNull()}
+  const lane={x:80,y:50},source={...createInitialPlayerSave('commercial-street'),commercialDepthVersion:undefined,currentPosition:lane};expect(sanitizePlayerSave(source,'commercial-street').currentPosition).toEqual(lane)
+ })
+})

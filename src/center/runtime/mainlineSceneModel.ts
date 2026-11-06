@@ -1,8 +1,14 @@
+import { createMiningStreetShellBlueprint } from './miningStreetShell'
+import { alignSceneBlueprint } from './sceneGridRollout'
+import { bindContinuousCafe } from './continuousCafe'
+import { trialCafeInterior, trialTakeawayInteriors } from './shopInteriorTrial'
+import { trialYongheInterior } from './yongheInteriorTrial'
 import { mainlineWallThickness, type CollisionBox, type Point } from './sceneGeometry'
 import type { SceneDoorBehavior } from './sceneDoorConfig'
-import { boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics } from './sceneBoundaryGrid'
+import { boundaryGridStepsFromReferenceSpacing, boundaryGridStepsFromScreenSpacing, defaultSceneScreenMetrics, sharedFurnitureGlyphSpacingPx, sharedNarrowPassageWalkInset, sharedNarrowPassageFrameHeight, sharedNarrowPassageFrameIntervals } from './sceneBoundaryGrid'
 import { createFourSeatFurniture, createSeatGeometry, createTableGeometry, sharedFurnitureGeometry, createTwoSeatFurniture, type SharedSeatDefinition } from './twoSeatFurniture'
 import { npcRoles, type NpcRoleDefinition } from './npcRoles'
+import { officeGrid, officeGridFloor, officeGridCorridor, officeGridNorthRooms, officeGridSouthRooms, officeGridDoorColumns } from './officeGrid'
 import {
   ambientNpcOffstreetMaximumMs,
   ambientNpcOffstreetMinimumMs,
@@ -14,9 +20,33 @@ export type MainlineSceneId = 'jijia-ancestral-home' | 'jijia-ancestral-interior
 export type MainlineEntityKind = 'door' | 'landmark' | 'table' | 'seat' | 'direction' | 'trace' | 'fixture'
 export type MainlineEntityWeight = 'gateway' | 'fixture' | 'anchor' | 'minor'
 export type MainlineEntitySurface = 'wall' | 'floor'
-export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'direct-wall'
+export type MainlineInteractionBehavior = 'echo-pool' | 'incense' | 'desk-device' | 'blinds-toggle' | 'plant-choice' | 'cafe-order' | 'cafe-restroom-use' | 'direct-wall' | 'yonghe-warehouse'
+/** Describes what an option belongs to; callers must author this explicitly. */
+export type MainlineSceneChoiceFlow = 'dialogue-choice' | 'commerce-choice' | 'world-action'
+export type MainlineDialogueChoiceWheelPresentation = {
+  sessionId: string
+  actionId: number
+  flow: 'dialogue-choice'
+  options: readonly string[]
+  /** Desktop only: render the first `menu.length` options as a priced menu (name, price, small description). */
+  menu?: readonly { name: string; price: number; description: string | null }[]
+  /** A click outside the choices closes them (world interactions that can simply be declined). */
+  dismissible?: boolean
+  phase: 'active' | 'committing' | 'exiting'
+  focusedOptionIndex?: number
+}
+export type MainlineConversationDisplayHistoryEntry = Readonly<{
+  key: string
+  speaker?: string
+  speakerIsNpc: boolean
+  text: string
+}>
+export type MainlineConversationDisplayContent =
+  | { sessionId: string; kind: 'text' | 'aside'; expectedChoices?: readonly string[]; expectedMenu?: readonly { name: string; price: number | string; description: string | null }[]; text: string; displayUnitKey?: string; textMotion?: 'typing' | 'static' | 'deleting' | 'deleted'; canAdvance: boolean; history?: readonly MainlineConversationDisplayHistoryEntry[]; choicePrompt?: boolean; shortPrompt?: boolean; noHistory?: boolean; menuItems?: readonly { name: string; price: string; description: string | null }[]; speaker?: string; speakerIsNpc?: boolean; /** 'conversation': back-and-forth lines aligned left (them) / right (you). 'center': a lone prompt or reply. */ layout?: 'conversation' | 'center' }
+  | { sessionId: string; kind: 'waiting'; text: '……'; canAdvance: false; history?: readonly MainlineConversationDisplayHistoryEntry[] }
+  | { sessionId: string; kind: 'choice'; actionId: number; options: readonly string[]; canAdvance: false; history?: readonly MainlineConversationDisplayHistoryEntry[] }
 export type MainlineVisualProfile = 'tree-ring' | 'incense'
-export type MainlineAnimationGroup = 'office-breathing'
+export type MainlineAnimationGroup = 'office-breathing' | 'yonghe-stove-breathing'
 export type MainlineSceneExternalExit = {
   id?: string
   axis: 'x' | 'y'
@@ -31,10 +61,12 @@ export type MainlineSceneExternalExit = {
   /** Optional tangent-axis span for an opening without an interactive entity. */
   triggerSpan?: { start: number; end: number }
 }
-export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员'
+export type MainlineSceneDialogueSpeaker = '修杰' | '老周' | '店员' | '老板娘' | '若雨'
 export type MainlineSceneDialogueLine = {
   id: string
   speaker: MainlineSceneDialogueSpeaker
+  /** Explicit actor identity when a display label is shared by several NPCs. */
+  speakerNpcId?: string
   text: string
 }
 export type MainlineSceneDialogue = {
@@ -47,14 +79,21 @@ export type MainlineSceneDialogue = {
 }
 
 /** The existing dialogue surface only needs an interaction owner and ordered lines. */
-export type MainlineSceneDialoguePresentation = Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'>
+export type MainlineSceneDialoguePresentation = Pick<MainlineSceneDialogue, 'triggerEntityId' | 'lines'> & {
+  /** Renderer hint for formal conversation lines and compact asides. */
+  dialoguePresentation?: 'conversation' | 'aside'
+  /** Stable reading-surface identity, shared by consecutive text and choices. */
+  conversationDisplaySessionId?: string
+}
 export type MainlineFacing = 'north' | 'east' | 'south' | 'west'
 export type MainlineStorefrontStyle = 'modern' | 'worn'
 export type MainlineStorefrontMode = 'commercial' | 'content' | 'door'
-export type MainlineStorefrontRole = 'wall' | 'glass' | 'sign' | 'door' | 'blank'
+export type MainlineStorefrontRole = 'wall' | 'glass' | 'window' | 'sign' | 'door' | 'blank'
 export type MainlineStorefrontComposition = {
   baseline: readonly MainlineStorefrontRole[]
   near?: readonly MainlineStorefrontRole[]
+  /** Use the authored roles as a fixed character grid across viewport sizes. */
+  fixedCellCount?: number
 }
 export type MainlineDoorBehavior = SceneDoorBehavior
 
@@ -73,11 +112,29 @@ export type MainlineSceneCurve = {
 export type MainlineContinuousStructure = CollisionBox & {
   id: string
   kind: 'counter' | 'barrier'
+  readingProtection?: 'preserve'
+  counterSurface?: {
+    groupId: string
+    roomId: string
+    interactionEntityId: string
+    labelEntityId: string
+    orientation: 'horizontal' | 'vertical'
+    label?: string
+    services?: readonly { id: string; label: string; position: Point; visual?: 'app-square' }[]
+    hideLabel?: boolean
+    role?: 'counter' | 'worktop'
+    /** Stroke-only wall wrap; never used as a collision or hit box. */
+    outlineBounds?: CollisionBox
+  }
 }
 
 export type MainlineSceneEntity = {
   id: string
   label: string
+  /** Optional shell ownership for furniture that only renders inside its room. */
+  roomId?: string
+  /** Optional ownership by a non-room scene space such as an outdoor public lane. */
+  spaceId?: string
   /** Initial visibility follows the original scene story snapshot. */
   visible?: boolean
   /** Stable semantic name; user-facing rendering may provide a shorter display label. */
@@ -96,6 +153,10 @@ export type MainlineSceneEntity = {
   visualBounds?: CollisionBox
   /** Visual-only object emphasis. It never changes collision, navigation, or contacts. */
   focusFrame?: 'interactive'
+  /** Several visible characters may share one continuous interaction frame. */
+  focusFrameGroup?: string
+  /** Authored writing direction, shared by visible text and collision footprint. */
+  textLayout?: 'vertical'
   visualScale?: number
   /** Maximum authored distance for direct exploration of a wall feature. */
   interactionRange?: number
@@ -105,6 +166,13 @@ export type MainlineSceneEntity = {
   interactionContactAnchor?: Point
   /** A visual cell delegates physical contact to this continuous body. */
   interactionStructureId?: string
+  /** Counter surfaces draw/hit the complete solid; these entities retain semantic IDs. */
+  counterSurfaceId?: string
+  counterService?: boolean
+  /** Opt out of dialogue/reading fades while the authored visual is in scope. */
+  readingProtection?: 'preserve'
+  /** Share existing behavior while keeping a distinct legal physical contact. */
+  interactionAliasId?: string
   /** A small set of authored interaction behaviors used by the generic page flow. */
   interactionBehavior?: MainlineInteractionBehavior
   /** Semantic visual treatment; keeps the renderer independent of authored IDs. */
@@ -119,8 +187,99 @@ export type MainlineSceneEntity = {
   doorBehavior?: MainlineDoorBehavior
 }
 
+export function mainlineEntityBelongsToActiveRoom(entity: Pick<MainlineSceneEntity, 'roomId'>, activeRoomId?: string): boolean {
+  return !entity.roomId || entity.roomId === activeRoomId
+}
+
+export function mainlineEntityBelongsToActiveSpace(entity: Pick<MainlineSceneEntity, 'spaceId'>, activeSpaceId?: string): boolean {
+  return !entity.spaceId || entity.spaceId === activeSpaceId
+}
+
+export function mainlineEntityMatchesCurrentPresentation(
+  entity: Pick<MainlineSceneEntity, 'roomId' | 'spaceId'>,
+  renderedRoomIds: ReadonlySet<string>,
+  activeSpaceId?: string,
+) {
+  return (!entity.roomId || renderedRoomIds.has(entity.roomId))
+    && mainlineEntityBelongsToActiveSpace(entity, activeSpaceId)
+}
+
+/** Public-lane scene space that owns outdoor furniture and street residents. */
+export function mainlinePublicStreetSpaceId(sceneId: MainlineSceneId): string | undefined {
+  if (sceneId === 'commercial-street') return 'commercial-street-public-lane'
+  if (sceneId === 'yonghe-mining-perimeter') return 'mining-street-public-lane'
+  return undefined
+}
+
+/** Only explicitly lane-owned entities participate; unowned scene content is not inferred. */
+export function mainlineEntityIsPublicStreetContent(
+  sceneId: MainlineSceneId,
+  entity: Pick<MainlineSceneEntity, 'roomId' | 'spaceId' | 'kind'>,
+): boolean {
+  const publicSpaceId = mainlinePublicStreetSpaceId(sceneId)
+  return Boolean(publicSpaceId && entity.kind !== 'door' && !entity.roomId && entity.spaceId === publicSpaceId)
+}
+
+export function mainlinePublicStreetPresentationIsActive(
+  scene: { id: MainlineSceneId; rooms: readonly MainlineSceneRoom[] },
+  position: Point,
+): boolean {
+  const publicSpaceId = mainlinePublicStreetSpaceId(scene.id)
+  return Boolean(publicSpaceId && mainlineActiveSpatialSpaceId(scene, position) === publicSpaceId)
+}
+
+/** Resolve the same concrete room/corridor used by interaction text and scoped floor entities. */
+export function mainlineSceneRoomAtPosition(
+  scene: { id: MainlineSceneId; rooms: readonly MainlineSceneRoom[] },
+  position: Point,
+) {
+  const candidates = scene.rooms.filter(room => room.kind !== 'boundary'
+    && position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
+    && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height)
+  const area = (room: MainlineSceneRoom) => room.bounds.width * room.bounds.height
+  const strictlyInside = candidates.filter(room => position.x > room.bounds.x && position.x < room.bounds.x + room.bounds.width
+    && position.y > room.bounds.y && position.y < room.bounds.y + room.bounds.height)
+  const room = strictlyInside.sort((a, b) => area(a) - area(b))[0]
+  if (room) return room
+  const corridor = candidates.find(candidate => candidate.kind === 'corridor')
+  if (corridor) return corridor
+  const boundaryRoom = candidates.sort((a, b) => area(a) - area(b))[0]
+  if (boundaryRoom) return boundaryRoom
+  const publicLaneIds = scene.id === 'commercial-street'
+    ? ['commercial-street-public-lane']
+    : scene.id === 'yonghe-mining-perimeter' || scene.id === 'yonghe-eatery'
+      ? ['mining-street-public-lane']
+      : []
+  if (publicLaneIds.length) return scene.rooms.find(candidate => publicLaneIds.includes(candidate.id))
+  return undefined
+}
+
+export function mainlineActiveSpatialSpaceId(
+  scene: { id: MainlineSceneId; rooms: readonly MainlineSceneRoom[] },
+  position: Point,
+) {
+  const room = mainlineSceneRoomAtPosition(scene, position)
+  if (!room) return undefined
+  const inside = position.x >= room.bounds.x && position.x <= room.bounds.x + room.bounds.width
+    && position.y >= room.bounds.y && position.y <= room.bounds.y + room.bounds.height
+  return inside ? room.id : undefined
+}
+
+/** Keep a passage door available from either active endpoint space. */
+export function mainlinePassageDoorPresentationActive(
+  passage: (Pick<MainlineScenePassage, 'fromRoomId' | 'toRoomId'> & { access?: string }) | undefined,
+  activeSpaceId: string | undefined,
+  interiorPresentationActive: boolean | undefined,
+) {
+  // Standing between rooms (e.g. the strip behind the shallower shops) must not fade a door back into wall.
+  if (!activeSpaceId && passage) return true
+  if (activeSpaceId && (passage?.fromRoomId === activeSpaceId || passage?.toRoomId === activeSpaceId)) return true
+  return interiorPresentationActive
+}
+
 /** A scene resident with an NPC role; NPCs are not spatial furniture entities. */
 export type MainlineSceneNpc = {
+  roomId?: string
   id: string
   roleId: NpcRoleDefinition['id']
   label: string
@@ -128,6 +287,8 @@ export type MainlineSceneNpc = {
   interactive?: boolean
   /** Semantic context for future story resolution; never a physical movement target. */
   interactionTargetEntityId?: string
+  /** Keep a service/story actor visible during a reading stage; speaker brightness still wins. */
+  readingProtection?: 'preserve'
 }
 
 export type MainlineAmbientNpcRouteStep =
@@ -282,6 +443,8 @@ export type MainlineStorefrontSlotBlueprint = {
   characterSwitch?: boolean
   portalId?: string
   nearRadius?: number
+  /** Optional visual-only public doorway frontage, measured in 28px cells. */
+  presentationFrontage?: { depthCells: number; halfSpanCells: number }
   approach?: Point
 }
 
@@ -372,10 +535,12 @@ export type MainlineSceneTextPresentationPolicy =
 type MainlineWallBlueprint = {
   id: string
   type: 'frame' | 'room' | 'lane' | 'alley'
+  readingProtection?: 'preserve'
   bounds: CollisionBox
   variant?: string
   boundaryGeometrySource?: 'anchor' | 'cell-range'
   boundaryCoordinateCount?: { horizontal?: number; vertical?: number }
+  boundaryWorldGrid?: { origin: Point; pitchPx: number }
   /** Refit fixed boundary coordinates to the measured stage spacing. */
   boundaryProjection?: 'screen-spacing'
   boundaryVisualEndpoints?: {
@@ -645,7 +810,7 @@ function altarTableEntity(
   const isHorizontal = Math.abs(base.offset.x) >= Math.abs(base.offset.y)
   const direction = isHorizontal ? Math.sign(base.offset.x) : Math.sign(base.offset.y)
   const configuredDistance = altar.tableDistance ?? Math.hypot(base.offset.x, base.offset.y)
-  const gridSteps = boundaryGridStepsFromScreenSpacing()
+  const gridSteps = boundaryGridStepsFromReferenceSpacing()
   const gridStep = isHorizontal ? gridSteps.horizontal : gridSteps.vertical
   const clearanceDistance = tableDepth / 2 + burnerSize / 2 + (altar.tableGap ?? gridStep)
   const distance = altar.tableGap === undefined ? Math.max(configuredDistance, clearanceDistance) : configuredDistance + altar.tableGap
@@ -752,234 +917,14 @@ function inlinePortraitFeature(
   }
 }
 
-const commercialCafeLayout = {
-  bounds: box(8, 7, 90, 86),
-  straightFrameBounds: box(8, 7, 80, 86),
-  entranceY: 68,
-  centralWaitingFloor: box(35, 38, 33, 31),
-  entranceCorridor: box(8, 64, 20, 18),
-  glass: {
-    start: authoredPoint(88, 7),
-    control: authoredPoint(98, 50),
-    end: authoredPoint(88, 93),
-  },
-  bottomFourSeatTables: [
-    { id: 'commercial-cafe-bottom-left-group', anchor: authoredPoint(24, 78), approach: authoredPoint(24, 69) },
-    { id: 'commercial-cafe-bottom-center-group', anchor: authoredPoint(42, 78), approach: authoredPoint(42, 69) },
-    { id: 'commercial-cafe-bottom-right-group', anchor: authoredPoint(60, 78), approach: authoredPoint(60, 69) },
-  ],
-  rightTwoSeatTables: [
-    { id: 'commercial-cafe-right-inner-upper-group', anchor: authoredPoint(72, 26), approach: authoredPoint(64, 26) },
-    { id: 'commercial-cafe-right-inner-middle-group', anchor: authoredPoint(72, 50), approach: authoredPoint(64, 50) },
-    { id: 'commercial-cafe-right-inner-lower-group', anchor: authoredPoint(72, 74), approach: authoredPoint(64, 74) },
-    { id: 'commercial-cafe-right-window-upper-group', anchor: authoredPoint(84, 26), approach: authoredPoint(76, 26) },
-    { id: 'commercial-cafe-right-window-lower-group', anchor: authoredPoint(84, 74), approach: authoredPoint(76, 74) },
-  ],
-  plants: {
-    upper: { position: authoredPoint(84, 14), approach: authoredPoint(81, 14), collision: box(82.8, 13, 2.4, 2) },
-    lower: { position: authoredPoint(84, 86), approach: authoredPoint(81, 86), collision: box(82.8, 85, 2.4, 2) },
-  },
-} as const
-
-const commercialCafeFurnitureGeometry = {
-  seatGap: 4.4,
-  seatPairOffset: 3.15,
-} as const
-
-const commercialCafeBounds = commercialCafeLayout.bounds
-const commercialCafeStraightFrameBounds = commercialCafeLayout.straightFrameBounds
-const commercialCafeDoorY = commercialCafeLayout.entranceY
-// Keep both a cold start and a street-to-café arrival safely inside the room.
-// The door glyph occupies the outer wall cell; spawning on that same cell
-// places the protagonist inside the door hit area before navigation begins.
-const commercialCafeEntryX = 18
-const commercialCafeEntryPosition = authoredPoint(commercialCafeEntryX, commercialCafeDoorY)
-// The street storefront is a separate boundary from the café interior. Keep
-// its doorway on the commercial-street lane center; the interior entrance
-// remains owned by commercialCafeLayout above.
-const commercialStreetCafeDoorY = 50
-const commercialStreetCafeDoorStart = commercialStreetCafeDoorY - 4.5
-const commercialStreetCafeDoorEnd = commercialStreetCafeDoorY + 4.5
-// Return to the commercial-street lane just before the café terminal. This
-// must remain separate from commercialCafeEntryPosition, which is authored
-// inside the café and is not walkable in the street scene.
-const commercialStreetCafeEntryPosition = authoredPoint(184, commercialStreetCafeDoorY)
-const commercialCafeFurniture = [
-  ...commercialCafeLayout.bottomFourSeatTables.map(({ id, anchor, approach }) => mainlineFourSeatFurniture(id, anchor, approach, {}, commercialCafeFurnitureGeometry)),
-  ...commercialCafeLayout.rightTwoSeatTables.map(({ id, anchor, approach }) => mainlineTwoSeatFurniture(id, anchor, approach, {}, commercialCafeFurnitureGeometry)),
-]
-const commercialCafeFurnitureEntities = commercialCafeFurniture
-  .flatMap(({ entities }) => entities)
-  .map((entity) => ({ ...entity, visualVisibility: 'baseline' as const }))
-const commercialCafeNavigationBarriers = commercialCafeFurniture.flatMap(({ group, entities }) => (
-  mainlineTableChairBarriers(group.id, entities[0]!.id, entities.slice(1).map((entity) => entity.id))
-))
-const commercialCafeCounterReferencePositions = [12, 16, 20, 24, 28, 32, 36, 40, 44, 48] as const
-// Counter segments follow the same horizontal pitch as the wall lattice. The
-// counter remains a continuous authored span, but it must not be denser than
-// the surrounding wall glyphs.
-const commercialCafeCounterFixtureFontPx = Math.max(9, Math.min(16, defaultSceneScreenMetrics.width * .0115))
-const commercialCafeCounterLabelWidth = (commercialCafeCounterFixtureFontPx * 2 / defaultSceneScreenMetrics.width) * 100
-// A counter cell carries the two-character label and a small visual seam. Its
-// authored pitch is therefore wider than one wall glyph cell, while the
-// collision span remains the same continuous cell geometry.
-const commercialCafeCounterCellWidth = Number(Math.max(
-  boundaryGridStepsFromScreenSpacing().horizontal,
-  commercialCafeCounterLabelWidth + .1,
-).toFixed(4))
-const commercialCafeCounterWallInset = mainlineWallThickness / 2
-const commercialCafeCounterStart = commercialCafeStraightFrameBounds.x + commercialCafeCounterWallInset + commercialCafeCounterCellWidth / 2
-const commercialCafeCounterEnd = commercialCafeCounterReferencePositions[commercialCafeCounterReferencePositions.length - 1] + (commercialCafeCounterReferencePositions[1] - commercialCafeCounterReferencePositions[0]) / 2 + commercialCafeCounterWallInset
-const commercialCafeCounterPositions = Array.from(
-  { length: Math.round((commercialCafeCounterEnd - commercialCafeCounterStart) / commercialCafeCounterCellWidth) },
-  (_, index) => commercialCafeCounterStart + index * commercialCafeCounterCellWidth,
-)
-const commercialCafeCounterRearWallClearance = 11
-const commercialCafeCounterBody = {
-  // The rendered label and physical body share this centerline. Customer space
-  // is south of the counter; staff work in the rear zone to its north.
-  y: commercialCafeStraightFrameBounds.y + mainlineWallThickness + commercialCafeCounterRearWallClearance,
-  depth: 2.7,
-  x: commercialCafeCounterPositions[0]! - commercialCafeCounterCellWidth / 2,
-  width: commercialCafeCounterPositions.length * commercialCafeCounterCellWidth,
-}
-const commercialCafeCounterCollision = box(
-  commercialCafeCounterBody.x,
-  commercialCafeCounterBody.y - commercialCafeCounterBody.depth / 2,
-  commercialCafeCounterBody.width,
-  commercialCafeCounterBody.depth,
-)
-const commercialCafeCounterStructure = {
-  id: 'commercial-cafe-counter-body',
-  kind: 'counter' as const,
-  ...commercialCafeCounterCollision,
-}
-// This is authored staff-service spacing, not an actor-radius proxy. Actual
-// actor clearance is evaluated from the current presentation footprint by
-// navigation when a route is requested.
-const commercialCafeCounterClearance = sharedFurnitureGeometry.textFootprint.height / 2 + sharedFurnitureGeometry.actorContactGap
-const commercialCafeCounterCustomerApproachY = commercialCafeCounterCollision.y + commercialCafeCounterCollision.height + commercialCafeCounterClearance
-// Visual wall fixtures are read from the customer-side counter surface; the
-// wall glyph itself is never a navigation destination.
-const commercialCafeMenu = wallEntity({
-  id: 'commercial-cafe-menu', label: '菜单', kind: 'fixture', weight: 'fixture', position: authoredPoint(18, 7), interactive: true,
-  interactionContactAnchor: authoredPoint(18, commercialCafeCounterCustomerApproachY),
-})
-const commercialCafeBlackboard = wallEntity({
-  id: 'commercial-cafe-blackboard', label: '黑板', kind: 'fixture', weight: 'fixture', position: authoredPoint(32, 7), interactive: true,
-  interactionContactAnchor: authoredPoint(32, commercialCafeCounterCustomerApproachY),
-})
-const commercialCafeCounterLabelHeight = commercialCafeCounterFixtureFontPx * 1.2 / defaultSceneScreenMetrics.height * 100
-// A staff actor has both a physical contact radius and a rendered text label.
-// Keep the semantic service target clear of the counter body and of its label;
-// this is derived from the same counter geometry, not a hand-tuned NPC offset.
-const commercialCafeCounterStaffClearance = Math.max(
-  commercialCafeCounterClearance,
-  sharedFurnitureGeometry.textFootprint.height / 2 + commercialCafeCounterLabelHeight / 2 + sharedFurnitureGeometry.actorContactGap,
-)
-const commercialCafeCounterStaffServiceY = commercialCafeCounterCollision.y - commercialCafeCounterStaffClearance
-// Staff access ends at the rear face of the physical counter.  The body itself
-// is the shared obstruction; including it in the access region would make a
-// customer-side contact point overlap an artificial permission wall.
-const commercialCafeStaffArea = box(
-  commercialCafeCounterBody.x,
-  commercialCafeStraightFrameBounds.y + mainlineWallThickness,
-  commercialCafeCounterBody.width,
-  commercialCafeCounterCollision.y - (commercialCafeStraightFrameBounds.y + mainlineWallThickness),
-)
-const commercialCafeServiceLayout = {
-  staffHome: authoredPoint(
-    commercialCafeCounterBody.x + commercialCafeCounterBody.width / 2,
-    commercialCafeCounterStaffServiceY,
-  ),
-  staffCounterStops: [
-    authoredPoint(commercialCafeCounterPositions[1]!, commercialCafeCounterStaffServiceY),
-    authoredPoint(commercialCafeCounterPositions[Math.floor(commercialCafeCounterPositions.length / 2)]!, commercialCafeCounterStaffServiceY),
-    authoredPoint(commercialCafeCounterPositions[commercialCafeCounterPositions.length - 2]!, commercialCafeCounterStaffServiceY),
-  ],
-  staffApproach: authoredPoint(
-    commercialCafeCounterPositions[commercialCafeCounterPositions.length - 1]!,
-    commercialCafeCounterStaffServiceY,
-  ),
-  staffArea: commercialCafeStaffArea,
-} as const
-const commercialCafeStaffAccessPortal = {
-  id: 'commercial-cafe-staff-right-entrance',
-  regionId: 'commercial-cafe-staff-area',
-  requiredAccess: 'staff',
-  threshold: box(
-    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width,
-    commercialCafeCounterCollision.y - commercialCafeCounterStaffClearance * 2,
-    commercialCafeCounterClearance,
-    commercialCafeCounterStaffClearance * 2,
-  ),
-  outside: authoredPoint(
-    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width + commercialCafeCounterClearance,
-    commercialCafeCounterStaffServiceY,
-  ),
-  inside: authoredPoint(
-    commercialCafeCounterCollision.x + commercialCafeCounterCollision.width - commercialCafeCounterClearance,
-    commercialCafeCounterStaffServiceY,
-  ),
-} as const satisfies MainlineSceneAccessPortal
-const commercialCafeFloorServicePosition = authoredPoint(
-  commercialCafeLayout.centralWaitingFloor.x + commercialCafeLayout.centralWaitingFloor.width / 2,
-  commercialCafeLayout.centralWaitingFloor.y + commercialCafeLayout.centralWaitingFloor.height / 2,
-)
-const commercialCafeCounterEntities = commercialCafeCounterPositions.map((x, index) => floor({
-  id: index === 4 ? 'commercial-cafe-counter' : `commercial-cafe-counter-${index + 1}`,
-  label: '柜台',
-  kind: 'fixture',
-  weight: 'fixture',
-  position: authoredPoint(x, commercialCafeCounterBody.y),
-  // A cell is a responsive visual and click surface. The whole counter body
-  // supplies the one continuous physical structure.
-  interactionStructureId: commercialCafeCounterStructure.id,
-  interactionBehavior: 'cafe-order',
-  interactionContactSides: ['bottom'],
-  visualVisibility: 'baseline',
-}))
-const commercialCafeStoryTableId = 'commercial-cafe-right-window-upper-group-table'
-const commercialCafeNpcs = [
-  {
-    id: npcRoles.laoZhou.id,
-    roleId: npcRoles.laoZhou.id,
-    label: npcRoles.laoZhou.label,
-    interactionTargetEntityId: commercialCafeStoryTableId,
-  },
-  {
-    id: npcRoles.cafeCoffeeOwner.id,
-    roleId: npcRoles.cafeCoffeeOwner.id,
-    label: npcRoles.cafeCoffeeOwner.label,
-    interactionTargetEntityId: 'commercial-cafe-counter',
-  },
-  {
-    id: npcRoles.cafeFloorServer.id,
-    roleId: npcRoles.cafeFloorServer.id,
-    label: npcRoles.cafeFloorServer.label,
-  },
-] as const satisfies readonly MainlineSceneNpc[]
-const commercialCafeNpcBehaviorTargets = [
-  { id: 'commercial-cafe-counter-service', position: commercialCafeServiceLayout.staffHome },
-  ...commercialCafeServiceLayout.staffCounterStops.map((position, index) => ({ id: `commercial-cafe-counter-ambient-${index + 1}`, position })),
-  { id: 'commercial-cafe-prep-station', position: commercialCafeServiceLayout.staffApproach },
-  { id: 'commercial-cafe-floor-service-staging', position: commercialCafeFloorServicePosition },
-] as const satisfies readonly MainlineSceneNpcBehaviorTarget[]
-const commercialCafeNpcBehaviors = [
-  { npcId: npcRoles.laoZhou.id, dutyId: npcRoles.laoZhou.duties.seated.id, targetId: 'commercial-cafe-right-window-upper-group-chair-top', targetKind: 'seat' },
-  { npcId: npcRoles.cafeCoffeeOwner.id, dutyId: npcRoles.cafeCoffeeOwner.duties.counterService.id, targetId: 'commercial-cafe-counter-service', targetKind: 'point', interactionContactEntityId: 'commercial-cafe-counter' },
-  { npcId: npcRoles.cafeFloorServer.id, dutyId: npcRoles.cafeFloorServer.duties.tableService.id, targetId: 'commercial-cafe-floor-service-staging', targetKind: 'point' },
-] as const satisfies readonly MainlineSceneNpcBehavior[]
-const commercialCafeWindow: MainlineSceneCurve = { id: 'commercial-cafe-glass-front', ...commercialCafeLayout.glass, role: 'glass', glyph: '窗', sampleCount: 26, blocksPlayer: true }
-
 // The storefront rows are visible boundary lines, but the space behind those
 // lines is still part of the scene's click surface. Compile that hidden side
 // as air walls so a click behind a facade walks to the facade and stops. The
 // only deliberate gap is the terminal's cafe doorway corridor.
-const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
-  { id: 'commercial-north-facade-air-wall', ...box(8, 10, 192, 25.3) },
-  { id: 'commercial-south-facade-air-wall-left', ...box(8, 64.7, 180, 25.3) },
-]
+const commercialStreetLaneExpansion = boundaryGridStepsFromReferenceSpacing().vertical
+// Use the same screen-derived character lattice as the office and ancestral-home walls.
+// The full street length remains content-sized: each authored cell contributes one pitch.
+const commercialStreetCellPitch = boundaryGridStepsFromReferenceSpacing().horizontal
 
 const commercialStreetAmbientNpcs = [
   { id: 'commercial-street-pedestrian-west-north', roleId: npcRoles.pedestrian.id, label: '人', interactive: false },
@@ -993,126 +938,737 @@ const commercialStreetAmbientNpcs = [
 // These are authored public-lane loops, not a second navigation model. Their
 // differently phased starts and dwell times keep the first street visit from
 // reading as a synchronized stage cue.
+
+
+const commercialStreetPortalTangent = (storefront: Pick<MainlineStorefrontSlotBlueprint, 'id' | 'start' | 'end' | 'label'>) => {
+  const doubleBay = storefront.id === 'commercial-cafe-slot' || storefront.id === 'commercial-south-slot-2'
+  const doorGlyphIndex = doubleBay ? 2 : 5
+  return storefront.start + (doorGlyphIndex + .4995) * commercialStreetCellPitch
+}
+
+function commercialStreetStorefrontComposition(label: string, wide: boolean): MainlineStorefrontComposition {
+  const labelLength = Array.from(label).length
+  const signZone: MainlineStorefrontRole[] = Array.from({ length: labelLength }, () => 'sign')
+  const nearSignZone: MainlineStorefrontRole[] = signZone.map((_, index) => index === Math.floor(labelLength / 2) ? 'door' : 'wall')
+  const wideModuleA: MainlineStorefrontRole[] = ['wall', ...signZone, 'wall', 'window', 'window', 'window', 'window', 'window', 'wall']
+  const nearWideModuleA: MainlineStorefrontRole[] = ['wall', ...nearSignZone, 'wall', 'window', 'window', 'window', 'window', 'window', 'wall']
+  if (wide) {
+    const moduleB: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'window', 'wall']
+    return {
+      fixedCellCount: labelLength + 20,
+      baseline: [...wideModuleA, 'wall', ...moduleB],
+      near: [...nearWideModuleA, 'wall', ...moduleB],
+    }
+  }
+  const moduleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', ...signZone, 'wall', 'window', 'window', 'wall']
+  const nearModuleA: MainlineStorefrontRole[] = ['wall', 'window', 'window', 'wall', ...nearSignZone, 'wall', 'window', 'window', 'wall']
+  return {
+    fixedCellCount: labelLength + 8,
+    baseline: moduleA,
+    near: nearModuleA,
+  }
+}
+
+const commercialStreetRowCursor: Record<'top' | 'bottom', number> = {
+  // Two shared-grid intervals outside the storefront's own cap give exactly
+  // three visible terminal wall glyphs at either end of each row.
+  top: 12 + 2 * commercialStreetCellPitch,
+  bottom: 12 + 2 * commercialStreetCellPitch,
+}
+const commercialStreetStorefronts: MainlineStorefrontSlotBlueprint[] = [
+  ...[
+    ['commercial-north-slot-1', 'commercial-north-facade', 'bottom', '果茶店', 14, 32],
+    ['commercial-north-slot-2', 'commercial-north-facade', 'bottom', '文创店', 36, 54],
+    ['commercial-north-slot-3', 'commercial-north-facade', 'bottom', '美妆店', 58, 76],
+    ['commercial-north-slot-4', 'commercial-north-facade', 'bottom', '眼镜店', 80, 98],
+    ['commercial-north-slot-5', 'commercial-north-facade', 'bottom', '玩具店', 102, 120],
+    ['commercial-north-slot-6', 'commercial-north-facade', 'bottom', '香氛店', 124, 142],
+    ['commercial-cafe-slot', 'commercial-north-facade', 'bottom', '咖啡馆', 146, 186],
+    ['commercial-south-slot-1', 'commercial-south-facade', 'top', '潮牌店', 14, 32],
+    ['commercial-south-slot-2', 'commercial-south-facade', 'top', '快餐店', 36, 76],
+    ['commercial-south-slot-4', 'commercial-south-facade', 'top', '服装店', 80, 98],
+    ['commercial-south-slot-5', 'commercial-south-facade', 'top', '奶茶店', 102, 120],
+    ['commercial-south-slot-6', 'commercial-south-facade', 'top', '甜品店', 124, 142],
+    ['commercial-south-slot-7', 'commercial-south-facade', 'top', '珠宝店', 146, 164],
+    ['commercial-south-slot-8', 'commercial-south-facade', 'top', '服装店', 168, 186],
+  ] as const
+].map(([id, wallId, edge, label, _legacyStart, _legacyEnd]): MainlineStorefrontSlotBlueprint => {
+  const portalId = id === 'commercial-cafe-slot' ? 'street-cafe-entry' : `${id}-entry`
+  const approachY = edge === 'bottom' ? 42 - commercialStreetLaneExpansion : 58 + commercialStreetLaneExpansion
+  const wideStorefront = id === 'commercial-cafe-slot' || id === 'commercial-south-slot-2'
+  const composition = commercialStreetStorefrontComposition(label, wideStorefront)
+  const cellCount = composition.fixedCellCount!
+  const firstCenter = commercialStreetRowCursor[edge]
+  const start = firstCenter - commercialStreetCellPitch * .4995
+  const end = firstCenter + (cellCount - 1) * commercialStreetCellPitch + commercialStreetCellPitch * .4995
+  commercialStreetRowCursor[edge] += (cellCount + 1) * commercialStreetCellPitch
+  const portalTangent = commercialStreetPortalTangent({ id, start, end, label })
+  return { id, wallId, edge, label, style: 'modern', mode: 'commercial', start, end,
+    composition, characterSwitch: true,
+    portalId, nearRadius: 10,
+    approach: authoredPoint(portalTangent, approachY) }
+})
+
+// Size each facade from its actual modules and inter-shop separators. The
+// shorter row keeps its own right endpoint, so it does not accumulate extra
+// blank wall cells beside the longer row.
+const commercialStreetCellsForEdge = (edge: 'top' | 'bottom') => {
+  const row = commercialStreetStorefronts.filter((storefront) => storefront.edge === edge)
+  const storefrontCells = row.reduce((total, storefront) => (
+    total + (storefront.composition?.fixedCellCount ?? storefront.composition?.baseline.length ?? 0)
+  ), 0)
+  return storefrontCells + Math.max(0, row.length - 1)
+}
+const commercialStreetRowCellCounts = {
+  top: commercialStreetCellsForEdge('top'),
+  bottom: commercialStreetCellsForEdge('bottom'),
+}
+const commercialStreetRowCellCount = Math.max(commercialStreetRowCellCounts.top, commercialStreetRowCellCounts.bottom)
+// Include two outside intervals beyond each storefront end cap.
+const commercialStreetLongitudinalExpansion = (commercialStreetRowCellCount + 3) * commercialStreetCellPitch - 180
+const commercialStreetSceneRight = 192 + commercialStreetLongitudinalExpansion
+const commercialStreetWorldRight = 200 + commercialStreetLongitudinalExpansion
+// Ambient pedestrians must stop inside the current road extent. Legacy
+// authored east-end coordinates (166/174) predate the compacted facade span.
+const commercialStreetEastWalkTargetX = commercialStreetWorldRight - 2
+
+// Every storefront receives an empty shell in the existing street scene. The
+// front wall remains the frozen storefront row; each shell owns only its sides
+// and back. Cafe's former scene blueprint remains available for saved state,
+// but its street entrance now routes into this empty same-scene shell.
+// Eleven net frontage cells define22 internal rows for every street shop.
+// Front and rear walls add two anchors:24 centers across23 intervals.
+// Double-front shops expand width only, never this single-module depth.
+const commercialStreetInteriorVerticalCoordinateCount = 24
+const commercialStreetInteriorDepth = boundaryGridStepsFromReferenceSpacing().vertical * (commercialStreetInteriorVerticalCoordinateCount - 1)
+// Keep passage endpoints clear of the fixed actor footprint while preserving
+// the previous 1.5-cell approach depth after switching the wall lattice.
+const commercialStreetRearDoorApproachDepth = boundaryGridStepsFromReferenceSpacing().vertical * 1.5
+const commercialStreetFacadeNorthY = 14 + 22 - commercialStreetLaneExpansion
+const commercialStreetFacadeSouthY = 64 + commercialStreetLaneExpansion
+const commercialStreetInteriorSamples = commercialStreetStorefronts.map((storefront) => {
+  const side = storefront.edge === 'bottom' ? 'north' as const : 'south' as const
+  const slotNumber = storefront.id.match(/-slot-(\d+)$/)?.[1]
+  if (storefront.id !== 'commercial-cafe-slot' && !slotNumber) {
+    throw new Error(`Commercial storefront ${storefront.id} must keep its numbered slot ID`)
+  }
+  const roomId = storefront.id === 'commercial-cafe-slot'
+    ? 'commercial-north-cafe-interior'
+    : `commercial-${side}-${side === 'north' ? 'n' : 's'}${slotNumber}-interior`
+  const facadeCellCount = storefront.composition?.fixedCellCount
+    ?? storefront.composition?.baseline.length
+    ?? 0
+  if (facadeCellCount < 2) throw new Error(`Commercial storefront ${storefront.id} has no usable facade grid`)
+  // One shell anchor extends beyond either end of the storefront facade.
+  // Adjacent shells meet at their separator so only one owns that wall line.
+  const horizontalCellCount = facadeCellCount + 2
+  const sample = {
+    storefrontId: storefront.id,
+    roomId,
+    side,
+    horizontalCellCount,
+  }
+  const facade = sample.side === 'north' ? commercialStreetFacadeNorthY : commercialStreetFacadeSouthY
+  const back = facade + (sample.side === 'north' ? -commercialStreetInteriorDepth : commercialStreetInteriorDepth)
+  // Furniture remains aligned to the first authored facade cell. The room
+  // itself extends one cell left and right to make a shared separator.
+  const x = storefront.start + commercialStreetCellPitch / 2
+  return {
+    ...sample,
+    storefront,
+    facade,
+    back,
+    x,
+    width: (horizontalCellCount - 1) * commercialStreetCellPitch,
+  }
+})
+const commercialStreetNorthBack = Math.min(...commercialStreetInteriorSamples.filter((sample) => sample.side === 'north').map((sample) => sample.back))
+const commercialStreetSouthBack = Math.max(...commercialStreetInteriorSamples.filter((sample) => sample.side === 'south').map((sample) => sample.back))
+const commercialStreetWorldTop = Math.min(-56, commercialStreetNorthBack - commercialStreetLaneExpansion)
+const commercialStreetWorldBottom = Math.max(156, commercialStreetSouthBack + commercialStreetLaneExpansion)
+
+const commercialStreetShellFurniture = (() => {
+  const verticalStep = boundaryGridStepsFromReferenceSpacing().vertical
+  const glyphSteps = boundaryGridStepsFromReferenceSpacing(sharedFurnitureGlyphSpacingPx)
+  const groupIds: string[] = []
+  const entities: MainlineSceneEntity[] = []
+  const structures: MainlineContinuousStructure[] = []
+  const cell = (sample: typeof commercialStreetInteriorSamples[number], column: number, row: number): Point => ({
+    x: sample.x + column * commercialStreetCellPitch,
+    y: sample.facade + row * verticalStep * (sample.side === 'north' ? -1 : 1),
+  })
+  const addFurniture = (sample: typeof commercialStreetInteriorSamples[number], furniture: ReturnType<typeof mainlineTwoSeatFurniture>) => {
+    groupIds.push(furniture.group.id)
+    entities.push(...furniture.entities.map((entity) => ({ ...entity, roomId: sample.roomId, visualVisibility: 'static' as const })))
+  }
+  const addCounter = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    prefix: string,
+    paths: readonly { orientation: 'horizontal' | 'vertical'; positions: readonly Point[]; glyphs?: readonly string[] }[],
+    interactive?: boolean,
+  ) => {
+    const glyphPositions = new Set<string>()
+    const placedPaths: { anchors: readonly Point[]; rendered: readonly Point[] }[] = []
+    paths.forEach(({ positions, orientation, glyphs }, pathIndex) => {
+      const first = positions[0]!
+      const last = positions.at(-1)!
+      const vertical = orientation === 'vertical'
+      const isTightGlyphSequence = glyphs?.every((glyph) => Array.from(glyph).length === 1)
+        ?? (vertical && positions.length > 1)
+      const center = { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }
+      const direction = Math.sign(vertical ? last.y - first.y : last.x - first.x) || 1
+      const axisStep = vertical ? glyphSteps.vertical : glyphSteps.horizontal
+      const textPositions = positions.map((position, index) => !isTightGlyphSequence
+        ? position
+        : vertical
+          ? { ...position, y: center.y + direction * (index - (positions.length - 1) / 2) * axisStep }
+          : { ...position, x: center.x + direction * (index - (positions.length - 1) / 2) * axisStep })
+      if (isTightGlyphSequence) {
+        const anchorKeys = positions.map((position) => `${position.x.toFixed(4)}:${position.y.toFixed(4)}`)
+        const shared = placedPaths.flatMap((previous) => anchorKeys.flatMap((key, index) => {
+          const previousIndex = previous.anchors.findIndex((anchor) => `${anchor.x.toFixed(4)}:${anchor.y.toFixed(4)}` === key)
+          return previousIndex >= 0 ? [{ index, previous: previous.rendered[previousIndex]! }] : []
+        }))[0]
+        if (shared) {
+          const dx = shared.previous.x - textPositions[shared.index]!.x
+          const dy = shared.previous.y - textPositions[shared.index]!.y
+          textPositions.forEach((position, index) => { textPositions[index] = { x: position.x + dx, y: position.y + dy } })
+        }
+      }
+      placedPaths.push({ anchors: positions, rendered: textPositions })
+      textPositions.forEach((position, index) => {
+        // Keep shared elbows deduplicated by their authored anchor even when
+        // the visible glyphs are tightened along their respective runs.
+        const anchor = positions[index]!
+        const key = `${anchor.x.toFixed(4)}:${anchor.y.toFixed(4)}`
+        if (glyphPositions.has(key)) return
+        glyphPositions.add(key)
+        const label = glyphs?.[index] ?? (vertical && positions.length > 1 ? index % 2 === 0 ? '柜' : '台' : '柜台')
+        entities.push(floor({
+          id: `${prefix}-${pathIndex + 1}-${index + 1}`,
+          label,
+          kind: 'fixture',
+          weight: 'fixture',
+          position,
+          roomId: sample.roomId,
+          interactionStructureId: `${prefix}-${pathIndex + 1}-body`,
+          ...(interactive === undefined ? {} : { interactive }),
+          visualVisibility: 'static',
+        }))
+      })
+      if (isTightGlyphSequence) {
+        const left = Math.min(...textPositions.map((position) => position.x)) - glyphSteps.horizontal / 2
+        const top = Math.min(...textPositions.map((position) => position.y)) - glyphSteps.vertical / 2
+        const right = Math.max(...textPositions.map((position) => position.x)) + glyphSteps.horizontal / 2
+        const bottom = Math.max(...textPositions.map((position) => position.y)) + glyphSteps.vertical / 2
+        structures.push({ id: `${prefix}-${pathIndex + 1}-body`, kind: 'counter', ...box(left, top, right - left, bottom - top) })
+      } else {
+        const width = vertical ? commercialStreetCellPitch * .4 : Math.abs(last.x - first.x) + commercialStreetCellPitch
+        const height = vertical ? Math.abs(last.y - first.y) + verticalStep : verticalStep
+        structures.push({
+          id: `${prefix}-${pathIndex + 1}-body`,
+          kind: 'counter',
+          ...box((first.x + last.x - width) / 2, (first.y + last.y - height) / 2, width, height),
+        })
+      }
+    })
+  }
+  const addWallGlyph = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    id: string,
+    position: Point,
+  ) => {
+    entities.push(floor({
+      id,
+      label: '墙',
+      kind: 'fixture',
+      weight: 'fixture',
+      position,
+      roomId: sample.roomId,
+      visualVisibility: 'static',
+    }))
+  }
+  const addWallRun = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    id: string,
+    positions: readonly Point[],
+    orientation: 'horizontal' | 'vertical',
+    omittedGlyphIndexes: readonly number[] = [],
+  ) => {
+    const omitted = new Set(omittedGlyphIndexes)
+    positions.forEach((position, index) => {
+      if (!omitted.has(index)) addWallGlyph(sample, `${id}-${index + 1}`, position)
+    })
+    const first = positions[0]!
+    const last = positions.at(-1)!
+    const thickness = Math.max(.8, commercialStreetCellPitch * .18)
+    const collision = orientation === 'horizontal'
+      ? box(first.x - commercialStreetCellPitch / 2, first.y - thickness / 2, positions.length * commercialStreetCellPitch, thickness)
+      : box(first.x - thickness / 2, first.y - verticalStep / 2, thickness, positions.length * verticalStep)
+    structures.push({ id: `${id}-body`, kind: 'barrier', ...collision })
+  }
+  const addInternalDoorGlyph = (sample: typeof commercialStreetInteriorSamples[number], id: string, position: Point) => {
+    entities.push(floor({
+      id,
+      label: '门',
+      kind: 'fixture',
+      weight: 'fixture',
+      position,
+      roomId: sample.roomId,
+      visualVisibility: 'static',
+    }))
+  }
+  const addStaticRoomLabel = (sample: typeof commercialStreetInteriorSamples[number], id: string, label: string, position: Point) => {
+    entities.push(floor({
+      id,
+      label,
+      kind: 'fixture',
+      weight: 'minor',
+      position,
+      roomId: sample.roomId,
+      interactive: false,
+      visualVisibility: 'static',
+    }))
+  }
+
+  const milkTea = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s5-interior')!
+  // One compact two-seat table leaves the whole front entry turn and the
+  // narrow west customer lane clear; the service counter is on the east.
+  addFurniture(milkTea, mainlineTwoSeatFurniture(
+    'commercial-s5-milk-tea-table-group', cell(milkTea, 2, 9), cell(milkTea, 1, 9),
+    { tableId: 'commercial-s5-milk-tea-table', seatIds: ['commercial-s5-milk-tea-seat-a', 'commercial-s5-milk-tea-seat-b'] },
+  ))
+  addCounter(milkTea, 'commercial-s5-milk-tea-counter', [
+    { orientation: 'vertical', positions: Array.from({ length: 10 }, (_, index) => cell(milkTea, 6, 5 + index)) },
+    { orientation: 'horizontal', positions: [cell(milkTea, 6, 14), cell(milkTea, 7, 14), cell(milkTea, 8, 14)], glyphs: ['台', '柜', '台'] },
+  ])
+  const milkTeaRearWallRuns = [
+    { columns: [-1, 0, 1, 2], omitted: [0] },
+    { columns: [5, 6, 7], omitted: [] },
+    { columns: [10, 11], omitted: [1] },
+  ]
+  milkTeaRearWallRuns.forEach(({ columns, omitted }, runIndex) => {
+    addWallRun(milkTea, `commercial-s5-milk-tea-rear-partition-${runIndex}`, columns.map((column) => cell(milkTea, column, 16)), 'horizontal', omitted)
+  })
+  addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-warehouse-door', cell(milkTea, 3.5, 16))
+  addInternalDoorGlyph(milkTea, 'commercial-s5-milk-tea-kitchen-door', cell(milkTea, 8.5, 16))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-warehouse-sign', '仓库', cell(milkTea, 2, 18))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-kitchen-sign', '厨房', cell(milkTea, 8.5, 18))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-menu-service-label', '菜单', cell(milkTea, 2, 3))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-order-service-label', '点单', cell(milkTea, 4, 5))
+  addStaticRoomLabel(milkTea, 'commercial-s5-milk-tea-pickup-service-label', '取餐', cell(milkTea, 4, 12))
+  addWallRun(milkTea, 'commercial-s5-milk-tea-kitchen-divider', Array.from({ length: 10 }, (_, index) => cell(milkTea, 6, 16 + index)), 'vertical', [0, 9])
+
+  const fastFood = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-south-s2-interior')!
+  addFurniture(fastFood, mainlineTwoSeatFurniture(
+    'commercial-s2-fast-food-table-group-a', cell(fastFood, 5, 7), cell(fastFood, 3, 7),
+    { tableId: 'commercial-s2-fast-food-table-a', seatIds: ['commercial-s2-fast-food-seat-a1', 'commercial-s2-fast-food-seat-a2'] },
+  ))
+  addFurniture(fastFood, mainlineTwoSeatFurniture(
+    'commercial-s2-fast-food-table-group-b', cell(fastFood, 9, 12), cell(fastFood, 7, 12),
+    { tableId: 'commercial-s2-fast-food-table-b', seatIds: ['commercial-s2-fast-food-seat-b1', 'commercial-s2-fast-food-seat-b2'] },
+  ))
+  addCounter(fastFood, 'commercial-s2-fast-food-counter', [{ orientation: 'vertical', positions: Array.from({ length: 10 }, (_, index) => cell(fastFood, 14, 5 + index)) }])
+  const fastFoodRearWallRuns = [
+    { columns: Array.from({ length: 17 }, (_, index) => index - 1), omitted: [0] },
+    { columns: [18, 19], omitted: [] },
+    { columns: [22, 23], omitted: [1] },
+  ]
+  fastFoodRearWallRuns.forEach(({ columns, omitted }, runIndex) => {
+    addWallRun(fastFood, `commercial-s2-fast-food-rear-partition-${runIndex}`, columns.map((column) => cell(fastFood, column, 16)), 'horizontal', omitted)
+  })
+  addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-kitchen-door', cell(fastFood, 16.5, 16))
+  addInternalDoorGlyph(fastFood, 'commercial-s2-fast-food-warehouse-door', cell(fastFood, 20.5, 16))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-kitchen-sign', '厨房', cell(fastFood, 15, 18))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-warehouse-sign', '仓库', cell(fastFood, 20.5, 18))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-menu-service-label', '菜单', cell(fastFood, 7, 3))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-order-service-label', '点单', cell(fastFood, 12, 5))
+  addStaticRoomLabel(fastFood, 'commercial-s2-fast-food-pickup-service-label', '取餐', cell(fastFood, 12, 12))
+  const fastFoodRearDividerRows = commercialStreetInteriorVerticalCoordinateCount - 16
+  addWallRun(fastFood, 'commercial-s2-fast-food-kitchen-warehouse-divider', Array.from({ length: fastFoodRearDividerRows }, (_, index) => cell(fastFood, 18, 16 + index)), 'vertical', [0, fastFoodRearDividerRows - 1])
+
+  const addRetailRun = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    id: string,
+    cells: readonly { column: number; row: number; glyph: string }[],
+    orientation: 'horizontal' | 'vertical',
+    omittedGlyphIndexes: readonly number[] = [],
+  ) => {
+    if (cells.length === 0) throw new Error(`Retail run ${id} has no cells`)
+    const points = cells.map(({ column, row }) => cell(sample, column, row))
+    if (cells.some(({ glyph }) => Array.from(glyph).length !== 1)) {
+      throw new Error(`Retail run ${id} must use one character per grid cell`)
+    }
+    const omitted = new Set(omittedGlyphIndexes)
+    const isCounterWord = id.includes('-counter')
+    const first = points[0]!
+    const last = points.at(-1)!
+    const center = { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }
+    const direction = orientation === 'vertical' ? Math.sign(last.y - first.y) || 1 : Math.sign(last.x - first.x) || 1
+    const glyphPositions = points.map((position, index) => !isCounterWord
+      ? position
+      : orientation === 'vertical'
+        ? { ...position, y: center.y + direction * (index - (points.length - 1) / 2) * glyphSteps.vertical }
+        : { ...position, x: center.x + direction * (index - (points.length - 1) / 2) * glyphSteps.horizontal })
+    glyphPositions.forEach((position, index) => {
+      if (omitted.has(index)) return
+      entities.push(floor({
+        id: `${id}-${index + 1}`,
+        label: cells[index]!.glyph,
+        kind: 'fixture',
+        weight: 'fixture',
+        position,
+        roomId: sample.roomId,
+        interactive: false,
+        visualVisibility: 'static',
+      }))
+    })
+
+    const thickness = Math.max(.8, commercialStreetCellPitch * .18)
+    const visibleGlyphPositions = glyphPositions.filter((_position, index) => !omitted.has(index))
+    const collision = isCounterWord
+      ? box(
+          Math.min(...visibleGlyphPositions.map((position) => position.x)) - glyphSteps.horizontal / 2,
+          Math.min(...visibleGlyphPositions.map((position) => position.y)) - glyphSteps.vertical / 2,
+          Math.max(...visibleGlyphPositions.map((position) => position.x)) - Math.min(...visibleGlyphPositions.map((position) => position.x)) + glyphSteps.horizontal,
+          Math.max(...visibleGlyphPositions.map((position) => position.y)) - Math.min(...visibleGlyphPositions.map((position) => position.y)) + glyphSteps.vertical,
+        )
+      : orientation === 'horizontal'
+        ? box(Math.min(first.x, last.x) - commercialStreetCellPitch / 2, first.y - thickness / 2, cells.length * commercialStreetCellPitch, thickness)
+        : box(first.x - thickness / 2, Math.min(first.y, last.y) - verticalStep / 2, thickness, cells.length * verticalStep)
+    structures.push({ id: `${id}-body`, kind: 'barrier', ...collision })
+  }
+  const addRetailText = (
+    sample: typeof commercialStreetInteriorSamples[number],
+    id: string,
+    text: string,
+    startColumn: number,
+    row: number,
+  ) => {
+    const characters = Array.from(text)
+    const centerColumn = startColumn + (characters.length - 1) / 2
+    const anchor = cell(sample, centerColumn, row)
+    characters.forEach((glyph, index) => entities.push(floor({
+      id: `${id}-${index + 1}`,
+      label: glyph,
+      kind: 'fixture',
+      weight: 'minor',
+      position: { ...anchor, x: anchor.x + (index - (characters.length - 1) / 2) * glyphSteps.horizontal },
+      roomId: sample.roomId,
+      interactive: false,
+      visualVisibility: 'static',
+    })))
+  }
+
+  const northCafe = commercialStreetInteriorSamples.find((sample) => sample.roomId === 'commercial-north-cafe-interior')!
+  // Static furniture in the same-street shell; these entities do not reuse
+  // the legacy Cafe order flow or Lao Zhou's story furniture IDs.
+  for (const [suffix, column, row, approachColumn] of [
+    ['front', 15, 7, 13],
+    ['middle', 18, 11, 16],
+    ['rear', 15, 16, 13],
+  ] as const) {
+    const groupId = `commercial-north-cafe-table-group-${suffix}`
+    const tableId = `commercial-north-cafe-table-${suffix}`
+    addFurniture(northCafe, mainlineTwoSeatFurniture(
+      groupId,
+      cell(northCafe, column, row),
+      cell(northCafe, approachColumn, row),
+      { tableId, seatIds: [`commercial-north-cafe-seat-${suffix}-a`, `commercial-north-cafe-seat-${suffix}-b`] },
+    ))
+  }
+  addCounter(northCafe, 'commercial-north-cafe-counter', [
+    {
+      orientation: 'horizontal',
+      positions: Array.from({ length: 6 }, (_, index) => cell(northCafe, 4 + index, 5)),
+      glyphs: ['柜', '台', '柜', '台', '柜', '台'],
+    },
+    {
+      // Include the elbow in the collision run; addCounter deduplicates its
+      // glyph against the horizontal run, leaving visible cells only at
+      // x9,y6..8 on the return.
+      orientation: 'vertical',
+      positions: Array.from({ length: 4 }, (_, index) => cell(northCafe, 9, 5 + index)),
+      glyphs: ['台', '柜', '台', '柜'],
+    },
+  ], false)
+  addRetailText(northCafe, 'commercial-north-cafe-menu-label', '菜单', 4, 3)
+  addRetailText(northCafe, 'commercial-north-cafe-order-label', '点单', 6, 4)
+  addInternalDoorGlyph(northCafe, 'commercial-north-cafe-staff-opening', cell(northCafe, 9, 9))
+  addRetailText(northCafe, 'commercial-north-cafe-storage-label', '储物', 2, 19)
+
+  type CommercialRetailPlan = {
+    storefrontId: string
+    key: string
+    counterRow: number
+    counterLength: 4 | 5 | 7
+    counterColumn?: number
+    storageColumn: number
+    storageRow?: number
+    storageSide: 'west' | 'east'
+    storageNook?: 'west' | 'east'
+    markers?: readonly { id: string; text: string; column: number; row: number }[]
+    displays: readonly {
+      id: string
+      orientation: 'horizontal' | 'vertical'
+      cells: readonly { column: number; row: number; glyph: string }[]
+    }[]
+  }
+  const retailPlans: readonly CommercialRetailPlan[] = [
+    {
+      storefrontId: 'commercial-north-slot-1', key: 'n1-fruit-tea', counterRow: 5, counterLength: 7, storageColumn: 7, storageRow: 18, storageSide: 'west',
+      markers: [
+        { id: 'order', text: '点单', column: 6, row: 5 },
+        { id: 'pickup', text: '取货', column: 6, row: 9 },
+      ],
+      displays: [],
+    },
+    {
+      storefrontId: 'commercial-north-slot-2', key: 'n2-creative', counterRow: 9, counterLength: 4, storageColumn: 1, storageSide: 'west', storageNook: 'west',
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }] },
+        { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
+        { id: 'central-group-a', orientation: 'horizontal', cells: [{ column: 3, row: 8, glyph: '架' }, { column: 4, row: 8, glyph: '架' }] },
+        { id: 'central-group-b', orientation: 'horizontal', cells: [{ column: 6, row: 11, glyph: '架' }, { column: 7, row: 11, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-north-slot-3', key: 'n3-beauty', counterRow: 8, counterLength: 5, storageColumn: 7, storageSide: 'east',
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
+        { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }, { column: 9, row: 8, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-north-slot-4', key: 'n4-eyewear', counterRow: 7, counterLength: 4, storageColumn: 1, storageSide: 'west',
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
+        { id: 'east-wall-front', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-north-slot-5', key: 'n5-toys', counterRow: 7, counterLength: 4, storageColumn: 7, storageSide: 'east',
+      displays: [
+        { id: 'display-a', orientation: 'horizontal', cells: [{ column: 2, row: 7, glyph: '架' }] },
+        { id: 'display-b', orientation: 'horizontal', cells: [{ column: 8, row: 6, glyph: '架' }] },
+        { id: 'display-c', orientation: 'horizontal', cells: [{ column: 3, row: 11, glyph: '架' }] },
+        { id: 'display-d', orientation: 'horizontal', cells: [{ column: 6, row: 13, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-north-slot-6', key: 'n6-fragrance', counterRow: 8, counterLength: 5, storageColumn: 1, storageSide: 'west',
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }] },
+        { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-1', key: 's1-fashion', counterRow: 8, counterLength: 5, storageColumn: 7, storageSide: 'east',
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 6, glyph: '架' }, { column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }] },
+        { id: 'east-wall-rear', orientation: 'vertical', cells: [{ column: 9, row: 9, glyph: '架' }, { column: 9, row: 10, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-4', key: 's4-clothing', counterRow: 7, counterLength: 4, storageColumn: 1, storageSide: 'west', storageNook: 'west',
+      displays: [
+        { id: 'west-wall', orientation: 'vertical', cells: [{ column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }, { column: 1, row: 9, glyph: '架' }] },
+        { id: 'east-wall', orientation: 'vertical', cells: [{ column: 9, row: 7, glyph: '架' }, { column: 9, row: 8, glyph: '架' }, { column: 9, row: 9, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-6', key: 's6-dessert', counterRow: 6, counterLength: 5, storageColumn: 7, storageRow: 18, storageSide: 'west',
+      markers: [
+        { id: 'menu', text: '菜单', column: 6, row: 6 },
+        { id: 'pickup', text: '取货', column: 6, row: 9 },
+        { id: 'organization', text: '整理', column: 7, row: 17 },
+      ],
+      displays: [
+        { id: 'west-display-front', orientation: 'horizontal', cells: [{ column: 2, row: 6, glyph: '架' }, { column: 3, row: 6, glyph: '架' }, { column: 4, row: 6, glyph: '架' }] },
+        { id: 'west-display-mid', orientation: 'horizontal', cells: [{ column: 2, row: 8, glyph: '架' }, { column: 3, row: 8, glyph: '架' }, { column: 4, row: 8, glyph: '架' }] },
+        { id: 'west-display-rear', orientation: 'horizontal', cells: [{ column: 2, row: 10, glyph: '架' }, { column: 3, row: 10, glyph: '架' }, { column: 4, row: 10, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-7', key: 's7-jewelry', counterRow: 8, counterLength: 4, storageColumn: 8, storageSide: 'east', storageNook: 'east',
+      displays: [
+        { id: 'near-counter-a', orientation: 'horizontal', cells: [{ column: 5, row: 7, glyph: '架' }, { column: 6, row: 7, glyph: '架' }] },
+        { id: 'near-counter-b', orientation: 'horizontal', cells: [{ column: 6, row: 10, glyph: '架' }] },
+      ],
+    },
+    {
+      storefrontId: 'commercial-south-slot-8', key: 's8-clothing', counterRow: 7, counterLength: 5, storageColumn: 1, storageSide: 'west',
+      displays: [
+        { id: 'west-wall-rear', orientation: 'vertical', cells: [{ column: 1, row: 7, glyph: '架' }, { column: 1, row: 8, glyph: '架' }, { column: 1, row: 9, glyph: '架' }] },
+        { id: 'east-wall-front', orientation: 'vertical', cells: [{ column: 9, row: 6, glyph: '架' }, { column: 9, row: 7, glyph: '架' }] },
+      ],
+    },
+  ]
+  retailPlans.forEach((plan) => {
+    const sample = commercialStreetInteriorSamples.find((candidate) => candidate.storefrontId === plan.storefrontId)!
+    plan.displays.forEach((display) => addRetailRun(sample, `commercial-retail-${plan.key}-display-${display.id}`, display.cells, display.orientation))
+    const canonicalCounterGlyphs = Array.from({ length: plan.counterLength }, (_, index) => index % 2 === 0 ? '柜' : '台')
+    const counterCells = Array.from({ length: plan.counterLength }, (_, index) => ({
+      column: plan.counterColumn ?? 8,
+      row: plan.counterRow + index,
+      glyph: sample.side === 'north' ? canonicalCounterGlyphs[plan.counterLength - index - 1]! : canonicalCounterGlyphs[index]!,
+    }))
+    addRetailRun(sample, `commercial-retail-${plan.key}-counter`, counterCells, 'vertical')
+    if (plan.storageNook) {
+      const sideColumn = plan.storageNook === 'west' ? 0 : 10
+      const innerColumn = plan.storageNook === 'west' ? 2 : 8
+      const connector = Array.from({ length: Math.abs(innerColumn - sideColumn) + 1 }, (_, index) => {
+        const column = plan.storageNook === 'west' ? sideColumn + index : sideColumn - index
+        return { column, row: 17, glyph: '墙' }
+      })
+      const connectorId = `commercial-retail-${plan.key}-storage-connector`
+      addRetailRun(sample, connectorId, connector, 'horizontal', [0])
+      const returnCells = [17, 18].map((row) => ({ column: innerColumn, row, glyph: '墙' }))
+      addRetailRun(sample, `commercial-retail-${plan.key}-storage-return`, returnCells, 'vertical', [0])
+    }
+    addRetailText(sample, `commercial-retail-${plan.key}-storage-label`, '储物', plan.storageColumn, plan.storageRow ?? 19)
+    plan.markers?.forEach((marker) => addRetailText(sample, `commercial-retail-${plan.key}-${marker.id}`, marker.text, marker.column, marker.row))
+  })
+
+  return { groupIds, entities, structures }
+})()
+
+const commercialStreetAirWallSegments = (id: string, bounds: CollisionBox, samples: typeof commercialStreetInteriorSamples) => {
+  const cuts = samples.map(({ x, width }) => ({ start: x - commercialStreetCellPitch, end: x - commercialStreetCellPitch + width }))
+    .filter(({ start, end }) => end > bounds.x && start < bounds.x + bounds.width)
+    .sort((left, right) => left.start - right.start)
+  const segments: MainlineAirWall[] = []
+  let cursor = bounds.x
+  cuts.forEach(({ start, end }, index) => {
+    const clippedStart = Math.max(bounds.x, start)
+    const clippedEnd = Math.min(bounds.x + bounds.width, end)
+    if (clippedStart > cursor) segments.push({ id: `${id}-${index}-left`, ...box(cursor, bounds.y, clippedStart - cursor, bounds.height) })
+    cursor = Math.max(cursor, clippedEnd)
+  })
+  if (cursor < bounds.x + bounds.width) segments.push({ id: `${id}-right`, ...box(cursor, bounds.y, bounds.x + bounds.width - cursor, bounds.height) })
+  return segments
+}
+const commercialStreetFacadeAirWalls: readonly MainlineAirWall[] = [
+  ...commercialStreetAirWallSegments('commercial-north-facade-air-wall', box(8, 10, commercialStreetWorldRight - 8, 25.3 - commercialStreetLaneExpansion), commercialStreetInteriorSamples.filter((sample) => sample.side === 'north')),
+  ...commercialStreetAirWallSegments('commercial-south-facade-air-wall-left', box(8, 64.7 + commercialStreetLaneExpansion, 180 + commercialStreetLongitudinalExpansion, 25.3 - commercialStreetLaneExpansion), commercialStreetInteriorSamples.filter((sample) => sample.side === 'south')),
+  // The enlarged scene bounds must not turn unselected storefront backs into
+  // new public paths. Keep only the authored shell-width gaps walkable.
+  ...commercialStreetAirWallSegments('commercial-north-shell-extension-air-wall', box(8, commercialStreetWorldTop, commercialStreetWorldRight - 8, 10 - commercialStreetWorldTop), commercialStreetInteriorSamples.filter((sample) => sample.side === 'north')),
+  ...commercialStreetAirWallSegments('commercial-south-shell-extension-air-wall', box(8, 90, commercialStreetWorldRight - 8, commercialStreetWorldBottom - 90), commercialStreetInteriorSamples.filter((sample) => sample.side === 'south')),
+]
+
+const commercialStreetStorefrontApproach = (storefrontId: string) => commercialStreetStorefronts.find(storefront => storefront.id === storefrontId)?.approach ?? authoredPoint(14, 50)
+
 const commercialStreetAmbientNpcRoutes = [
-  { npcId: 'commercial-street-pedestrian-west-north', initialDelayMs: 0, steps: [{ target: authoredPoint(60, 42), dwellMs: 1100 }, { kind: 'storefront-visit', target: authoredPoint(42, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-2', reentry: authoredPoint(42, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(22, 42), dwellMs: 1800 }] },
-  { npcId: 'commercial-street-pedestrian-west-south', initialDelayMs: 900, steps: [{ target: authoredPoint(28, 58), dwellMs: 1700 }, { kind: 'offstreet', target: authoredPoint(12, 58), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 58), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(72, 58), dwellMs: 1200 }] },
-  { npcId: 'commercial-street-pedestrian-mid-east-north', initialDelayMs: 1700, steps: [{ target: authoredPoint(142, 42), dwellMs: 1300 }, { kind: 'storefront-visit', target: authoredPoint(150, 42), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-7', reentry: authoredPoint(150, 42), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(88, 42), dwellMs: 2000 }] },
-  { npcId: 'commercial-street-pedestrian-mid-east-south', initialDelayMs: 2700, steps: [{ target: authoredPoint(174, 58), dwellMs: 1600 }, { kind: 'storefront-visit', target: authoredPoint(140, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-6', reentry: authoredPoint(140, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(124, 58), dwellMs: 900 }] },
-  { npcId: 'commercial-street-pedestrian-long', initialDelayMs: 3900, steps: [{ target: authoredPoint(166, 50), dwellMs: 2400 }, { kind: 'offstreet', target: authoredPoint(12, 50), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 50), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(20, 50), dwellMs: 1600 }] },
-  { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: authoredPoint(156, 58), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: authoredPoint(156, 58), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58), dwellMs: 1400 }, { target: authoredPoint(116, 58), dwellMs: 2600 }] },
+  { npcId: 'commercial-street-pedestrian-west-north', initialDelayMs: 0, steps: [{ target: authoredPoint(60, 42 - commercialStreetLaneExpansion), dwellMs: 1100 }, { kind: 'storefront-visit', target: commercialStreetStorefrontApproach('commercial-north-slot-2'), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-2', reentry: commercialStreetStorefrontApproach('commercial-north-slot-2'), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(22, 42 - commercialStreetLaneExpansion), dwellMs: 1800 }] },
+  { npcId: 'commercial-street-pedestrian-west-south', initialDelayMs: 900, steps: [{ target: authoredPoint(28, 58 + commercialStreetLaneExpansion), dwellMs: 1700 }, { kind: 'offstreet', target: authoredPoint(12, 58 + commercialStreetLaneExpansion), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 58 + commercialStreetLaneExpansion), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(72, 58 + commercialStreetLaneExpansion), dwellMs: 1200 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-north', initialDelayMs: 1700, steps: [{ target: authoredPoint(142, 42 - commercialStreetLaneExpansion), dwellMs: 1300 }, { kind: 'storefront-visit', target: commercialStreetStorefrontApproach('commercial-north-slot-3'), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-north-slot-3', reentry: commercialStreetStorefrontApproach('commercial-north-slot-3'), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(88, 42 - commercialStreetLaneExpansion), dwellMs: 2000 }] },
+  { npcId: 'commercial-street-pedestrian-mid-east-south', initialDelayMs: 2700, steps: [{ target: authoredPoint(commercialStreetEastWalkTargetX, 58 + commercialStreetLaneExpansion), dwellMs: 1600 }, { kind: 'storefront-visit', target: commercialStreetStorefrontApproach('commercial-south-slot-6'), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-6', reentry: commercialStreetStorefrontApproach('commercial-south-slot-6'), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(124, 58 + commercialStreetLaneExpansion), dwellMs: 900 }] },
+  { npcId: 'commercial-street-pedestrian-long', initialDelayMs: 3900, steps: [{ target: authoredPoint(commercialStreetEastWalkTargetX, 50), dwellMs: 2400 }, { kind: 'offstreet', target: authoredPoint(12, 50), dwellMs: ambientNpcOffstreetMinimumMs, reentry: authoredPoint(18, 50), minDwellMs: ambientNpcOffstreetMinimumMs, maxDwellMs: ambientNpcOffstreetMaximumMs }, { target: authoredPoint(20, 50), dwellMs: 1600 }] },
+  { npcId: 'commercial-street-pedestrian-shopper', initialDelayMs: 5100, steps: [{ target: authoredPoint(110, 40), dwellMs: 3500 }, { kind: 'storefront-visit', target: commercialStreetStorefrontApproach('commercial-south-slot-7'), dwellMs: ambientNpcStoreVisitMinimumMs, storefrontId: 'commercial-south-slot-7', reentry: commercialStreetStorefrontApproach('commercial-south-slot-7'), minDwellMs: ambientNpcStoreVisitMinimumMs, maxDwellMs: ambientNpcStoreVisitMaximumMs }, { target: authoredPoint(96, 58 + commercialStreetLaneExpansion), dwellMs: 1400 }, { target: authoredPoint(116, 58 + commercialStreetLaneExpansion), dwellMs: 2600 }] },
 ] as const satisfies readonly MainlineAmbientNpcRoute[]
 
+const commercialStreetPortals: MainlineScenePortalBlueprint[] = commercialStreetStorefronts.map((storefront): MainlineScenePortalBlueprint => {
+  const x = commercialStreetPortalTangent(storefront)
+  const y = storefront.edge === 'bottom' ? 36 - commercialStreetLaneExpansion : 64 + commercialStreetLaneExpansion
+  const laneY = storefront.edge === 'bottom' ? 41 - commercialStreetLaneExpansion : 59 + commercialStreetLaneExpansion
+  const portalId = storefront.portalId!
+  const interior = commercialStreetInteriorSamples.find((sample) => sample.storefrontId === storefront.id)
+  return { id: portalId,
+    entity: { id: portalId, label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
+    endpoint: { doorPosition: authoredPoint(x, y), threshold: authoredPoint(x, laneY), crossingTarget: authoredPoint(x, laneY) },
+    wallOpenings: [], transitionText: '\u6b64\u5e97\u94fa\u5c1a\u672a\u5f00\u653e\u3002', access: interior ? 'open' : 'locked', ...(interior ? { routeThrough: true, fromRoomId: 'commercial-street-public-lane', toRoomId: interior.roomId } : {}), ...(!interior ? { lockedText: '\u6b64\u5e97\u94fa\u5c1a\u672a\u5f00\u653e\u3002' } : {}) }
+})
+
+const commercialStreetRearDoorPortals: MainlineScenePortalBlueprint[] = commercialStreetInteriorSamples.map((sample) => {
+  const north = sample.side === 'north'
+  const edge = north ? 'top' : 'bottom'
+  const centerX = sample.x - commercialStreetCellPitch + sample.width / 2
+  const doorId = `${sample.roomId}-rear-door`
+  return {
+    id: doorId,
+    entity: { id: doorId, label: '\u95e8', displayLabel: '\u95e8', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+    endpoint: {
+      doorPosition: authoredPoint(centerX, sample.back),
+      threshold: authoredPoint(centerX, sample.back + (north ? commercialStreetRearDoorApproachDepth : -commercialStreetRearDoorApproachDepth)),
+      crossingTarget: authoredPoint(centerX, sample.back + (north ? -commercialStreetRearDoorApproachDepth : commercialStreetRearDoorApproachDepth)),
+    },
+    // The portal alone owns this opening. Flanking lattice cells are ordinary
+    // walls, so they cannot become part of a rear-door navigation volume.
+    wallOpenings: [{ wallId: `${sample.roomId}-shell`, opening: { edge, start: centerX - commercialStreetCellPitch, end: centerX + commercialStreetCellPitch, doorId, labelLayout: 'center', doorFlankCount: 0 } }],
+    transitionText: '\u540e\u95e8\u5c1a\u672a\u63a5\u901a\u3002',
+    access: 'locked',
+    lockedText: '\u540e\u95e8\u5c1a\u672a\u5f00\u653e\u3002',
+  }
+})
+
+// The first fruit-tea frontage is the district entrance. Keep a separate
+// ride arrival so a remembered journey never overrides a taxi drop-off.
+const commercialStreetEntrance = authoredPoint(
+  commercialStreetPortalTangent(commercialStreetStorefronts[0]!),
+  commercialStreetFacadeNorthY + 6,
+)
 const commercialStreetBlueprint: MainlineSceneBlueprint = {
   id: 'commercial-street',
   title: '第一章 · 商业街',
-  subtitle: '两侧连续的现代临街店面夹出一条主通道，尽头接入独立的咖啡馆场景。',
+  subtitle: '当前预览：商业街保持连续通行，14家店铺均为可进入的空壳；咖啡馆旧内容尚待迁移。',
   statusLabel: '里世界',
-  hint: '沿中间主通道前进；右侧尾端的咖啡馆是独立场景，门只在路线真正通过时打开。',
-  presentation: { mode: 'actor-relative', offset: authoredPoint(0, 0), readingRail: { centerY: 50, minX: 16, maxX: 184, gap: 6 } },
+  hint: '沿街14家店铺可从前门进入同场景空壳，后门暂不开放。咖啡馆旧场景内容尚待迁移；当前街门只进入空壳。',
+  presentation: { mode: 'actor-relative', offset: authoredPoint(0, 0), readingRail: { centerY: 50, minX: 16, maxX: commercialStreetSceneRight - 8, gap: 6 } },
   areaLabel: (position) => position.x >= 140 ? '商业街尾端' : '里世界',
   scene: {
-    walkBounds: box(8, 10, 192, 80),
+    walkBounds: box(8, commercialStreetWorldTop, commercialStreetWorldRight - 8, commercialStreetWorldBottom - commercialStreetWorldTop),
+    rooms: [
+      { id: 'commercial-street-public-lane', kind: 'corridor', bounds: box(8, 36 - commercialStreetLaneExpansion, commercialStreetWorldRight - 8, 28 + 2 * commercialStreetLaneExpansion) },
+      ...commercialStreetInteriorSamples.map((sample) => ({ id: sample.roomId, bounds: box(sample.x - commercialStreetCellPitch, Math.min(sample.facade, sample.back), sample.width, commercialStreetInteriorDepth) })),
+    ],
     externalExit: { axis: 'x', direction: -1, threshold: 12 },
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [
-      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, 180, 22), variant: 'shop-row', edges: ['bottom'] },
-      { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36, 176, 28), edges: [] },
-      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64, 180, 22), variant: 'shop-row', edges: ['top'] },
-      { id: 'commercial-cafe-terminal', type: 'frame', bounds: box(188, 36, 4, 28), variant: 'terminal', edges: ['right'] },
+      { id: 'commercial-north-facade', type: 'room', bounds: box(12, 14, (commercialStreetRowCellCounts.bottom + 3) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.bottom + 4 }, edges: ['bottom'] },
+      { id: 'commercial-main-lane', type: 'lane', bounds: box(12, 36 - commercialStreetLaneExpansion, 176 + commercialStreetLongitudinalExpansion, 28 + commercialStreetLaneExpansion * 2), edges: [] },
+      { id: 'commercial-south-facade', type: 'room', bounds: box(12, 64 + commercialStreetLaneExpansion, (commercialStreetRowCellCounts.top + 3) * commercialStreetCellPitch, 22 - commercialStreetLaneExpansion), variant: 'shop-row', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { horizontal: commercialStreetRowCellCounts.top + 4 }, edges: ['top'] },
+      ...commercialStreetInteriorSamples.map((sample) => ({
+        id: `${sample.roomId}-shell`, type: 'room' as const,
+        bounds: box(sample.x - commercialStreetCellPitch, Math.min(sample.facade, sample.back), sample.width, commercialStreetInteriorDepth),
+        variant: 'commercial-empty-shell', boundaryGeometrySource: 'cell-range' as const,
+        // Counts are glyph anchors, so N cells span N - 1 intervals. The
+        // shell has one more cell at either horizontal end than the facade.
+        boundaryCoordinateCount: {
+          horizontal: sample.horizontalCellCount,
+          vertical: commercialStreetInteriorVerticalCoordinateCount,
+        },
+        // The street facade owns each front corner and the rear wall owns
+        // each back corner; side rows render only their 20 interior anchors.
+        boundaryVisualEndpoints: { vertical: { start: 'omit' as const, end: 'omit' as const } },
+        edges: [sample.side === 'north' ? 'top' as const : 'bottom' as const, 'left' as const,
+          ...(!commercialStreetInteriorSamples.some((other) => other.side === sample.side && other.x > sample.x) ? ['right' as const] : [])],
+      })),
     ],
-    storefronts: [
-      ...storefrontRow('commercial-north', 'commercial-north-facade', 'bottom', ['果茶店', '服装店', '花店', '眼镜店', '美妆店', '服装店', '书店', '甜品店'], 'modern', commercialStorefrontStarts, 18),
-      ...storefrontRow('commercial-south', 'commercial-south-facade', 'top', ['鞋店', '潮玩店', '香氛店', '服装店', '奶茶店', '周边店', '首饰店', '服装店'], 'modern', commercialStorefrontStarts, 18),
-      { id: 'commercial-cafe-slot', wallId: 'commercial-cafe-terminal', edge: 'right', label: '咖啡馆', style: 'modern', composition: { baseline: ['sign'], near: ['wall', 'door', 'wall'] }, characterSwitch: true, portalId: 'street-cafe-entry', nearRadius: 10, start: commercialStreetCafeDoorStart, end: commercialStreetCafeDoorEnd, approach: authoredPoint(186, commercialStreetCafeDoorY) },
-    ],
-    floorEntities: [],
+    storefronts: commercialStreetStorefronts,
+    floorEntities: commercialStreetShellFurniture.entities,
     airWalls: commercialStreetFacadeAirWalls,
     blockers: [],
+    continuousStructures: commercialStreetShellFurniture.structures,
     npcs: commercialStreetAmbientNpcs,
     npcPlacements: [
-      { npcId: 'commercial-street-pedestrian-west-north', position: authoredPoint(22, 42) },
-      { npcId: 'commercial-street-pedestrian-west-south', position: authoredPoint(64, 58) },
-      { npcId: 'commercial-street-pedestrian-mid-east-north', position: authoredPoint(88, 42) },
-      { npcId: 'commercial-street-pedestrian-mid-east-south', position: authoredPoint(132, 58) },
+      { npcId: 'commercial-street-pedestrian-west-north', position: authoredPoint(22, 42 - commercialStreetLaneExpansion) },
+      { npcId: 'commercial-street-pedestrian-west-south', position: authoredPoint(64, 58 + commercialStreetLaneExpansion) },
+      { npcId: 'commercial-street-pedestrian-mid-east-north', position: authoredPoint(88, 42 - commercialStreetLaneExpansion) },
+      { npcId: 'commercial-street-pedestrian-mid-east-south', position: authoredPoint(132, 58 + commercialStreetLaneExpansion) },
       { npcId: 'commercial-street-pedestrian-long', position: authoredPoint(20, 50) },
-      { npcId: 'commercial-street-pedestrian-shopper', position: authoredPoint(110, 58) },
+      { npcId: 'commercial-street-pedestrian-shopper', position: authoredPoint(110, 58 + commercialStreetLaneExpansion) },
     ],
     ambientNpcRoutes: commercialStreetAmbientNpcRoutes,
-    furnitureGroups: [],
-    initialPlayerPosition: authoredPoint(34, 50),
+    furnitureGroups: commercialStreetShellFurniture.groupIds.map((id) => {
+      const first = commercialStreetShellFurniture.entities.find((entity) => entity.groupId === id)!
+      return { id, anchor: first.position, entityIds: commercialStreetShellFurniture.entities.filter((entity) => entity.groupId === id).map((entity) => entity.id) }
+    }),
+    initialPlayerPosition: commercialStreetEntrance,
+    rideArrivalPosition: commercialStreetEntrance,
   },
-  portals: [{
-    id: 'street-cafe-entry',
-    entity: { id: 'street-cafe-entry', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
-    endpoint: { doorPosition: authoredPoint(192, commercialStreetCafeDoorY), threshold: authoredPoint(188, commercialStreetCafeDoorY), crossingTarget: authoredPoint(190, commercialStreetCafeDoorY), entryPosition: authoredPoint(14, commercialCafeDoorY) },
-    targetSceneId: 'commercial-cafe', wallOpenings: [], transitionText: '修杰穿过商业街尾端的门，进入咖啡馆。', access: 'open',
-  }],
-  interactionText: { 'street-cafe-entry': '咖啡馆是独立场景，入口沿用主线门和寻路契约。' },
-}
-
-const commercialCafeBlueprint: MainlineSceneBlueprint = {
-  id: 'commercial-cafe', title: '第二章 · 咖啡馆',
-  subtitle: '独立的咖啡馆室内；墙、曲线窗格、菜单、黑板、柜台和桌椅都由主线场景契约直接编译。',
-  statusLabel: '商业街 / 咖啡馆', hint: '入口在左侧；右侧弧形玻璃是窗边界，菜单和黑板在后墙，后门暂时受权限控制。',
-  presentation: { mode: 'fixed', anchor: authoredPoint(46, 58) },
-  areaLabel: '咖啡馆',
-  scene: {
-    walkBounds: commercialCafeBounds, wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
-    viewport: 'fixed-frame',
-    walls: [{ id: 'commercial-cafe-room', type: 'room', bounds: commercialCafeStraightFrameBounds, variant: 'cafe', edges: ['top', 'bottom', 'left'], features: [
-      { id: 'commercial-cafe-menu-feature', edge: 'top', start: 15, end: 21, glyphs: ['菜', '单'], layout: 'inline', entity: commercialCafeMenu },
-      { id: 'commercial-cafe-blackboard-feature', edge: 'top', start: 29, end: 35, glyphs: ['黑', '板'], layout: 'inline', entity: commercialCafeBlackboard },
-    ] }],
-    floorEntities: [
-      ...commercialCafeCounterEntities,
-      floor({ id: 'commercial-cafe-plant-upper', label: '绿植', kind: 'fixture', weight: 'minor', position: commercialCafeLayout.plants.upper.position, approach: commercialCafeLayout.plants.upper.approach, collision: commercialCafeLayout.plants.upper.collision, shape: commercialCafeLayout.plants.upper.collision, visualVisibility: 'baseline' }),
-      floor({ id: 'commercial-cafe-plant-lower', label: '绿植', kind: 'fixture', weight: 'minor', position: commercialCafeLayout.plants.lower.position, approach: commercialCafeLayout.plants.lower.approach, collision: commercialCafeLayout.plants.lower.collision, shape: commercialCafeLayout.plants.lower.collision, visualVisibility: 'baseline' }),
-      ...commercialCafeFurnitureEntities,
-    ],
-    npcs: commercialCafeNpcs,
-    npcPlacements: [],
-    npcBehaviorTargets: commercialCafeNpcBehaviorTargets,
-    npcBehaviors: commercialCafeNpcBehaviors,
-    curves: [commercialCafeWindow],
-    accessRegions: [{
-      id: 'commercial-cafe-staff-area',
-      ...commercialCafeServiceLayout.staffArea,
-      requiredAccess: 'staff',
-      deniedText: '还是别进去打扰他们工作了。',
-    }],
-    accessPortals: [commercialCafeStaffAccessPortal],
-    // The rear wall, left wall, and counter body already close the other
-    // sides. Only the open right edge is an access-controlled crossing.
-    accessBoundaries: [{
-      id: 'commercial-cafe-staff-right-access-boundary',
-      regionId: 'commercial-cafe-staff-area',
-      edge: 'right',
-    }],
-    navigationBarriers: commercialCafeNavigationBarriers,
-    actorAccess: {
-      protagonist: ['public'],
-      [npcRoles.laoZhou.id]: ['public'],
-      [npcRoles.cafeCoffeeOwner.id]: ['public', 'staff'],
-      [npcRoles.cafeFloorServer.id]: ['public'],
-    },
-    blockers: [],
-    continuousStructures: [commercialCafeCounterStructure],
-    furnitureGroups: commercialCafeFurniture.map(({ group }) => group), initialPlayerPosition: commercialCafeEntryPosition,
-  },
-  portals: [{
-    id: 'street-cafe-entry',
-    entity: { id: 'street-cafe-entry', label: '门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
-    endpoint: { doorPosition: authoredPoint(8, commercialCafeDoorY), threshold: authoredPoint(12, commercialCafeDoorY), crossingTarget: authoredPoint(10, commercialCafeDoorY), entryPosition: commercialStreetCafeEntryPosition },
-    targetSceneId: 'commercial-street', wallOpenings: [{ wallId: 'commercial-cafe-room', opening: { edge: 'left', start: 63.5, end: 72.5, doorId: 'street-cafe-entry', labelLayout: 'center' } }], transitionText: '修杰从咖啡馆返回商业街。', access: 'open',
-  }, {
-    id: 'cafe-back-door',
-    entity: { id: 'cafe-back-door', label: '后门', displayLabel: '门', kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'double', openLeaves: 'both' } },
-    endpoint: { doorPosition: authoredPoint(48, 7), threshold: authoredPoint(48, 12), crossingTarget: authoredPoint(48, 9) },
-    wallOpenings: [{ wallId: 'commercial-cafe-room', opening: { edge: 'top', start: 46, end: 50, doorId: 'cafe-back-door', labelLayout: 'center' } }], transitionText: '后门暂时没有开放的去处。', access: 'locked', lockedText: '后门暂未开启，当前权限不足。',
-  }],
-  interactionText: {
-    'street-cafe-entry': '入口已经接入商业街，咖啡馆内部和主线使用同一套空间规则。', 'commercial-cafe-counter': '柜台位于店内前侧。', 'commercial-cafe-menu': '菜单挂在后墙上。', 'commercial-cafe-blackboard': '黑板挂在菜单旁边。', 'commercial-cafe-plant-upper': '靠窗的绿植留在通道边缘。', 'commercial-cafe-plant-lower': '另一盆绿植靠着玻璃边。', 'cafe-back-door': '后门暂未开启，当前权限不足。',
-  },
+  portals: [...commercialStreetPortals, ...commercialStreetRearDoorPortals],
+  interactionText: { 'street-cafe-entry': '咖啡馆旧内容尚待迁移；当前街门进入的是沿街空壳。' },
 }
 
 const jijiaAltarBlueprint: MainlineAltarBlueprint = {
@@ -1150,7 +1706,7 @@ const jijiaYardCenter = {
   y: jijiaYardBounds.y + jijiaYardBounds.height / 2,
 }
 const jijiaOldTreeCollision = box(jijiaYardCenter.x - 2, jijiaYardCenter.y - 2, 4, 4)
-const jijiaYardWallSteps = boundaryGridStepsFromScreenSpacing()
+const jijiaYardWallSteps = boundaryGridStepsFromReferenceSpacing()
 const jijiaOldTreeStoneOffsets = ([
   ['n-2', -2, -1], ['n-1', -1, -1], ['n', 0, -1], ['n+1', 1, -1], ['n+2', 2, -1],
   ['e', 2, 0],
@@ -1208,11 +1764,11 @@ const jijiaInnerPortraitFeatures: readonly MainlineWallFeatureBlueprint[] = [
 ]
 
 const jijiaPortraitExplorationPool = [
-  '画像上的人，修杰都从没见过，只听家里人提起过。',
+  '画像中的面孔都很陌生，修杰只听家人提起过他们。',
   '画像上有些色块已经掉了，木板上还出现了一些细微的裂缝。',
-  '画像太高了，阳光根本照不到上半身，但是眼睛却格外有神，像是在盯着修杰看。',
-  '以前爷爷讲过这些先祖的故事，但是从没提起过名字。',
-  '妹妹小时候每次进来，都会被吓到嚎啕大哭。',
+  '画像很长，挂得很高，上半身藏在阴影里面，但是修杰能感觉画像里的眼睛在盯着自己',
+  '爷爷以前讲过这些先祖的故事，却从没说过他们的名字。',
+  '小时候妹妹最怕进这里，每次都会嚎啕大哭。',
 ] as const
 
 const jijiaYardBlueprint: MainlineSceneBlueprint = {
@@ -1225,6 +1781,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
   areaLabel: '前院',
   scene: {
     walkBounds: jijiaYardBounds,
+    rooms: [{ id: 'jijia-yard-public-area', bounds: jijiaYardBounds, kind: 'room' }],
     viewport: 'fixed-frame',
     externalExit: { axis: 'x', direction: -1, threshold: 14, triggerEntityId: 'jijia-yard-gate' },
     wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
@@ -1234,7 +1791,7 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     }],
     floorEntities: [
       ...jijiaOldTreeStoneRing,
-      floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), focusFrame: 'interactive', visualScale: 1.12, visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
+      floor({ id: 'jijia-old-tree', label: '老槐树', kind: 'landmark', weight: 'minor', position: jijiaYardCenter, collision: jijiaOldTreeCollision, shape: jijiaOldTreeCollision, visualBounds: box(jijiaYardCenter.x - 4.5, jijiaYardCenter.y - 4.5, 9, 9), focusFrame: 'interactive', visualVisibility: 'distance-baseline', groupId: 'jijia-yard-group', interactionBehavior: 'echo-pool', visualProfile: 'tree-ring' }),
     ],
     blockers: [], furnitureGroups: [{ id: 'jijia-yard-group', anchor: jijiaYardGroupAnchor, entityIds: ['jijia-old-tree'] }], initialPlayerPosition: { x: 25, y: 50 },
   },
@@ -1251,13 +1808,13 @@ const jijiaYardBlueprint: MainlineSceneBlueprint = {
     endpoint: { doorPosition: authoredPoint(10, 47.5), threshold: authoredPoint(14, 47.5), crossingTarget: authoredPoint(12, 47.5) },
     wallOpenings: [], transitionText: '修杰走到院门边，前院出口被触发。', access: 'open',
   }],
-  interactionText: { 'jijia-main-door': '正门通向独立的祖宅内堂。', 'jijia-yard-gate': '院门是前院的固定边界出口。', 'jijia-old-tree': '老槐树的影子落在石砖地面上。' },
+  interactionText: { 'jijia-main-door': '正门通向独立的祖宅内堂。', 'jijia-yard-gate': '院门是前院的固定边界出口。', 'jijia-old-tree': '老槐树的枝影铺在前院的石砖上。' },
   echoPool: [
-    '树上刻着某些痕迹，岁月磨去了不少。',
-    '树下的土还带着点湿润。',
-    '树荫底下非常阴凉，老槐树把太阳遮挡了大半。',
-    '妹妹总说，为什么不能砍树呀，这样多亮堂。',
-    '树下的石块已经失去了大半棱角，变得光滑了许多。',
+    '树干上留着几道刻痕，已经被岁月磨得模糊。',
+    '树下的泥土仍有些潮湿。',
+    '老槐树遮去了大半阳光，树荫下凉快许多。',
+    '妹妹以前总说：“为什么不把树砍了？这样院子里多亮堂。”',
+    '树下的石块早已磨得圆润，棱角几乎看不见了。',
   ],
 }
 
@@ -1271,6 +1828,7 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   areaLabel: '祖宅内堂',
   scene: {
     walkBounds: jijiaInnerHouseBounds,
+    rooms: [{ id: 'jijia-inner-house-main-room', bounds: jijiaInnerHouseBounds, kind: 'room' }],
     viewport: 'fixed-frame',
     wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
     walls: [{ id: 'jijia-inner-house', type: 'room', bounds: jijiaInnerHouseBounds, variant: 'interior', edges: ['top', 'right', 'bottom', 'left'], features: jijiaInnerPortraitFeatures,
@@ -1291,27 +1849,27 @@ const jijiaAncestralInteriorBlueprint: MainlineSceneBlueprint = {
   }],
   interactionText: {
     'jijia-main-door': '正门通向前院。', 'jijia-secret-door': '后门通向中枢院的窄暗道。',
-    'jijia-offering-table-north': '桌子上摆放着不少的牌位。', 'jijia-offering-table-south': '桌子上摆放着不少的牌位。', 'jijia-offering-table-west': '桌子上摆放着一些瓜果。', 'jijia-offering-table-east': '桌子上只摆放着一个牌位，上面写着“姬家家主”。',
+    'jijia-offering-table-north': '桌子上摆放着不少的牌位。', 'jijia-offering-table-south': '桌子上摆放着不少的牌位。', 'jijia-offering-table-west': '桌子上摆放着一些瓜果。', 'jijia-offering-table-east': '桌上孤零零放着一块牌位，写着“姬家家主”。',
   },
   explorationText: {
     ...Object.fromEntries(jijiaInnerPortraitFeatures.map((feature) => [feature.id, jijiaPortraitExplorationPool])),
     'jijia-offering-table-north': ['桌子上摆放着不少的牌位。'],
     'jijia-offering-table-south': ['桌子上摆放着不少的牌位。'],
     'jijia-offering-table-west': ['桌子上摆放着一些瓜果。'],
-    'jijia-offering-table-east': ['桌子上只摆放着一个牌位，上面写着“姬家家主”。'],
+    'jijia-offering-table-east': ['桌上孤零零放着一块牌位，写着“姬家家主”。'],
   },
 }
 
-const zhongshuyuanPassageWallSteps = boundaryGridStepsFromScreenSpacing()
+const zhongshuyuanPassageWallSteps = boundaryGridStepsFromReferenceSpacing()
 // The complete vertical boundary has five fixed positions, including its two
 // corner endpoints. The shared frame renderer assigns those endpoints to the
 // horizontal edges, so the complete side still reads: wall, wall, door, wall,
 // wall without generating a seventh position.
-export const zhongshuyuanPassageVerticalVisibleCellCount = 5
+export const zhongshuyuanPassageVerticalVisibleCellCount = sharedNarrowPassageFrameIntervals + 1
 export const zhongshuyuanPassageVerticalCoordinateCount = zhongshuyuanPassageVerticalVisibleCellCount
-const zhongshuyuanPassageHeight = zhongshuyuanPassageWallSteps.vertical * (zhongshuyuanPassageVerticalCoordinateCount - 1)
+const zhongshuyuanPassageHeight = sharedNarrowPassageFrameHeight
 const zhongshuyuanPassageBounds = box(3, 50 - zhongshuyuanPassageHeight / 2, 94, zhongshuyuanPassageHeight)
-const zhongshuyuanPassageWalkInset = 1.4
+const zhongshuyuanPassageWalkInset = sharedNarrowPassageWalkInset
 const zhongshuyuanPassageHorizontalWalkInset = .7
 const zhongshuyuanPassageWalkBounds = box(
   zhongshuyuanPassageBounds.x + zhongshuyuanPassageHorizontalWalkInset,
@@ -1323,7 +1881,7 @@ const zhongshuyuanPassageDoorStart = 50 - zhongshuyuanPassageWallSteps.vertical 
 const zhongshuyuanPassageDoorEnd = 50 + zhongshuyuanPassageWallSteps.vertical / 2
 // Arrive just inside the office doorway, clear of the workstation row. This
 // authored point is shared by every viewport instead of being screen-tuned.
-const zhongshuyuanOfficePassageEntryPosition = authoredPoint(8.5, 76.5)
+const zhongshuyuanOfficePassageEntryPosition = officeGrid.point(6, 27)
 const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   id: 'zhongshuyuan-passage',
   title: '里世界·中枢院窄暗道',
@@ -1334,6 +1892,7 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   hint: '沿窄暗道向右进入中枢院办公室；左侧门回到祖宅内堂。',
   scene: {
     walkBounds: zhongshuyuanPassageWalkBounds,
+    rooms: [{ id: 'zhongshuyuan-passage-walkable-space', bounds: zhongshuyuanPassageWalkBounds, kind: 'corridor' }],
     viewport: 'fixed-frame',
     wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
     walls: [{ id: 'zhongshuyuan-passage-frame', type: 'alley', bounds: zhongshuyuanPassageBounds, variant: 'narrow-corridor', boundaryGeometrySource: 'cell-range', boundaryCoordinateCount: { vertical: zhongshuyuanPassageVerticalCoordinateCount }, boundaryProjection: 'screen-spacing', boundaryVisualEndpoints: { vertical: { start: 'omit', end: 'omit' } }, edges: ['top', 'right', 'bottom', 'left'], openings: [
@@ -1356,36 +1915,34 @@ const zhongshuyuanPassageBlueprint: MainlineSceneBlueprint = {
   interactionText: { 'jijia-secret-door': '这扇门回到祖宅内堂。', 'zhongshuyuan-office-secret-door': '这扇门通向中枢院办公室。' },
 }
 
-const zhongshuyuanOfficeFloorBounds = box(6, 8, 88, 84)
-const zhongshuyuanOfficeCorridor = box(8, 39, 86, 22)
+const zhongshuyuanOfficeFloorBounds = officeGridFloor
+const zhongshuyuanOfficeCorridor = officeGridCorridor
+const zhongshuyuanOfficeBoundaryGrid = { origin: officeGrid.origin, pitchPx: officeGrid.pitchPx }
 const zhongshuyuanOfficeCorridorEndOpenings = [
-  { edge: 'left' as const, start: 39, end: 61 },
-  { edge: 'right' as const, start: 39, end: 61 },
+  { edge: 'left' as const, start: officeGrid.point(0,12.5).y, end: officeGrid.point(0,20.5).y },
+  { edge: 'right' as const, start: officeGrid.point(0,12.5).y, end: officeGrid.point(0,20.5).y },
 ] as const
-const zhongshuyuanOfficeNorthGlassWall = box(7, 39, 86, 1)
-const zhongshuyuanOfficeSouthGlassWall = box(7, 60, 86, 1)
+const zhongshuyuanOfficeNorthGlassWall = officeGrid.box(1,12,62,1)
+const zhongshuyuanOfficeSouthGlassWall = officeGrid.box(1,20,62,1)
+const zhongshuyuanOfficeSouthGlassCornerLink = {
+  id: 'zhongshuyuan-office-south-glass-corner-link',
+  x: officeGrid.point(0, 0).x,
+  y: officeGrid.point(0, 21).y - mainlineWallThickness / 2,
+  width: officeGrid.step.x,
+  height: mainlineWallThickness,
+}
 const zhongshuyuanOfficeNorthDividerBounds = [
-  box(28, 8, 1, 31),
-  box(50, 8, 1, 31),
-  box(72, 8, 1, 31),
+  officeGrid.box(16,0,1,12),
+  officeGrid.box(32,0,1,12),
+  officeGrid.box(48,0,1,12),
 ] as const
 const zhongshuyuanOfficeSouthDividerBounds = [
-  box(28, 61, 1, 31),
-  box(50, 61, 1, 31),
-  box(72, 61, 1, 31),
+  officeGrid.box(16,21,1,12),
+  officeGrid.box(32,21,1,12),
+  officeGrid.box(48,21,1,12),
 ] as const
-const zhongshuyuanOfficeNorthCells = [
-  box(6, 8, 22, 31),
-  box(28, 8, 22, 31),
-  box(50, 8, 22, 31),
-  box(72, 8, 22, 31),
-] as const
-const zhongshuyuanOfficeSouthCells = [
-  box(6, 61, 22, 31),
-  box(28, 61, 22, 31),
-  box(50, 61, 22, 31),
-  box(72, 61, 22, 31),
-] as const
+const zhongshuyuanOfficeNorthCells = officeGridNorthRooms
+const zhongshuyuanOfficeSouthCells = officeGridSouthRooms
 const zhongshuyuanOfficeRooms = [
   { id: 'zhongshuyuan-office-corridor', bounds: zhongshuyuanOfficeCorridor, kind: 'corridor' as const },
   ...zhongshuyuanOfficeNorthCells.map((bounds, index) => ({ id: `zhongshuyuan-office-north-room-${index + 1}`, bounds, kind: 'room' as const })),
@@ -1393,17 +1950,17 @@ const zhongshuyuanOfficeRooms = [
 ] as const
 const zhongshuyuanOfficeProtagonistRoom = zhongshuyuanOfficeSouthCells[0]
 const zhongshuyuanOfficeProtagonistRoomCenterY = zhongshuyuanOfficeProtagonistRoom.y + zhongshuyuanOfficeProtagonistRoom.height / 2
-const zhongshuyuanOfficeWallSteps = boundaryGridStepsFromScreenSpacing()
+const zhongshuyuanOfficeWallSteps = { horizontal: officeGrid.step.x, vertical: officeGrid.step.y }
 const zhongshuyuanOfficeWallCellStep = zhongshuyuanOfficeWallSteps.horizontal
 const zhongshuyuanOfficeChairX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeWallCellStep * 2
 const zhongshuyuanOfficeDeskX = zhongshuyuanOfficeChairX
   + sharedFurnitureGeometry.textFootprint.height / 2
   + sharedFurnitureGeometry.tableFootprint.height / 2
   + sharedFurnitureGeometry.actorContactGap
-const zhongshuyuanOfficeWindowX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeProtagonistRoom.width / 2
+const zhongshuyuanOfficeWindowX = officeGrid.point(8.5,33).x
 const zhongshuyuanOfficeCornerInset = 1.5
 const zhongshuyuanOfficeFixtureX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeProtagonistRoom.width - zhongshuyuanOfficeCornerInset
-const zhongshuyuanOfficeProtagonistDoorX = zhongshuyuanOfficeProtagonistRoom.x + zhongshuyuanOfficeProtagonistRoom.width - zhongshuyuanOfficeWallCellStep * 2
+const zhongshuyuanOfficeProtagonistDoorX = officeGrid.point(officeGridDoorColumns[0],21).x
 // The plant sits just inside the glass, to the left-rear of the room door;
 // keep its collision out of the doorway approach.
 const zhongshuyuanOfficePlantPosition = authoredPoint(
@@ -1424,8 +1981,8 @@ const zhongshuyuanOfficeWindow = wallEntity({
 const zhongshuyuanOfficeWindowFeature: MainlineWallFeatureBlueprint = {
   id: 'zhongshuyuan-office-window-feature',
   edge: 'bottom',
-  start: zhongshuyuanOfficeWindowX - 1,
-  end: zhongshuyuanOfficeWindowX + 1,
+  start: officeGrid.point(7.5,33).x,
+  end: officeGrid.point(9.5,33).x,
   glyphs: ['窗', '户'],
   layout: 'inline',
   entity: zhongshuyuanOfficeWindow,
@@ -1528,7 +2085,7 @@ const zhongshuyuanOfficeRack = floor({
   animationGroup: 'office-breathing',
 })
 
-const zhongshuyuanOfficeDoorXs = [24, 32, 68, 76] as const
+const zhongshuyuanOfficeDoorXs = officeGridDoorColumns.map(column=>officeGrid.point(column,0).x)
 const zhongshuyuanOfficeDoorBehavior = { leafCount: 'single', openLeaves: 'both' } as const
 const zhongshuyuanOfficeLockedDoorTextPool = ['这道门锁上了。', '周末没有人在办公室。'] as const
 const zhongshuyuanOfficeLockedDoorText = zhongshuyuanOfficeLockedDoorTextPool[0]
@@ -1548,9 +2105,9 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
         doorBehavior: zhongshuyuanOfficeDoorBehavior,
       },
       endpoint: {
-        doorPosition: authoredPoint(x, 39),
-        threshold: authoredPoint(x, 43),
-        crossingTarget: authoredPoint(x, 37),
+        doorPosition: authoredPoint(x, officeGrid.point(0,12).y),
+        threshold: authoredPoint(x, officeGrid.point(0,14).y),
+        crossingTarget: authoredPoint(x, officeGrid.point(0,11).y),
       },
       routeThrough: true,
       frameBehavior: 'independent' as const,
@@ -1560,8 +2117,8 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
         wallId: 'zhongshuyuan-office-glass-north',
         opening: {
           edge: 'top' as const,
-          start: x - 1,
-          end: x + 1,
+          start: x - officeGrid.step.x/2,
+          end: x + officeGrid.step.x/2,
           doorId: id,
           labelLayout: 'center' as const,
           doorFlankCount: 0,
@@ -1588,9 +2145,9 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
         doorBehavior: zhongshuyuanOfficeDoorBehavior,
       },
       endpoint: {
-        doorPosition: authoredPoint(x, 60),
-        threshold: authoredPoint(x, 56),
-        crossingTarget: authoredPoint(x, 64),
+        doorPosition: authoredPoint(x, officeGrid.point(0,21).y),
+        threshold: authoredPoint(x, officeGrid.point(0,19).y),
+        crossingTarget: authoredPoint(x, officeGrid.point(0,22).y),
       },
       routeThrough: true,
       frameBehavior: 'independent' as const,
@@ -1600,8 +2157,8 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
         wallId: 'zhongshuyuan-office-glass-south',
         opening: {
           edge: 'bottom' as const,
-          start: x - 1,
-          end: x + 1,
+          start: x - officeGrid.step.x/2,
+          end: x + officeGrid.step.x/2,
           doorId: id,
           labelLayout: 'center' as const,
           doorFlankCount: 0,
@@ -1626,15 +2183,15 @@ const zhongshuyuanOfficeDoorPortals: readonly MainlineScenePortalBlueprint[] = [
     },
     endpoint: {
       doorPosition: authoredPoint(zhongshuyuanOfficeFloorBounds.x, zhongshuyuanOfficeProtagonistSecretDoorY),
-      threshold: authoredPoint(zhongshuyuanOfficeFloorBounds.x + 4, zhongshuyuanOfficeProtagonistSecretDoorY),
-      crossingTarget: authoredPoint(zhongshuyuanOfficeFloorBounds.x - 2, zhongshuyuanOfficeProtagonistSecretDoorY),
+      threshold: officeGrid.point(6,27),
+      crossingTarget: officeGrid.point(-1,27),
     },
     wallOpenings: [{
       wallId: 'zhongshuyuan-office-floor-frame',
       opening: {
         edge: 'left',
-        start: zhongshuyuanOfficeProtagonistSecretDoorY - 1,
-        end: zhongshuyuanOfficeProtagonistSecretDoorY + 1,
+        start: officeGrid.point(0,26.5).y,
+        end: officeGrid.point(0,27.5).y,
         doorId: 'zhongshuyuan-office-secret-door',
         labelLayout: 'center',
         doorFlankCount: 1,
@@ -1656,14 +2213,14 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   subtitle: '中枢院内部的一层办公区，中央长廊连接数间办公室。',
   statusLabel: '中枢院 / 内部楼层',
   hint: '左下办公室是当前办公点；玻璃门通向中央长廊，实体墙上的暗道门通向中枢院窄暗道。中央长廊左右两端都是外部出口，走到任一端手机都会弹出。',
-  presentation: { mode: 'fixed', anchor: authoredPoint(51, 50) },
+  presentation: { mode: 'fixed', anchor: officeGrid.point(32,16.5) },
   areaLabel: '中枢院办公室',
   scene: {
       walkBounds: zhongshuyuanOfficeFloorBounds,
       viewport: 'fixed-frame',
       externalExits: [
-        { id: 'zhongshuyuan-office-left-endpoint', axis: 'x', direction: -1, threshold: zhongshuyuanOfficeFloorBounds.x + 4, frameBehavior: 'scene-retract', transitionBehavior: 'phone', triggerSpan: { start: zhongshuyuanOfficeCorridorEndOpenings[0].start, end: zhongshuyuanOfficeCorridorEndOpenings[0].end } },
-        { id: 'zhongshuyuan-office-right-endpoint', axis: 'x', direction: 1, threshold: zhongshuyuanOfficeFloorBounds.x + zhongshuyuanOfficeFloorBounds.width - 4, frameBehavior: 'scene-retract', transitionBehavior: 'phone', triggerSpan: { start: zhongshuyuanOfficeCorridorEndOpenings[1].start, end: zhongshuyuanOfficeCorridorEndOpenings[1].end } },
+        { id: 'zhongshuyuan-office-left-endpoint', axis: 'x', direction: -1, threshold: officeGrid.point(2,0).x, frameBehavior: 'scene-retract', transitionBehavior: 'phone', triggerSpan: { start: zhongshuyuanOfficeCorridorEndOpenings[0].start, end: zhongshuyuanOfficeCorridorEndOpenings[0].end } },
+        { id: 'zhongshuyuan-office-right-endpoint', axis: 'x', direction: 1, threshold: officeGrid.point(62,0).x, frameBehavior: 'scene-retract', transitionBehavior: 'phone', triggerSpan: { start: zhongshuyuanOfficeCorridorEndOpenings[1].start, end: zhongshuyuanOfficeCorridorEndOpenings[1].end } },
       ],
       rooms: zhongshuyuanOfficeRooms,
       wallDensity: { horizontalBaselineEvery: 1, verticalBaselineEvery: 1 },
@@ -1673,6 +2230,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'frame',
           bounds: zhongshuyuanOfficeFloorBounds,
           variant: 'zhongshuyuan-office',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           edges: ['top', 'right', 'bottom', 'left'],
           features: [zhongshuyuanOfficeWindowFeature],
           openings: [
@@ -1686,6 +2244,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'room',
           bounds: zhongshuyuanOfficeNorthGlassWall,
           variant: 'corridor-glass',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           boundaryGeometrySource: 'cell-range',
           wallGlyphs: ['玻', '璃'],
           edges: ['top'],
@@ -1695,6 +2254,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'room',
           bounds: zhongshuyuanOfficeSouthGlassWall,
           variant: 'corridor-glass',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           boundaryGeometrySource: 'cell-range',
           wallGlyphs: ['玻', '璃'],
           edges: ['bottom'],
@@ -1704,6 +2264,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'room' as const,
           bounds,
           variant: 'office-partition',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           boundaryVisualEndpoints: { vertical: { end: 'omit' as const } },
           edges: ['left' as const],
         })),
@@ -1712,6 +2273,7 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
           type: 'room' as const,
           bounds,
           variant: 'office-partition',
+          boundaryWorldGrid: zhongshuyuanOfficeBoundaryGrid,
           boundaryVisualEndpoints: { vertical: { start: 'omit' as const } },
           edges: ['left' as const],
         })),
@@ -1742,13 +2304,15 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
         zhongshuyuanOfficeDesk.id,
         zhongshuyuanOfficeChair.id,
       )],
-      blockers: [],
+      // Join the south glass collision to the outer frame. This is collision-only:
+      // the shared corner already has its authored frame glyph.
+      blockers: [zhongshuyuanOfficeSouthGlassCornerLink],
       furnitureGroups: [{
         id: 'zhongshuyuan-office-workstation',
         anchor: authoredPoint((zhongshuyuanOfficeChairX + zhongshuyuanOfficeDeskX) / 2, zhongshuyuanOfficeProtagonistRoomCenterY),
         entityIds: [zhongshuyuanOfficeDesk.id, zhongshuyuanOfficeChair.id],
       }],
-      initialPlayerPosition: authoredPoint(16, 82),
+      initialPlayerPosition: officeGrid.point(7,29),
     },
   portals: zhongshuyuanOfficeDoorPortals,
   interactionText: {
@@ -1762,233 +2326,48 @@ const zhongshuyuanOfficeBlueprint: MainlineSceneBlueprint = {
   explorationText: {
     'zhongshuyuan-office-desk': ['左下办公室的办公桌上留着一份尚未归档的材料。'],
     'zhongshuyuan-office-chair': ['这椅子有些年头了，坐上去并不是很舒服。'],
-    'zhongshuyuan-office-plant': ['有段时间没浇水了，不那么精神了。'],
+    'zhongshuyuan-office-plant': ['有阵子没浇水了，叶片看着有些蔫。'],
     'zhongshuyuan-office-rack': ['看起来有点老派的衣架。'],
-    'zhongshuyuan-office-window': ['外面的阳光白的有些刺眼。', '外面看起来跟表世界没什么区别。'],
+    'zhongshuyuan-office-window': ['外面的阳光白得有些刺眼。', '从这里看出去，和表世界没什么两样。'],
   },
 }
 
-const yongheStorefrontStarts = [10, 32, 54, 76, 98, 120, 142, 164] as const
-const yongheStreetEntryPosition: Point = { x: 36, y: yongheStorefrontStarts[1] + 9 }
-const yongheOutdoorTableX = yongheStreetEntryPosition.x + 4
-const yongheOutdoorApproachX = yongheStreetEntryPosition.x + 11
+const yongheMiningPerimeterBlueprint = createMiningStreetShellBlueprint()
+const yongheEateryBlueprint = createMiningStreetShellBlueprint('yonghe-eatery')
 
-const yongheFacadeAirWalls: readonly MainlineAirWall[] = [
-  { id: 'yonghe-left-shop-air-wall-top', ...box(8, 8, 27.3, 23.3) },
-  { id: 'yonghe-left-shop-air-wall-bottom', ...box(8, 50.7, 27.3, 141.3) },
-  { id: 'yonghe-industrial-edge-air-wall', ...box(64.7, 8, 27.3, 184) },
-]
-
-const yongheDiningFurniture = [
-  mainlineTwoSeatFurniture('yonghe-upper-left-group', { x: 35, y: 50 }, { x: 27, y: 50 }),
-  mainlineTwoSeatFurniture('yonghe-upper-right-group', { x: 55, y: 50 }, { x: 63, y: 50 }),
-  mainlineTwoSeatFurniture('yonghe-lower-left-group', { x: 35, y: 70 }, { x: 27, y: 70 }),
-  mainlineTwoSeatFurniture('yonghe-lower-right-group', { x: 55, y: 70 }, { x: 63, y: 70 }),
-]
-
-const yongheOutdoorFurniture = [
-  mainlineTwoSeatFurniture(
-    'yonghe-outdoor-group-1',
-    { x: yongheOutdoorTableX, y: yongheStreetEntryPosition.y },
-    { x: yongheOutdoorApproachX, y: yongheStreetEntryPosition.y },
-    { tableId: 'yonghe-outdoor-table-1', seatIds: ['yonghe-outdoor-chair-1-top', 'yonghe-outdoor-chair-1-bottom'] },
-  ),
-  mainlineTwoSeatFurniture(
-    'yonghe-outdoor-group-2',
-    { x: yongheOutdoorTableX, y: yongheStreetEntryPosition.y + 20 },
-    { x: yongheOutdoorApproachX, y: yongheStreetEntryPosition.y + 20 },
-    { tableId: 'yonghe-outdoor-table-2', seatIds: ['yonghe-outdoor-chair-2-top', 'yonghe-outdoor-chair-2-bottom'] },
-  ),
-].map(({ group, entities }) => ({
-  group,
-  entities: entities.map((entity) => entity.kind === 'seat' ? { ...entity, interactive: false } : entity),
-}))
-
-const yongheMiningPerimeterBlueprint: MainlineSceneBlueprint = {
-  id: 'yonghe-mining-perimeter',
-  title: '第三章 · 矿区外围',
-  subtitle: '矿区外围沿纵向老街展开，左侧是一排旧店面；永和小馆是其中一个独立场景。',
-  statusLabel: '矿区外围老街',
-  hint: '从画面下方进入，沿中间通道向上；左侧是八个窄小的生活店面，永和小馆入口在较深处，右侧是少量铁片、管线和围栏组成的矿区边缘。',
-  presentation: { mode: 'actor-relative', offset: authoredPoint(0, -14) },
-  areaLabel: (position) => position.y >= 150
-    ? '矿区'
-    : position.y >= 100
-      ? '矿区外围'
-      : position.y <= 70
-        ? '永和小馆门口'
-        : '矿区外围老街',
-  scene: {
-      walkBounds: box(8, 8, 84, 184),
-      externalExit: { axis: 'y', direction: 1, threshold: 186 },
-      wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
-      walls: [
-        {
-          id: 'yonghe-left-shop-row',
-          type: 'room',
-          bounds: box(10, 8, 26, 184),
-          variant: 'worn-shop-row',
-          edges: ['right'],
-        },
-        {
-          id: 'yonghe-industrial-edge',
-          type: 'room',
-          bounds: box(64, 8, 28, 184),
-          variant: 'industrial-mine-edge',
-          edges: ['left'],
-          features: [
-            { id: 'yonghe-pipe-feature', edge: 'left', start: 18, end: 30, glyphs: ['管', '线'] },
-            { id: 'yonghe-fence-feature', edge: 'left', start: 52, end: 66, glyphs: ['围', '栏'] },
-            { id: 'yonghe-metal-feature', edge: 'left', start: 88, end: 102, glyphs: ['铁', '片'] },
-            { id: 'yonghe-steel-feature', edge: 'left', start: 122, end: 136, glyphs: ['钢', '架'] },
-            { id: 'yonghe-scrap-feature', edge: 'left', start: 158, end: 172, glyphs: ['废', '料'] },
-          ],
-        },
-        {
-          id: 'yonghe-main-lane',
-          type: 'lane',
-          bounds: box(36, 8, 28, 184),
-          variant: 'main-lane',
-          edges: [],
-        },
-      ],
-      storefronts: [
-        ...storefrontRow(
-          'yonghe',
-          'yonghe-left-shop-row',
-          'right',
-          ['修鞋', '永和小馆', '药品', '五金', '小吃', '面馆', '修理', '早点'],
-          'worn',
-          yongheStorefrontStarts,
-          18,
-          { index: 1, portalId: 'yonghe-street-entry', mode: 'door' },
-          undefined,
-          'content',
-        ),
-      ],
-      floorEntities: yongheOutdoorFurniture.flatMap(({ entities }) => entities),
-      airWalls: yongheFacadeAirWalls,
-      blockers: [],
-      furnitureGroups: yongheOutdoorFurniture.map(({ group }) => group),
-      initialPlayerPosition: { x: 50, y: 180 },
-    },
-  portals: [
-    {
-      id: 'yonghe-street-entry',
-      entity: {
-        id: 'yonghe-street-entry',
-        label: '永和小馆',
-        kind: 'door',
-        weight: 'gateway',
-        surface: 'wall',
-        doorBehavior: { leafCount: 'single', openLeaves: 'both' },
-      },
-      endpoint: { doorPosition: yongheStreetEntryPosition, threshold: { x: 39.5, y: yongheStreetEntryPosition.y }, crossingTarget: { x: 37.5, y: yongheStreetEntryPosition.y }, entryPosition: { x: 20, y: 56 } },
-      targetSceneId: 'yonghe-eatery',
-      wallOpenings: [],
-      transitionText: '修杰从矿区外围老街走进永和小馆，店里仍按平常的节奏营业。',
-      access: 'open',
-    },
-  ],
-  interactionText: {
-    'yonghe-street-entry': '走到旧店面较深处，才看见永和小馆的招牌和入口。',
-    'yonghe-outdoor-table-1': '小桌摆在永和小馆门外，主通道仍然留着。',
-    'yonghe-outdoor-table-2': '另一张门外小桌靠着旧店面，行人可以从侧边绕过。',
-  },
-}
-
-const yongheEateryBlueprint: MainlineSceneBlueprint = {
-  id: 'yonghe-eatery',
-  title: '第三章 · 永和小馆',
-  subtitle: '永和小馆是独立场景；门、墙、桌椅和后门都直接由主线场景契约编译。',
-  statusLabel: '永和小馆',
-  hint: '入口在左侧，店内中央留出通道；柜台和灶台在右侧，后门暂未开放。',
-  presentation: { mode: 'fixed', anchor: authoredPoint(40, 34) },
-  areaLabel: '永和小馆',
-  scene: {
-      walkBounds: box(8, 26, 88, 60),
-      viewport: 'fixed-frame',
-      wallDensity: { horizontalBaselineEvery: 2, verticalBaselineEvery: 2 },
-      walls: [{
-        id: 'yonghe-room',
-        type: 'room',
-        bounds: box(10, 28, 84, 56),
-        variant: 'eatery',
-        edges: ['top', 'right', 'bottom', 'left'],
-      }],
-      floorEntities: [
-        ...yongheDiningFurniture.flatMap(({ entities }) => entities),
-        floor({ id: 'yonghe-counter', label: '柜台', kind: 'fixture', weight: 'fixture', position: { x: 78, y: 38 }, collision: box(68, 34, 20, 7), shape: box(68, 34, 20, 7), groupId: 'yonghe-service-group' }),
-        floor({ id: 'yonghe-stove', label: '灶台', kind: 'fixture', weight: 'fixture', position: { x: 84, y: 46 }, collision: box(80, 43, 8, 6), shape: box(80, 43, 8, 6), groupId: 'yonghe-service-group' }),
-      ],
-      airWalls: [{ id: 'yonghe-back-door-air-wall', ...box(70, 26, 16, 1.4), opensWithPassageId: 'yonghe-back-door' }],
-      blockers: [],
-      furnitureGroups: [
-        ...yongheDiningFurniture.map(({ group }) => group),
-        { id: 'yonghe-service-group', anchor: { x: 82, y: 42 }, entityIds: ['yonghe-counter', 'yonghe-stove'] },
-      ],
-      initialPlayerPosition: { x: 20, y: 56 },
-    },
-  portals: [
-    {
-      id: 'yonghe-street-entry',
-      entity: {
-        id: 'yonghe-street-entry',
-        label: '永和小馆',
-        displayLabel: '门',
-        kind: 'door',
-        weight: 'gateway',
-        surface: 'wall',
-        doorBehavior: { leafCount: 'single', openLeaves: 'both' },
-      },
-      endpoint: { doorPosition: { x: 10, y: 56 }, threshold: { x: 14, y: 56 }, crossingTarget: { x: 8, y: 56 }, entryPosition: { x: yongheStreetEntryPosition.x + 6, y: yongheStreetEntryPosition.y } },
-      targetSceneId: 'yonghe-mining-perimeter',
-      wallOpenings: [{ wallId: 'yonghe-room', opening: { edge: 'left', start: 50, end: 62, doorId: 'yonghe-street-entry' } }],
-      transitionText: '修杰从矿区外围老街走进永和小馆，店里仍按平常的节奏营业。',
-      access: 'open',
-    },
-    {
-      id: 'yonghe-back-door',
-      entity: {
-        id: 'yonghe-back-door',
-        label: '后门',
-        kind: 'door',
-        weight: 'gateway',
-        surface: 'wall',
-        doorBehavior: { leafCount: 'single', openLeaves: 'both' },
-      },
-      endpoint: { doorPosition: { x: 78, y: 28 }, threshold: { x: 78, y: 32 }, crossingTarget: { x: 78, y: 25 } },
-      wallOpenings: [{ wallId: 'yonghe-room', opening: { edge: 'top', start: 70, end: 86, doorId: 'yonghe-back-door' } }],
-      transitionText: '后门的通路尚未开放。',
-      access: 'locked',
-      lockedText: '后门暂未开启，当前权限不足。',
-    },
-  ],
-  interactionText: {
-    'yonghe-street-entry': '走到旧店面较深处，才看见永和小馆的招牌和入口。',
-    ...Object.fromEntries(yongheDiningFurniture.flatMap(({ group }) => {
-      const [tableId, topChairId, bottomChairId] = group.entityIds
-      return [
-        [tableId, '两人桌靠在小馆内部，桌边留出进出通道。'],
-        [topChairId, '椅子贴着桌边摆放，旁边留有侧身通过的空隙。'],
-        [bottomChairId, '椅子贴着桌边摆放，保持着小馆紧凑但可通行的布局。'],
-      ]
-    })),
-    'yonghe-counter': '柜台靠在店内后侧，灶台就在旁边，热气和声音都从这里出来。',
-    'yonghe-stove': '灶台在柜台旁边，留在小馆内部，不占用门外通道。',
-    'yonghe-back-door': '后门暂未开启，当前权限不足。',
-    'yonghe-outdoor-table-1': '小桌摆在永和小馆门外，主通道仍然留着。',
-    'yonghe-outdoor-table-2': '另一张门外小桌靠着旧店面，行人可以从侧边绕过。',
-  },
-}
-
-export const mainlineSceneBlueprints: Record<MainlineSceneId, MainlineSceneBlueprint> = {
+const authoredMainlineSceneBlueprints: Record<Exclude<MainlineSceneId, 'commercial-cafe'>, MainlineSceneBlueprint> = {
   'jijia-ancestral-home': jijiaYardBlueprint,
   'jijia-ancestral-interior': jijiaAncestralInteriorBlueprint,
   'commercial-street': commercialStreetBlueprint,
-  'commercial-cafe': commercialCafeBlueprint,
   'yonghe-mining-perimeter': yongheMiningPerimeterBlueprint,
   'yonghe-eatery': yongheEateryBlueprint,
   'zhongshuyuan-passage': zhongshuyuanPassageBlueprint,
   'zhongshuyuan-office': zhongshuyuanOfficeBlueprint,
+}
+
+export const mainlineSceneBlueprints = Object.fromEntries(Object.entries(authoredMainlineSceneBlueprints).map(([id,blueprint])=>[id,id === 'commercial-street' ? trialTakeawayInteriors(trialCafeInterior(bindContinuousCafe(alignSceneBlueprint(blueprint)))) : id === 'yonghe-mining-perimeter' || id === 'yonghe-eatery' ? trialYongheInterior(alignSceneBlueprint(blueprint)) : alignSceneBlueprint(blueprint)])) as Record<MainlineSceneId,MainlineSceneBlueprint>
+
+// Non-enumerable compatibility lookup: no second blueprint, room or geometry.
+Object.defineProperty(mainlineSceneBlueprints, 'commercial-cafe', { get: () => mainlineSceneBlueprints['commercial-street'] })
+
+// Resolve the entrance from aligned geometry, rather than retaining the old
+// rounded facade coordinate. The 6-unit approach is on the north pedestrian's
+// startup lane; stand 2 units farther out while remaining inside its reveal range.
+const alignedStreet = mainlineSceneBlueprints['commercial-street']
+const entrancePortal = alignedStreet.portals.find(portal => portal.id === commercialStreetStorefronts[0]!.portalId)!
+const alignedStreetEntrance = {
+  x: entrancePortal.endpoint.doorPosition.x,
+  y: entrancePortal.endpoint.doorPosition.y + 8,
+}
+alignedStreet.scene.initialPlayerPosition = alignedStreetEntrance
+alignedStreet.scene.rideArrivalPosition = alignedStreetEntrance
+
+// A cross-scene arrival belongs to the destination doorway, not to the
+// source scene's coordinate transform. Resolve after every scene is aligned.
+for (const blueprint of Object.values(mainlineSceneBlueprints)) {
+  blueprint.portals = blueprint.portals.map(portal => {
+    if (!portal.targetSceneId || !portal.endpoint.entryPosition) return portal
+    const reverse = mainlineSceneBlueprints[portal.targetSceneId].portals.find(candidate => candidate.id === portal.id && candidate.targetSceneId === blueprint.id)
+    return reverse ? { ...portal, endpoint: { ...portal.endpoint, entryPosition: reverse.endpoint.threshold } } : portal
+  })
 }

@@ -1,3 +1,4 @@
+import { mainlineWorldFontSizePx } from './sceneBoundaryGrid'
 import type { MainlineSceneGeometryUnit, MainlineStorefrontSlot } from './mainlineScenes'
 import type { SceneScreenMetrics } from './sceneBoundaryGrid'
 import type { CollisionBox, Point } from './sceneGeometry'
@@ -16,16 +17,17 @@ export function storefrontContactGeometry(
   storefront: MainlineStorefrontSlot,
   units: readonly MainlineSceneGeometryUnit[],
   metrics: SceneScreenMetrics,
+  includePortal = false,
 ): StorefrontContactGeometry | null {
-  if (storefront.portalId) return null
-  const facade = units.filter(unit => unit.storefrontId === storefront.id && !unit.visualOnly)
+  if (storefront.portalId && !includePortal) return null
+  const facade = units.filter(unit => unit.storefrontId === storefront.id && (includePortal || !unit.visualOnly))
   const cells = facade.flatMap(unit => unit.visual.cells).filter(cell => cell.storefrontRole === 'sign')
   if (!cells.length) return null
   const horizontal = storefront.edge === 'top' || storefront.edge === 'bottom'
   const start = Math.min(...cells.map(cell => cell.cellStart ?? (horizontal ? cell.x : cell.y)))
   const end = Math.max(...cells.map(cell => cell.cellEnd ?? (horizontal ? cell.x : cell.y)))
   const line = cells.reduce((sum, cell) => sum + (horizontal ? cell.y : cell.x), 0) / cells.length
-  const fontSizePx = Math.max(12, Math.min(16, (metrics.viewportWidth ?? metrics.width) * .012))
+  const fontSizePx = mainlineWorldFontSizePx
   const textExtent = (Array.from(storefront.label).length * 1.08 + .7) * fontSizePx
   const tangentPixels = (end - start) * (horizontal ? metrics.width : metrics.height) / 100
   const extent = Math.min(textExtent, tangentPixels - .15 * fontSizePx)

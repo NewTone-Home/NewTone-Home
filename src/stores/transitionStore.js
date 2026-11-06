@@ -1,4 +1,5 @@
-import { create } from 'zustand'
+import { create, useStore } from 'zustand'
+import { useReaderStoreScope } from './readerStoreScope'
 import { useProgressStore } from './progressStore'
 import { getDefinition } from '../transitions/transitionDefinitions'
 
@@ -34,7 +35,7 @@ function commitTargetView(targetView, preset, payload) {
   return false
 }
 
-export const useTransitionStore = create((set, get) => ({
+const publicTransitionStore = create((set, get) => ({
   phase: 'idle',
   targetView: null,
   preset: 'fade-cover',
@@ -161,3 +162,11 @@ export const useTransitionStore = create((set, get) => ({
     })
   },
 }))
+
+export function useTransitionStore(selector) {
+  const preview = useReaderStoreScope()
+  return useStore(preview?.transitionStore ?? publicTransitionStore, selector)
+}
+useTransitionStore.getState = () => publicTransitionStore.getState()
+useTransitionStore.subscribe = (...args) => publicTransitionStore.subscribe(...args)
+useTransitionStore.setState = (...args) => publicTransitionStore.setState(...args)

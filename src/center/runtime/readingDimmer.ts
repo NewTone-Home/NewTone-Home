@@ -2,7 +2,7 @@ export const centerReadingDimmerTargets = {
   observation: 0.18,
   dialogue: 0.42,
 } as const
-export const centerReadingDimmerFullTransitionMs = 800
+export const centerReadingDimmerFullTransitionMs = 1200
 
 /** Keep full transitions cinematic while scaling interrupted reversals to remaining distance. */
 export function centerReadingDimmerTransitionDurationMs(from: number, to: number, target: number) {

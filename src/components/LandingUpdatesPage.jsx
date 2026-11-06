@@ -6,6 +6,51 @@ import './LandingUpdatesPage.css'
 
 const LANDING_UPDATES = Object.freeze([
   Object.freeze({
+    version: 'v0.3.0',
+    date: '2026.11.05',
+    dateTime: '2026-11-05',
+    zh: Object.freeze({
+      summary: Object.freeze([
+  "这一次，我们调整了一下宇宙的配置。",
+  "街道上的生活还在继续，一些新的事情也正在发生。"
+]),
+      details: Object.freeze([
+  "· 商业街有了更多可以进入的店铺。",
+  "未来会逐步添加更多可供重复游玩的店铺。",
+  "· 剧情出现了新的转机。",
+  "· 大部分的设备都做了自适应适配。",
+  "当然，我们的计划还在继续：",
+  "· 我们依旧在尝试适配不同的语言",
+  "· 注册登录系统以及云端不同设备之间的存档同步",
+  "· 新的场景和新的剧情",
+  "关于存档",
+  "此前版本的游戏进度属于测试阶段数据，本次更新后将从新游戏开始。",
+  "从这个版本起，我们将采用不删档更新政策。后续正常更新会保留游戏进度。",
+  "目前存档仍保存在当前设备中，暂不支持跨设备同步。请注意，清除浏览器网站数据可能导致进度丢失！"
+]),
+    }),
+    en: Object.freeze({
+      summary: Object.freeze([
+  "This time, we've made a few adjustments to our universe.",
+  "The streets carry on as usual, while something new begins to unfold."
+]),
+      details: Object.freeze([
+  "· You can now enter more shops along Commercial Street.",
+  "We plan to gradually introduce more shops with activities worth coming back for.",
+  "· The story takes a new turn.",
+  "· We've improved how the game adapts to different screen sizes across a wide range of devices.",
+  "Of course, there's still more we're working on:",
+  "· Support for more languages",
+  "· Account registration and sign-in, with cloud saves that sync across devices",
+  "· New places to explore and more story content",
+  "About Your Saves",
+  "Progress from earlier versions was part of the testing phase. With this update, everyone will start a new game.",
+  "Starting with this version, regular updates will preserve your game progress.",
+  "For now, saves are stored locally in your browser on your current device. Cross-device syncing isn't available yet. Please note that clearing your browser's site data may cause you to lose your progress."
+]),
+    }),
+  }),
+  Object.freeze({
     version: 'v0.2.2',
     date: '2026.10.12',
     dateTime: '2026-10-12',
@@ -211,6 +256,7 @@ function LandingUpdatesPage({ phase, language = 'zh', onSurfaceComplete, onRetur
       data-updates-phase={phase}
       onAnimationEnd={handleSurfaceAnimationEnd}
     >
+      <div className="landing-updates-page__scroll">
       <div className="landing-updates-page__layout">
         <ol className="landing-updates-page__timeline" aria-label={uiCopy.timelineAriaLabel}>
           {LANDING_UPDATES.map(update => {
@@ -260,6 +306,7 @@ function LandingUpdatesPage({ phase, language = 'zh', onSurfaceComplete, onRetur
             )
           })}
         </ol>
+      </div>
       </div>
 
       <EntryButtonSurface

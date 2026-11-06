@@ -1,3 +1,4 @@
+import { runSaveTransaction, rethrowStoppedSession } from '../save-session.mjs'
 import { comparePosition } from '../reader/readerPosition'
 import { resolveReaderDisplayLocation } from '../data/readerContent'
 import { resolveNarrativeBeatAddress, readerNarrativeEventMap } from '../reader/narrativeEventMap'
@@ -71,7 +72,7 @@ export function migrateNarrativeProgressFromReader(readerProgress) {
     _version: NARRATIVE_PROGRESS_VERSION,
     chapters: Object.fromEntries(CHAPTER_IDS.map(chapterId => [
       chapterId,
-      chapterState(EVENT_MAP.eventMapVersion, completedEventsAt(chapterId, readerProgress?.furthestLocation)),
+      chapterState(EVENT_MAP.eventMapVersion),
     ])),
   }
 }
@@ -95,9 +96,7 @@ export function sanitizeNarrativeProgressState(value, readerProgress) {
 
 export function recoverNarrativeProgressState(value, readerProgress) {
   let clean = sanitizeNarrativeProgressState(value, readerProgress)
-  Object.values(clean.chapters).forEach(chapter => {
-    if (chapter.inFlightEvent) clean = completeNarrativeEvent(clean, chapter.inFlightEvent.eventId)
-  })
+  // Preserve inFlightEvent for replay from the event start; never auto-complete it.
   return clean
 }
 
@@ -105,8 +104,9 @@ function parseStorageValue(storage, key) {
   try {
     const raw = storage?.getItem(key)
     return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
+  } catch (error) {
+    rethrowStoppedSession(storage)
+    throw error
   }
 }
 
@@ -138,8 +138,7 @@ export function loadNarrativeProgressState(storage, readerProgress) {
 }
 
 export function clearNarrativeProgressStorage(storage) {
-  storage?.removeItem(NARRATIVE_PROGRESS_STORAGE_KEY)
-  storage?.removeItem(LEGACY_STORAGE_KEY)
+  return runSaveTransaction(storage,()=>{storage?.removeItem(NARRATIVE_PROGRESS_STORAGE_KEY);storage?.removeItem(LEGACY_STORAGE_KEY)})
 }
 
 export function beginNarrativeEvent(state, eventId) {

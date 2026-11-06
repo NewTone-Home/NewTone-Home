@@ -1,0 +1,18 @@
+# 053 test-only follow-up
+
+Product source remains exactly 053e64081aa5915e34112921290eadee1dfcf716. This follow-up changes only the E2E and evidence documentation/manifest; no product behavior, clocks, storage service, safety checks or assertion requirements are weakened. No test/build/browser run by this worker.
+
+## Fix the false-green gaps
+
+- Facts previously filtered pre-epoch `newtone-save-entry-*`, missing actual authority. The test now imports pure constants from `saveEpoch.mjs` and samples ALL physical localStorage entries, sorted, including `newtone-persistence:era-1:*` (authority/pending/ack/guard/backups/retirements), writer lease if present and every old raw slot. Before comparing zero writes, it asserts nonempty AUTHORITY/PENDING/ACKNOWLEDGED/GUARD, protocol2, exact SAVE_EPOCH and a nonempty player main value. Missing/empty snapshots fail. Expanded choices, confirmation display, cancel, breathing touch cancellation and Escape must preserve the full snapshot exactly.
+- The 390x844 describe scope now creates its browser context with isMobile:true and hasTouch:true; actual navigation/choice actions use tap. It asserts maxTouchPoints>0. Touch breathing is observed while a real Chromium CDP touchStart is held, then touchCancel avoids selecting Continue; recorded pointerType must contain touch. The desktop scope hasTouch/isMobile:false and uses real mouse hover/click. This is browser touch emulation, not a claim of real Android hardware coverage.
+- Entry frame opacity/translateY are sampled on real requestAnimationFrame, starting before Start click and continuing through the transition. The test requires intermediate partial opacity/negative y, increased opacity and downward translation to a stable endpoint; animation-name/duration checks remain only supplemental. A PNG capture is requested while computed opacity is partial and translateY is negative; capture-request state and frame JSON are attached. Review the actual PNG, rather than trust its filename.
+- Breathing similarly records real opacity variation (>0.12) during actual hover/held touch, saves mid-action PNG and JSON, and does not seek animations, alter time or force application flags. No fallback from failed motion assertions to source strings.
+
+## Terra handoff
+
+After independent Sol review and dependency installation in an authorized QA copy, run `npx playwright test e2e/entryVisual.spec.ts --workers=1` with the existing local-only config and a free PLAYWRIGHT_TEST_PORT. The held-touch observation uses Chromium CDP; use Chromium. Do not reuse player profiles/storage. Preserve 053's earlier evidence and this follow-up's failing artifacts if anything fails. Run written model/render/controller checks and type/build separately as planned; this worker only performs syntax/diff checks.
+
+Each viewport produces actual PNGs plus expansion/breathing frame JSON and a snapshot-key inventory. Check both actual geometry and screenshots before publication. Product source unchanged does not mean visual acceptance is complete. No push/deploy.
+
+Sol follow-up: opacity variation is now computed only among frames whose actual animationName includes dialogue-choice-breathe, for both desktop and touch. Require at least 10 consecutive captured active frames spanning over 300ms and more than .12 opacity variation within those active frames. An initial opacity1 followed by a frozen .62 cannot pass. Desktop also explicitly waits for the actual breathing animation. PNG capture-request metadata and pixels are not atomic/same-frame; Terra must inspect the PNG rather than infer it from that metadata. Tests remain unrun.

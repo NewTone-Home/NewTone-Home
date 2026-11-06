@@ -6,6 +6,7 @@ const STAGING_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_57_sSKpMOtmoLTFKZtL1uQ_
 
 const env = { ...process.env }
 const branch = env.VERCEL_GIT_COMMIT_REF ?? ''
+env.VITE_ANALYTICS_ENVIRONMENT = branch === 'main' ? 'production' : branch === STAGING_BRANCH ? 'staging' : 'preview'
 
 env.VITE_ENABLE_STAGING_TOOLS = branch === STAGING_BRANCH ? 'true' : 'false'
 

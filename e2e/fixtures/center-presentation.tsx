@@ -9,7 +9,7 @@ import '../../src/center/runtime/scene.css'
 // Test-only harness: renders the production geometry, lifecycle and renderer.
 function Fixture() {
   const scene = mainlineScenes['commercial-street']
-  const cafe = scene.storefronts.find(slot => slot.portalId)!
+  const cafe = scene.storefronts.find(slot => slot.id === 'commercial-cafe-slot')!
   const anchor = mainlineStorefrontAnchor(scene, cafe)
   const [near, setNear] = useState(false)
   const [text, setText] = useState('我跟你说，事情不是这样的。')

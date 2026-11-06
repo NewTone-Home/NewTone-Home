@@ -109,7 +109,7 @@ test('walking manually to the geometry-derived entrance permits interaction with
   expect({ x: Number(await actor.getAttribute('data-runtime-x')), y: Number(await actor.getAttribute('data-runtime-y')) }).toEqual(before)
 })
 
-test('Café keeps its reveal and portal traversal after ordinary storefront contact changes', async ({ page }) => {
+test('Cafe keeps its reveal and enters the empty same-scene shell without starting Cafe state', async ({ page }) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()) })
@@ -144,8 +144,18 @@ test('Café keeps its reveal and portal traversal after ordinary storefront cont
   }
   await expect(page.locator(`[data-storefront-id="${cafe.id}"] .scene-mainline-storefront__label-track`)).toHaveAttribute('data-storefront-label-phase', 'revealed')
   await expect(page.locator(`[data-scene-echo="${cafe.id}"]`)).toHaveCount(0)
-  await page.locator('[data-focus-target-group="door:street-cafe-entry"]').first().click()
-  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toBeVisible({ timeout: 15000 })
+  const cafeRoom = street.rooms.find((room) => room.id === 'commercial-north-cafe-interior')!
+  await page.locator(`button[data-storefront-cell-id="${cafe.id}-character-1"]`).click()
+  await page.waitForFunction(({ x, y, width, height }) => {
+    const player = document.querySelector<HTMLElement>('[data-actor-id="protagonist"]')
+    const px = Number(player?.dataset.runtimeX)
+    const py = Number(player?.dataset.runtimeY)
+    return Boolean(player && px >= x && px <= x + width && py >= y && py <= y + height)
+  }, cafeRoom.bounds, { timeout: 15000 })
+  await expect(stage).toHaveAttribute('data-mainline-scene', 'commercial-street')
+  await expect(page.locator('.scene-shell[data-mainline-scene="commercial-cafe"]')).toHaveCount(0)
+  await expect(page.locator('[data-scene-dialogue]')).toHaveCount(0)
+  await expect(page.locator('[data-actor-id^="cafe-"]')).toHaveCount(0)
   expect(errors).toEqual([])
 })
 

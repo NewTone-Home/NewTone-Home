@@ -1,8 +1,9 @@
+import { currentCafeStart, currentCafeOptions, currentCafeRoom } from './helpers/currentCafe'
 import { describe, expect, it } from 'vitest'
 import { createMainlineSceneGeometrySnapshot } from '../src/center/runtime/mainlineSceneGeometrySnapshot'
 import { canTravelAlongMainlineSegment, findMainlinePath, findMainlinePathToEntity, isMainlineNavigationBarrierClear, isWalkableMainlinePoint, mainlineEntityInteractionCandidates, mainlineNavigationBarriers, resolveMainlineWorldNavigation } from '../src/center/runtime/mainlineNavigation'
 import { mainlineScenes } from '../src/center/runtime/mainlineScenes'
-import { mainlineEntityTextFootprint } from '../src/center/runtime/sceneLayout'
+import { mainlineEntityTextFootprint, mainlineNpcLabelFootprint } from '../src/center/runtime/sceneLayout'
 import { mainlineProtagonistDotFootprint } from '../src/center/runtime/sceneLayout'
 import { createFreeRoamController, prepareMovementPath } from '../src/center/runtime/useFreeRoamMovement'
 
@@ -11,11 +12,11 @@ describe('navigation barrier segments', () => {
   const pilotTableId = 'commercial-cafe-right-window-upper-group-table'
   const pilotTopChairId = 'commercial-cafe-right-window-upper-group-chair-top'
   const pilotBottomChairId = 'commercial-cafe-right-window-upper-group-chair-bottom'
-  const dot = mainlineProtagonistDotFootprint(cafe.initialPlayerPosition)
-  const protagonistOptions = { actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } }
+  const dot = mainlineProtagonistDotFootprint(currentCafeStart,currentCafeOptions.screenMetrics)
+  const protagonistOptions = { ...currentCafeOptions, actorId: 'protagonist', actorFootprint: { width: dot.width, height: dot.height } }
 
   function pilotGeometry() {
-    const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
+    const snapshot = createMainlineSceneGeometrySnapshot(cafe, currentCafeStart)
     const table = snapshot.objects.get(pilotTableId)!
     const topChair = snapshot.objects.get(pilotTopChairId)!
     const bottomChair = snapshot.objects.get(pilotBottomChairId)!
@@ -44,58 +45,52 @@ describe('navigation barrier segments', () => {
     return prepared
   }
 
-  it('derives non-occupying crossing barriers from every cafe table-chair relationship', () => {
-    const { table, topChair, bottomChair, barriers } = pilotGeometry()
-    const topBarrier = barriers.find((barrier) => barrier.id === 'commercial-cafe-right-window-upper-group-chair-top-table-barrier')!
-    const bottomBarrier = barriers.find((barrier) => barrier.id === 'commercial-cafe-right-window-upper-group-chair-bottom-table-barrier')!
+  it('keeps fourteen-pixel visible Cafe table-chair gaps out of routes with explicit relation barriers', () => {
+ const snapshot=createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics)
+ const seats=cafe.objects.filter(o=>o.roomId===currentCafeRoom.id&&o.seat)
+ const npc=cafe.npcs.find(candidate=>candidate.id==='cafe-floor-server')!
+ const npcOptions={screenMetrics:currentCafeOptions.screenMetrics,actorId:npc.id}
+ expect(seats).toHaveLength(12)
+ for(const seat of seats){
+  const chair=snapshot.objects.get(seat.id)!,table=snapshot.objects.get(seat.seat!.tableId)!
+  const gap=Math.abs(chair.position.y-table.position.y)-(chair.collision!.height+table.collision!.height)/2
+  expect(gap*10.8).toBeCloseTo(14,3)
+  const center={x:table.position.x,y:(chair.position.y+table.position.y)/2}
+  expect(isWalkableMainlinePoint(center,cafe,{},protagonistOptions)).toBe(true)
+  const npcFootprint=mainlineNpcLabelFootprint(cafe,npc.id,center,currentCafeOptions.screenMetrics)
+  expect(npcFootprint.width).toBeGreaterThan(0)
+  expect(npcFootprint.height).toBeGreaterThan(0)
+  expect(isWalkableMainlinePoint(center,cafe,{},npcOptions)).toBe(false)
+  const left={x:center.x-40/19.2,y:center.y},right={x:center.x+40/19.2,y:center.y}
+  expect(canTravelAlongMainlineSegment(left,right,cafe,{},protagonistOptions)).toBe(false)
+  expect(canTravelAlongMainlineSegment(left,right,cafe,{},npcOptions)).toBe(false)
+ }
+ expect(mainlineNavigationBarriers(cafe).filter(b=>seats.some(s=>b.id===s.id+'-table-gap'))).toHaveLength(12)
+})
 
-    expect(barriers.filter((barrier) => barrier.kind !== 'access-boundary')).toHaveLength(22)
-    for (const [chair, barrier] of [[topChair, topBarrier], [bottomChair, bottomBarrier] as const]) {
-      const gapCenter = { x: table.position.x, y: (chair.collision!.y + chair.collision!.height + table.collision!.y) / 2 }
-      expect(isWalkableMainlinePoint(gapCenter, cafe, {}, protagonistOptions)).toBe(true)
-      expect(barrier.start.x).toBe(barrier.end.x)
-      expect(barrier.start.x).toBeGreaterThanOrEqual(table.collision!.x)
-      expect(barrier.end.x).toBeLessThanOrEqual(table.collision!.x + table.collision!.width)
-    }
-  })
-
-  it('blocks direct table-chair crossings for both protagonists and NPCs, while a shared route detours around the barrier', () => {
-    const { table, topChair, barriers } = pilotGeometry()
-    const barrier = barriers.find((candidate) => candidate.id === 'commercial-cafe-right-window-upper-group-chair-top-table-barrier')!
-    const gapY = (barrier.start.y + barrier.end.y) / 2
-    const topGapSide = { x: barrier.start.x - dot.width, y: gapY }
-    const tableGapSide = { x: barrier.start.x + dot.width, y: gapY }
-
-    expect(isWalkableMainlinePoint(topGapSide, cafe, {}, protagonistOptions)).toBe(true)
-    expect(isWalkableMainlinePoint(tableGapSide, cafe, {}, protagonistOptions)).toBe(true)
-    expect(isMainlineNavigationBarrierClear(topGapSide, tableGapSide, cafe, {}, protagonistOptions)).toBe(false)
-    expect(isMainlineNavigationBarrierClear(topGapSide, tableGapSide, cafe, {}, { actorId: 'server' })).toBe(false)
-
-    const route = findMainlinePath(topGapSide, tableGapSide, cafe, {}, protagonistOptions)
-    const worldCommand = resolveMainlineWorldNavigation(cafe, topGapSide, tableGapSide, {}, protagonistOptions)
-    expect(worldCommand?.resolvedNavigableTarget).toEqual(tableGapSide)
-    expect(route).not.toBeNull()
-    expect(route!.length).toBeGreaterThan(2)
-    expect(route!.every((point) => isWalkableMainlinePoint(point, cafe, {}, protagonistOptions))).toBe(true)
-    for (let index = 1; index < route!.length; index += 1) {
-      expect(isMainlineNavigationBarrierClear(route![index - 1]!, route![index]!, cafe, {}, protagonistOptions)).toBe(true)
-    }
-
-    const blockedController = createFreeRoamController(topGapSide)
-    let blocked = false
-    blockedController.moveAlong([tableGapSide], undefined, {
-      maxSpeed: 100,
-      canOccupy: (point) => isWalkableMainlinePoint(point, cafe, {}, protagonistOptions),
-      canTraverse: (start, end) => isMainlineNavigationBarrierClear(start, end, cafe, {}, protagonistOptions),
-      onBlocked: () => { blocked = true },
-    })
-    blockedController.tick(100)
-    expect(blocked).toBe(true)
-  })
+  it('blocks direct table-chair crossings by real character bodies for protagonists and NPCs, while shared routes detour', () => {
+ const {table,topChair}=pilotGeometry(),y=(table.position.y+topChair.position.y)/2
+ const left={x:table.collision!.x-2*dot.width,y},right={x:table.collision!.x+table.collision!.width+2*dot.width,y}
+ expect(isWalkableMainlinePoint(left,cafe,{},protagonistOptions)).toBe(true)
+ expect(isWalkableMainlinePoint(right,cafe,{},protagonistOptions)).toBe(true)
+ const npc=cafe.npcs.find(candidate=>candidate.id==='cafe-floor-server')!
+ const npcOptions={screenMetrics:currentCafeOptions.screenMetrics,actorId:npc.id}
+ const npcFootprint=mainlineNpcLabelFootprint(cafe,npc.id,{x:table.position.x,y},currentCafeOptions.screenMetrics)
+ expect(npcFootprint.width).toBeGreaterThan(0)
+ expect(npcFootprint.height).toBeGreaterThan(0)
+ expect(canTravelAlongMainlineSegment(left,right,cafe,{},protagonistOptions)).toBe(false)
+ expect(canTravelAlongMainlineSegment(left,right,cafe,{},npcOptions)).toBe(false)
+ const route=findMainlinePath(left,right,cafe,{},protagonistOptions)
+ expect(route).not.toBeNull();expect(route!.length).toBeGreaterThan(2)
+ for(let i=1;i<route!.length;i++)expect(canTravelAlongMainlineSegment(route![i-1],route![i],cafe,{},protagonistOptions)).toBe(true)
+ const controller=createFreeRoamController(left);let blocked=false
+ controller.moveAlong([right],undefined,{maxSpeed:100,canOccupy:p=>isWalkableMainlinePoint(p,cafe,{},protagonistOptions),canTraverse:(a,b)=>canTravelAlongMainlineSegment(a,b,cafe,{},protagonistOptions),onBlocked:()=>{blocked=true}})
+ controller.tick(100);expect(blocked).toBe(true)
+})
 
   it('keeps four chair edge contacts and lets route legality choose an accessible side instead of a seat-side rule', () => {
     const { table } = pilotGeometry()
-    const candidates = mainlineEntityInteractionCandidates(cafe, pilotBottomChairId, cafe.initialPlayerPosition, {}, protagonistOptions.actorFootprint, protagonistOptions)
+    const candidates = mainlineEntityInteractionCandidates(cafe, pilotBottomChairId, currentCafeStart, {}, protagonistOptions.actorFootprint, protagonistOptions)
     const leftContact = candidates.reduce((leftmost, candidate) => candidate.x < leftmost.x ? candidate : leftmost)
     const rightContact = candidates.reduce((rightmost, candidate) => candidate.x > rightmost.x ? candidate : rightmost)
     const fromLeft = { x: leftContact.x - dot.width, y: leftContact.y }
@@ -113,38 +108,17 @@ describe('navigation barrier segments', () => {
     expect(tableRight.path).not.toBeNull()
   })
 
-  it('migrates every two-seat group and every four-seat group through the same relation contract', () => {
-    const twoSeatGroups = [
-      'commercial-cafe-right-inner-upper-group',
-      'commercial-cafe-right-inner-middle-group',
-      'commercial-cafe-right-inner-lower-group',
-      'commercial-cafe-right-window-upper-group',
-      'commercial-cafe-right-window-lower-group',
-    ]
-    const fourSeatGroups = [
-      'commercial-cafe-bottom-left-group',
-      'commercial-cafe-bottom-center-group',
-      'commercial-cafe-bottom-right-group',
-    ]
-    const barriers = mainlineNavigationBarriers(cafe)
-
-    for (const groupId of twoSeatGroups) {
-      expect(barriers.filter((barrier) => barrier.id.startsWith(`${groupId}-`))).toHaveLength(2)
-    }
-    for (const groupId of fourSeatGroups) {
-      const table = cafe.objects.find((entity) => entity.id === `${groupId}-table`)!
-      const snapshot = createMainlineSceneGeometrySnapshot(cafe, cafe.initialPlayerPosition)
-      expect(table.movementCollision).not.toBe('physical')
-      expect(table.interactionContactSides).toBeUndefined()
-      expect(snapshot.objects.get(table.id)!.collision).toEqual(mainlineEntityTextFootprint(table, snapshot.objects.get(table.id)!.position))
-      expect(snapshot.objects.get(table.id)!.collision!.height).toBeLessThan(3)
-      expect(barriers.filter((barrier) => barrier.id.startsWith(`${groupId}-`))).toHaveLength(4)
-      for (const chair of cafe.objects.filter((entity) => entity.groupId === groupId && entity.kind === 'seat')) {
-        expect(chair.movementCollision).not.toBe('physical')
-        expect(snapshot.objects.get(chair.id)!.collision).toEqual(mainlineEntityTextFootprint(chair, snapshot.objects.get(chair.id)!.position))
-      }
-    }
-  })
+  it('checks every current two-seat group using its exact visible object body and both reachable chairs', () => {
+ const groups=cafe.furnitureGroups.filter(g=>g.entityIds.some(id=>cafe.objects.find(o=>o.id===id)?.roomId===currentCafeRoom.id))
+ expect(groups).toHaveLength(6)
+ const snapshot=createMainlineSceneGeometrySnapshot(cafe,currentCafeStart,{},currentCafeOptions.screenMetrics)
+ for(const group of groups){
+  const objects=group.entityIds.map(id=>cafe.objects.find(o=>o.id===id)!),tables=objects.filter(o=>o.kind==='table'),seats=objects.filter(o=>o.seat)
+  expect(tables).toHaveLength(1);expect(seats).toHaveLength(2)
+  for(const object of objects)expect(snapshot.objects.get(object.id)!.collision).toEqual(mainlineEntityTextFootprint(object,object.position,currentCafeOptions.screenMetrics))
+  for(const seat of seats)expect(findMainlinePathToEntity(cafe,seat.id,currentCafeStart,{},protagonistOptions).path,seat.id).not.toBeNull()
+ }
+})
 
   it('uses the same non-occupying relation barriers for the office workstation and ancestral altar', () => {
     const office = mainlineScenes['zhongshuyuan-office']
@@ -183,14 +157,14 @@ describe('navigation barrier segments', () => {
   })
 
   it('never turns the lower-cafe-plant detour into a chair collision during movement preparation', () => {
-    const route = findMainlinePathToEntity(cafe, 'commercial-cafe-plant-lower', cafe.initialPlayerPosition, {}, protagonistOptions).path
+    const route = findMainlinePathToEntity(cafe, 'commercial-cafe-plant-lower', currentCafeStart, {}, protagonistOptions).path
 
     expect(route).not.toBeNull()
-    expectPreparedRouteToBeLiveLegal(cafe, cafe.initialPlayerPosition, route!)
+    expectPreparedRouteToBeLiveLegal(cafe, currentCafeStart, route!)
   })
 
   it('still removes a redundant waypoint when its shortcut is live-legal', () => {
-    const start = cafe.initialPlayerPosition
+    const start = currentCafeStart
     const first = { x: start.x + dot.width, y: start.y }
     const target = { x: first.x + dot.width, y: first.y }
     const prepared = prepareMovementPath([

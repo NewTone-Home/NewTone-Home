@@ -1,8 +1,66 @@
 export type VisualRect = { left: number; top: number; right: number; bottom: number }
 
-/** One screen-space gap for every frame; the SVG stroke has its own 1px inset. */
+/** World-local CSS units: gap 2 + stroke inset 1 = outer expansion 3; project once. */
 export const sceneFocusVisualGapPx = 2
 export const sceneFocusStrokeInsetPx = 1
+
+export type VisualScale = { x: number; y: number }
+
+/** Convert measured ink/neighbors before applying world-unit frame margins. */
+export function sceneVisualRectInLocalSpace(rect: VisualRect, origin: { left: number; top: number }, scale: VisualScale): VisualRect {
+  return { left: (rect.left - origin.left) / scale.x, right: (rect.right - origin.left) / scale.x,
+    top: (rect.top - origin.top) / scale.y, bottom: (rect.bottom - origin.top) / scale.y }
+}
+
+/**
+ * Resolve the screen-to-local scale from the nearest ancestor with a real
+ * layout box. getBoundingClientRect is in viewport pixels while canvas font
+ * metrics and absolutely positioned focus-frame bounds are in local CSS px.
+ */
+export function sceneElementVisualScale(element: HTMLElement | null): VisualScale {
+  let x = 0
+  let y = 0
+  for (let current = element; current; current = current.parentElement) {
+    const bounds = current.getBoundingClientRect()
+    if (!(x > 0) && current.offsetWidth > 0) x = bounds.width / current.offsetWidth
+    if (!(y > 0) && current.offsetHeight > 0) y = bounds.height / current.offsetHeight
+    if (x > 0 && y > 0) break
+  }
+  return { x: x > 0 ? x : 1, y: y > 0 ? y : 1 }
+}
+
+export function sceneGlyphVisualRect(
+  layout: VisualRect,
+  inkWidth: number,
+  inkHeight: number,
+  scale: VisualScale,
+  verticalSideways = false,
+): VisualRect | null {
+  const layoutWidth = layout.right - layout.left
+  const layoutHeight = layout.bottom - layout.top
+  const width = Math.min(layoutWidth, (verticalSideways ? inkHeight : inkWidth) * scale.x)
+  const height = Math.min(layoutHeight, (verticalSideways ? inkWidth : inkHeight) * scale.y)
+  if (!(width > 0 && height > 0)) return null
+  const left = layout.left + (layoutWidth - width) / 2
+  const top = layout.top + (layoutHeight - height) / 2
+  return { left, top, right: left + width, bottom: top + height }
+}
+
+export function sceneFrameBoundsInLocalSpace(
+  rect: VisualRect,
+  origin: { left: number; top: number },
+  margins: { left: number; top: number; right: number; bottom: number },
+  scale: VisualScale,
+) {
+  const width = rect.right - rect.left + margins.left + margins.right
+  const height = rect.bottom - rect.top + margins.top + margins.bottom
+  return {
+    left: (rect.left - origin.left - margins.left) / scale.x,
+    top: (rect.top - origin.top - margins.top) / scale.y,
+    width: width / scale.x,
+    height: height / scale.y,
+  }
+}
 
 export function unionVisualRects(rects: readonly VisualRect[]): VisualRect | null {
   const valid = rects.filter(rect => rect.right > rect.left && rect.bottom > rect.top)
@@ -13,15 +71,49 @@ export function unionVisualRects(rects: readonly VisualRect[]): VisualRect | nul
   }
 }
 
+/** Clip one glyph's measured ink to CSS overflow ancestors. */
+export function intersectVisualRectWithClip(
+  rect: VisualRect,
+  clip: VisualRect,
+  clipX = true,
+  clipY = true,
+): VisualRect | null {
+  const clipped = {
+    left: clipX ? Math.max(rect.left, clip.left) : rect.left,
+    top: clipY ? Math.max(rect.top, clip.top) : rect.top,
+    right: clipX ? Math.min(rect.right, clip.right) : rect.right,
+    bottom: clipY ? Math.min(rect.bottom, clip.bottom) : rect.bottom,
+  }
+  return clipped.right > clipped.left && clipped.bottom > clipped.top ? clipped : null
+}
+
+function clipToCharacterSwitch(rect: VisualRect, node: HTMLElement): VisualRect | null {
+  const slot = node.closest<HTMLElement>('.scene-character-switch')
+  if (!slot) return rect
+  const style = getComputedStyle(slot)
+  const clipX = style.overflowX !== 'visible'
+  const clipY = style.overflowY !== 'visible'
+  if (!clipX && !clipY) return rect
+  const bounds = slot.getBoundingClientRect()
+  const scaleX = slot.offsetWidth > 0 ? bounds.width / slot.offsetWidth : 1
+  const scaleY = slot.offsetHeight > 0 ? bounds.height / slot.offsetHeight : 1
+  const left = bounds.left + slot.clientLeft * scaleX
+  const top = bounds.top + slot.clientTop * scaleY
+  return intersectVisualRectWithClip(rect, {
+    left,
+    top,
+    right: left + slot.clientWidth * scaleX,
+    bottom: top + slot.clientHeight * scaleY,
+  }, clipX, clipY)
+}
+
 /**
  * A DOM Range describes the font's advance/line box, not the visible ink. Use
  * the same browser font metrics to tighten each glyph inside its own range;
  * preserve Range coordinates so CSS layout, writing mode and transforms still
  * determine where that glyph lives in the scene.
  */
-export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
-  const canvas = document.createElement('canvas')
-  const context = canvas.getContext('2d')
+export function measureSceneCharacterRects(nodes: readonly HTMLElement[], context: CanvasRenderingContext2D | null = document.createElement('canvas').getContext('2d')) {
   const rects: VisualRect[] = []
   for (const root of nodes) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
@@ -46,14 +138,17 @@ export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
         const inkHeight = metrics ? metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : layout.height
         if (!(inkWidth > 0 && inkHeight > 0)) continue
         const verticalSideways = style.writingMode.startsWith('vertical') && style.textOrientation !== 'upright'
-        const width = Math.min(layout.width, verticalSideways ? inkHeight : inkWidth)
-        const height = Math.min(layout.height, verticalSideways ? inkWidth : inkHeight)
-        rects.push({
-          left: layout.left + (layout.width - width) / 2,
-          top: layout.top + (layout.height - height) / 2,
-          right: layout.left + (layout.width + width) / 2,
-          bottom: layout.top + (layout.height + height) / 2,
-        })
+        const visualScale = context ? sceneElementVisualScale(text.parentElement ?? root) : { x: 1, y: 1 }
+        const measured = sceneGlyphVisualRect(
+          { left: layout.left, top: layout.top, right: layout.right, bottom: layout.bottom },
+          inkWidth,
+          inkHeight,
+          visualScale,
+          verticalSideways,
+        )
+        if (!measured) continue
+        const visible = clipToCharacterSwitch(measured, text.parentElement ?? root)
+        if (visible) rects.push(visible)
       }
     }
   }
@@ -62,4 +157,15 @@ export function measureSceneCharacterRects(nodes: readonly HTMLElement[]) {
 
 export function measureSceneCharacters(nodes: readonly HTMLElement[]) {
   return unionVisualRects(measureSceneCharacterRects(nodes))
+}
+
+/** Reuse immutable ink rectangles only inside one synchronous measurement
+ * pass. A new pass must use a new batch after any layout/font/projection edit. */
+export function createSceneCharacterRectBatch(measure: (nodes: readonly HTMLElement[]) => VisualRect[]) {
+  const measured = new Map<HTMLElement, VisualRect[]>()
+  return (nodes: readonly HTMLElement[]) => nodes.flatMap(root => {
+    let rects = measured.get(root)
+    if (!rects) { rects = measure([root]); measured.set(root, rects) }
+    return rects
+  })
 }

@@ -13,6 +13,25 @@ export type SceneFrameTarget = {
   suppressed: boolean
 }
 
+export type SceneFrameExitRequest = {
+  phase: 'idle' | 'retracting'
+  passageEntityId?: string
+  scope?: 'passage' | 'scene'
+  requestedGroups?: readonly string[]
+}
+
+/** A passage exit owns only its passage groups; a scene exit owns all groups. */
+export function sceneFrameExitRequestsTarget(
+  exit: SceneFrameExitRequest,
+  group: string,
+  passageEntityId?: string,
+) {
+  if (exit.phase !== 'retracting') return false
+  if (exit.requestedGroups && !exit.requestedGroups.includes(group)) return false
+  if (exit.scope === 'scene') return true
+  return exit.scope === 'passage' && Boolean(passageEntityId) && exit.passageEntityId === passageEntityId
+}
+
 export type SceneFrameRuntime = {
   corner: 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left'
   phase: SceneFramePhase

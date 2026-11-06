@@ -1,5 +1,8 @@
 import type { Point } from './sceneGeometry'
-import { isMainlineStorefrontPresentationInRange, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontSlot } from './mainlineScenes'
+import { pointInStorefrontRoom, storefrontRoomConnection } from './storefrontRoomConnection'
+import { isMainlineStorefrontPresentationInRange, mainlineStorefrontApproach, type MainlineSceneDefinition, type MainlineSceneGeometryUnit, type MainlineStorefrontRole, type MainlineStorefrontSlot } from './mainlineScenes'
+
+const noSuppressedStorefronts: ReadonlySet<string> = new Set()
 
 /** Presentation-only state for a portal storefront. It never changes passage or collision state. */
 export type StorefrontPresentationPhase = 'baseline' | 'retracting' | 'revealing' | 'revealed' | 'lingering' | 'restoring'
@@ -7,10 +10,27 @@ export type StorefrontPresentationPhase = 'baseline' | 'retracting' | 'revealing
 /** Shared duration for the storefront label's reveal and restoration motion. */
 export const storefrontLabelRollDurationMs = 700
 
+/** Briefly show the loaded facade before its existing proximity animation. */
+export const storefrontEntryRevealDelayMs = 350
+
 export const storefrontLingerDurationMs = 3000
 
 export function storefrontRestoreDelayMs(departedAt: number, now: number) {
   return Math.max(0, storefrontLingerDurationMs - (now - departedAt))
+}
+
+/** Keeps entry-animation-owned cells in the animated layer while leaving adjacent facade and glass cells in geometry. */
+export function storefrontGeometryCellShouldRender(
+  storefront: MainlineStorefrontSlot,
+  unit: MainlineSceneGeometryUnit,
+  cell: MainlineSceneGeometryUnit['visual']['cells'][number],
+  animatedCells: ReturnType<typeof storefrontCharacterCells> = [],
+) {
+  if (unit.id.startsWith(`${storefront.id}-base-`)) return false
+  if (cell.kind === 'door' && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId)) return false
+  if (animatedCells.some(animated => Math.abs(animated.x - cell.x) < .0001 && Math.abs(animated.y - cell.y) < .0001)) return false
+  return !(cell.kind === 'storefront' && (cell.storefrontRole === 'sign'
+    || storefront.composition?.fixedCellCount && cell.storefrontRole === 'door'))
 }
 
 /** The inward normal is independent of horizontal/vertical typography. */
@@ -22,6 +42,28 @@ export function storefrontRollDirection(edge: MainlineStorefrontSlot['edge']): P
 /** The label remains retracted throughout its leave grace period. */
 export function storefrontPresentationRetractsFrame(phase: StorefrontPresentationPhase) {
   return phase !== 'baseline'
+}
+
+/** Keep the real portal frame mounted for the storefront that owns the current interior. */
+export function storefrontDoorFrameShouldRetract(
+  storefrontId: string,
+  interiorStorefrontId: string | null,
+  phase: StorefrontPresentationPhase,
+  approached: boolean,
+) {
+  if (storefrontId === interiorStorefrontId) return false
+  return phase !== 'revealed' || !approached
+}
+
+/** Fixed storefront grids animate only their four-cell entrance; outer panes and wall caps keep their authored colors. */
+export function storefrontCellVisualState(
+  storefront: MainlineStorefrontSlot | undefined,
+  geometryVariant: 'baseline' | 'near' | undefined,
+  role: MainlineStorefrontRole | undefined,
+): 'baseline' | 'near' {
+  if (!geometryVariant) return 'baseline'
+  if (storefront?.composition?.fixedCellCount && role !== 'door') return 'baseline'
+  return geometryVariant
 }
 
 export type StorefrontPresentationEvent =
@@ -54,10 +96,17 @@ export function nextStorefrontPresentationPhase(
 export function activeStorefrontPresentationOwner(
   scene: MainlineSceneDefinition,
   position: Point,
+  presentationReady = true,
+  suppressedStorefrontIds: ReadonlySet<string> = noSuppressedStorefronts,
 ) {
+  if (!presentationReady) return null
   return scene.storefronts
-    .filter((storefront) => storefront.portalId && storefront.characterSwitch
-      && storefrontPresentationShouldReveal(scene, storefront, position))
+    .filter((storefront) => {
+      const connection = storefrontRoomConnection(scene, storefront)
+      return !suppressedStorefrontIds.has(storefront.id) && storefront.portalId && storefront.characterSwitch
+        && (!connection || pointInStorefrontRoom(position, connection.publicRoom))
+        && storefrontPresentationShouldReveal(scene, storefront, position)
+    })
     .map((storefront, index) => ({
       storefront,
       index,
@@ -69,12 +118,58 @@ export function activeStorefrontPresentationOwner(
     .sort((first, second) => first.distance - second.distance || first.index - second.index)[0]?.storefront.id ?? null
 }
 
+/** The shell whose facade is nearest to the current storefront interior. */
+export function activeStorefrontInteriorOwner(
+  scene: MainlineSceneDefinition,
+  position: Point,
+) {
+  return scene.storefronts.map(storefront => ({ storefront, connection: storefrontRoomConnection(scene, storefront) }))
+    .filter(({ connection }) => connection?.passage.access === 'open' && pointInStorefrontRoom(position, connection.interiorRoom))
+    .sort((left, right) => {
+      const leftRoom = left.connection!.interiorRoom.bounds
+      const rightRoom = right.connection!.interiorRoom.bounds
+      return leftRoom.width * leftRoom.height - rightRoom.width * rightRoom.height
+    })[0]?.storefront.id ?? null
+}
+
+/** Crossfade a wall glyph and the room feature occupying the same authored cell. */
+export function storefrontInteriorFeatureOpacity(
+  ownerId: string | null,
+  retainedOwnerIds: readonly string[],
+  paintedOwnerId: string | null,
+) {
+  if (!ownerId || !retainedOwnerIds.includes(ownerId)) return { wall: 1, feature: 0 }
+  return paintedOwnerId === ownerId ? { wall: 0, feature: 1 } : { wall: 1, feature: 0 }
+}
+
 /** A grace-period presentation still owns the visual entrance after the player leaves its trigger. */
 export function storefrontPresentationHandoffSource(
   phases: ReadonlyMap<string, StorefrontPresentationPhase>,
   incomingStorefrontId: string,
 ) {
   return [...phases].find(([storefrontId, phase]) => storefrontId !== incomingStorefrontId && phase !== 'baseline')?.[0] ?? null
+}
+
+export function storefrontPresentationExitEvent(storefrontId: string, suppressedStorefrontIds: ReadonlySet<string>): StorefrontPresentationEvent {
+  return suppressedStorefrontIds.has(storefrontId) ? 'handoff' : 'leave'
+}
+
+/**
+ * A newly suppressed entrance can already be outside its trigger owner while
+ * its visual grace period is still running. In that case the owner transition
+ * is already null, but the lingering presentation still needs a handoff.
+ */
+export function storefrontSuppressedHandoffTargets(
+  phases: ReadonlyMap<string, StorefrontPresentationPhase>,
+  suppressedStorefrontIds: ReadonlySet<string>,
+  handledOwnerId: string | null | undefined,
+  activeStorefrontId: string | null,
+) {
+  if (handledOwnerId !== activeStorefrontId || activeStorefrontId !== null) return []
+  return [...suppressedStorefrontIds].filter(storefrontId => {
+    const phase = phases.get(storefrontId) ?? 'baseline'
+    return phase !== 'baseline'
+  })
 }
 
 /**
@@ -92,62 +187,73 @@ export function storefrontPresentationShouldReveal(
 
 /** Project a label onto the already-compiled real wall/door/wall cells. */
 export function storefrontCharacterCells(
-  scene: MainlineSceneDefinition,
+  _scene: MainlineSceneDefinition,
   storefront: MainlineStorefrontSlot,
-  geometryUnits: readonly MainlineSceneGeometryUnit[] = scene.geometry,
+  geometryUnits: readonly MainlineSceneGeometryUnit[] = _scene.geometry,
 ) {
-  const roles = storefront.composition?.near ?? []
   const labels = Array.from(storefront.label)
-  if (!storefront.characterSwitch || roles.length !== 3 || roles[0] !== 'wall' || roles[1] !== 'door' || roles[2] !== 'wall' || labels.length !== roles.length) return []
+  if (!storefront.characterSwitch || labels.length === 0 || !(storefront.composition?.near ?? []).includes('door')) return []
 
-  const entries = geometryUnits.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
-  const onStorefrontEdge = ({ unit }: typeof entries[number]) => unit.sourceWallId === storefront.wallId && unit.edge === storefront.edge
-  const door = entries.find(entry => onStorefrontEdge(entry)
-    && entry.cell.kind === 'door'
-    && (entry.cell.entityId === storefront.portalId || entry.unit.entityId === storefront.portalId))
-  // A narrow responsive lattice can leave only one reserved storefront cell.
-  // The compiled passage unit still owns the real door center, while the
-  // neighboring projected wall segments own the two flank glyph positions.
-  const passageAnchor = door ? undefined : geometryUnits.find(unit => (
-    unit.storefrontId === storefront.id && unit.navigation.passageId === storefront.portalId
-  ))
-  const resolvedDoor = door ?? (passageAnchor ? {
-    unit: passageAnchor,
-    cell: {
-      id: `${storefront.id}-base-cell-1`,
-      x: passageAnchor.x + passageAnchor.width / 2,
-      y: passageAnchor.y + passageAnchor.height / 2,
-      kind: 'door' as const,
-      entityId: storefront.portalId,
-    },
-  } : undefined)
-  if (!resolvedDoor) return []
-
+  const ownedEntries = geometryUnits.flatMap(unit => unit.visual.cells.map(cell => ({ unit, cell })))
+    .filter(({ unit }) => unit.storefrontId === storefront.id && unit.sourceWallId === storefront.wallId && unit.edge === storefront.edge)
   const vertical = storefront.edge === 'left' || storefront.edge === 'right'
-  const tangent = ({ cell }: typeof resolvedDoor) => vertical ? cell.y : cell.x
-  const normal = ({ cell }: typeof resolvedDoor) => vertical ? cell.x : cell.y
-  const doorTangent = tangent(resolvedDoor)
-  const doorNormal = normal(resolvedDoor)
-  const adjacentWalls = entries.filter(entry => onStorefrontEdge(entry)
-    && entry.cell.kind === 'wall'
-    && Math.abs(normal(entry) - doorNormal) < .01)
-  const before = adjacentWalls.filter(entry => tangent(entry) < doorTangent)
-    .sort((first, second) => tangent(second) - tangent(first))[0]
-  const after = adjacentWalls.filter(entry => tangent(entry) > doorTangent)
-    .sort((first, second) => tangent(first) - tangent(second))[0]
-  if (!before || !after) return []
+  const tangentCenter = (cell: MainlineSceneGeometryUnit['visual']['cells'][number]) => {
+    const start = cell.cellStart ?? (vertical ? cell.y : cell.x)
+    const end = cell.cellEnd ?? (vertical ? cell.y : cell.x)
+    return (start + end) / 2
+  }
+  const baselineSigns = ownedEntries
+    .filter(({ unit, cell }) => unit.variant === 'baseline' && cell.kind === 'storefront' && cell.storefrontRole === 'sign')
+    .sort((a, b) => tangentCenter(a.cell) - tangentCenter(b.cell))
+  const doors = ownedEntries.filter(({ unit, cell }) => storefront.composition?.fixedCellCount
+    ? unit.variant === 'near' && cell.kind === 'storefront' && cell.storefrontRole === 'door'
+    : cell.kind === 'door' && (cell.entityId === storefront.portalId || unit.entityId === storefront.portalId))
+  if (!doors.length || baselineSigns.length < labels.length) return []
 
-  return [before, resolvedDoor, after].map((entry, index) => ({
-    id: entry.cell.id,
-    x: entry.cell.x,
-    y: entry.cell.y,
-    role: roles[index],
-    baselineGlyph: labels[index],
-    glyph: entry.cell.glyph ?? (roles[index] === 'door' ? '门' : '墙'),
-    ...(entry.cell.kind === 'door' ? { entityId: entry.cell.entityId ?? entry.unit.entityId } : {}),
+  const doorByIndex = new Map(doors.map(door => {
+    const doorTangent = vertical ? door.cell.y : door.cell.x
+    const index = baselineSigns.reduce((best, entry, index) => {
+      const bestDistance = Math.abs(tangentCenter(baselineSigns[best]!.cell) - doorTangent)
+      const distance = Math.abs(tangentCenter(entry.cell) - doorTangent)
+      return distance < bestDistance ? index : best
+    }, 0)
+    return [index, door] as const
   }))
-}
+  const cafeComposition = storefront.composition?.baseline?.length === 1 && storefront.composition.baseline[0] === 'sign'
+  const localEntryCells = ownedEntries
+    .filter(({ unit, cell }) => unit.id.startsWith(`${storefront.id}-base-`) && (cell.kind === 'wall' || cell.kind === 'door'))
+    .sort((a, b) => tangentCenter(a.cell) - tangentCenter(b.cell))
+  const useCafeEntryAnchors = cafeComposition && labels.length === 3 && localEntryCells.length === 3
+    && localEntryCells.some(entry => entry.cell.kind === 'door')
 
+  return labels.map((baselineGlyph, index) => {
+    const signCell = baselineSigns[index]!.cell
+    const baselineTangent = tangentCenter(signCell)
+    const baselineX = vertical ? signCell.x : baselineTangent
+    const baselineY = vertical ? baselineTangent : signCell.y
+    const entry = useCafeEntryAnchors ? localEntryCells[index] : undefined
+    const door = doorByIndex.get(index)
+    const role = entry?.cell.kind === 'door' ? 'door' : door ? 'door' : 'wall'
+    const doorData = door ?? doors[0]!
+    const x = entry?.cell.x ?? (role === 'door' ? doorData.cell.x : baselineX)
+    const y = entry?.cell.y ?? (role === 'door' ? doorData.cell.y : baselineY)
+    return {
+      id: `${storefront.id}-character-${index}`,
+      baselineX,
+      baselineY,
+      x,
+      y,
+      role,
+      baselineGlyph,
+      glyph: role === 'door' ? (door?.cell.glyph ?? doors[0]!.cell.glyph ?? '\u95e8') : (entry?.cell.kind === 'wall' ? (entry.cell.glyph ?? '\u5899') : '\u5899'),
+      ...(role === 'door' ? {
+        entityId: doorData.cell.entityId ?? doorData.unit.entityId ?? storefront.portalId,
+        access: doorData.cell.access,
+        lockedText: doorData.cell.lockedText,
+      } : {}),
+    }
+  })
+}
 /** All cells consume the same normalized animation clock. */
 export function storefrontCharacterProgress(from: number, to: number, elapsed: number, duration: number) {
   const t = Math.max(0, Math.min(1, elapsed / Math.max(1, duration)))

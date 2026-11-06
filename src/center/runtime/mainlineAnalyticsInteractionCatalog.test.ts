@@ -31,7 +31,8 @@ describe('mainline analytics interaction catalog', () => {
       'yonghe-outdoor-chair-2-top',
       'yonghe-outdoor-chair-2-bottom',
     ]) {
-      expect(keys.has(key('yonghe-mining-perimeter', chairId))).toBe(false)
+      // The current interior trial makes the two retained outdoor groups usable seats.
+      expect(keys.has(key('yonghe-mining-perimeter', chairId))).toBe(true)
     }
     expect(points.every((point) => point.sceneId && point.objectId && point.objectKind)).toBe(true)
   })

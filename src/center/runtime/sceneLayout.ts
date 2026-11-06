@@ -1,6 +1,8 @@
+import { mainlineWorldFontSizePx, sharedFurnitureGlyphSpacingPx } from './sceneBoundaryGrid'
 import type { CollisionBox, Point } from './sceneGeometry'
 import type { MainlineSceneDefinition, MainlineSceneEntity } from './mainlineScenes'
 import { defaultSceneScreenMetrics, type SceneScreenMetrics } from './sceneBoundaryGrid'
+import { expandCommercialStreetBoxForProjection } from './commercialStreetGridProjection'
 
 export type LayoutItemId = string
 export type SceneLayout = Readonly<Record<LayoutItemId, Point>>
@@ -173,15 +175,12 @@ export function mainlineEntityPosition(
 }
 
 function mainlineEntityUsesVerticalText(entity: MainlineSceneEntity) {
-  return (entity.kind === 'table' || entity.kind === 'seat') && (entity.facing === 'east' || entity.facing === 'west')
+  return entity.textLayout === 'vertical' || (entity.kind === 'table' || entity.kind === 'seat') && (entity.facing === 'east' || entity.facing === 'west')
 }
 
-export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity | null, screenMetrics: SceneScreenMetrics) {
-  // Keep the interaction footprint in lockstep with the mainline object CSS.
-  // The rendered object consumes the same measured stage-width basis through
-  // a CSS custom property. This keeps the footprint and focus frame aligned
-  // on responsive landscape tablet layouts as well as portrait layouts.
-  return Math.max(9, Math.min(16, screenMetrics.width * .0115))
+export function mainlineEntityFontSizePx(_entity: MainlineSceneEntity | null, _screenMetrics: SceneScreenMetrics) {
+  // The world projection scales text and geometry together exactly once.
+  return mainlineWorldFontSizePx
 }
 
 /**
@@ -193,15 +192,16 @@ export function mainlineLabelFootprint(
   label: string,
   position: Point,
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
-  options: { vertical?: boolean; visualScale?: number; lineHeight?: number } = {},
+  options: { vertical?: boolean; visualScale?: number; lineHeight?: number; glyphPitchPx?: number } = {},
 ): CollisionBox {
   const glyphCount = Math.max(1, Array.from(label).length)
   const fontSizePx = mainlineEntityFontSizePx(null, screenMetrics)
   const vertical = options.vertical ?? false
   const lineHeight = options.lineHeight ?? (vertical ? 1 : 1.2)
   const scale = Number.isFinite(options.visualScale) && (options.visualScale ?? 0) > 0 ? options.visualScale! : 1
-  const widthPx = vertical ? fontSizePx : glyphCount * fontSizePx
-  const heightPx = vertical ? glyphCount * fontSizePx : fontSizePx * lineHeight
+  const textExtent = glyphCount * (options.glyphPitchPx ?? fontSizePx)
+  const widthPx = vertical ? fontSizePx : textExtent
+  const heightPx = vertical ? textExtent : fontSizePx * lineHeight
   const width = Number(((widthPx * scale / screenMetrics.width) * 100).toFixed(4))
   const height = Number(((heightPx * scale / screenMetrics.height) * 100).toFixed(4))
   return {
@@ -212,15 +212,24 @@ export function mainlineLabelFootprint(
   }
 }
 
+/** Moving registration and contact planning must measure the same rendered label. */
+export function mainlineNpcLabelFootprint(scene: MainlineSceneDefinition, npcId: string, position: Point, screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics): CollisionBox {
+  const label = scene.npcs.find(npc => npc.id === npcId)?.label ?? ''
+  return mainlineSceneFootprint(scene, mainlineLabelFootprint(label, position, screenMetrics, { lineHeight: 1 }), screenMetrics)
+}
+
 /** The walking marker is a real 11px square, not a hidden navigation radius. */
 export function mainlineProtagonistDotFootprint(
   position: Point,
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
+  sceneId?: MainlineSceneDefinition['id'],
 ): CollisionBox {
   const sizePx = 11
-  const width = Number(((sizePx / screenMetrics.width) * 100).toFixed(4))
+  const authored = { x: position.x - (sizePx / screenMetrics.width) * 50, width: Number(((sizePx / screenMetrics.width) * 100).toFixed(4)) }
+  const projected = sceneId === 'commercial-street' ? expandCommercialStreetBoxForProjection(authored, screenMetrics) : authored
+  const width = projected.width
   const height = Number(((sizePx / screenMetrics.height) * 100).toFixed(4))
-  return { x: position.x - width / 2, y: position.y - height / 2, width, height }
+  return { x: projected.x, y: position.y - height / 2, width, height }
 }
 
 function isNarrowMainlineViewport(screenMetrics: SceneScreenMetrics) {
@@ -304,7 +313,8 @@ export function mainlineEntityTextFootprint(
   return mainlineLabelFootprint(entity.label, position, screenMetrics, {
     vertical: mainlineEntityUsesVerticalText(entity),
     visualScale: entity.visualScale,
-    lineHeight: entity.kind === 'table' || entity.kind === 'seat' ? 1 : 1.2,
+    glyphPitchPx: ['fixture', 'table', 'seat'].includes(entity.kind) ? sharedFurnitureGlyphSpacingPx : undefined,
+    lineHeight: mainlineEntityUsesVerticalText(entity) || entity.kind === 'table' || entity.kind === 'seat' ? 1 : 1.2,
   })
 }
 
@@ -325,13 +335,13 @@ export function mainlineEntityCollision(
       const actualPosition = mainlineEntityPosition(scene, entity, layout, screenMetrics)
       const collision = sceneLayoutEntityCollision(scene, entity, layout)
       if (!collision) return null
-      return {
+      return expandSceneFootprint(scene, screenMetrics, {
         ...collision,
         x: collision.x + actualPosition.x - authoredPosition.x,
         y: collision.y + actualPosition.y - authoredPosition.y,
-      }
+      })
     }
-    return mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics)
+    return expandSceneFootprint(scene, screenMetrics, mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics))
   }
   return sceneLayoutEntityCollision(scene, entity, layout)
 }
@@ -343,7 +353,7 @@ export function mainlineEntityInteractionBounds(
   screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics,
 ): CollisionBox | null {
   if (entity.surface !== 'floor' || entity.interactive === false) return null
-  return mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics)
+  return expandSceneFootprint(scene, screenMetrics, mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics))
 }
 
 /**
@@ -360,13 +370,21 @@ export function mainlineEntityVisualBounds(
   if (entity.surface !== 'floor' || entity.visible === false) return null
   const offset = mainlineLayoutOffsetForEntity(scene, entity.id, layout)
   if (entity.visualBounds) {
-    return {
+    return expandSceneFootprint(scene, screenMetrics, {
       ...entity.visualBounds,
       x: entity.visualBounds.x + offset.x,
       y: entity.visualBounds.y + offset.y,
-    }
+    })
   }
-  return mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics)
+  return expandSceneFootprint(scene, screenMetrics, mainlineEntityTextFootprint(entity, mainlineEntityPosition(scene, entity, layout, screenMetrics), screenMetrics))
+}
+
+export function mainlineSceneFootprint<T extends CollisionBox>(scene: MainlineSceneDefinition, footprint: T, screenMetrics: SceneScreenMetrics = defaultSceneScreenMetrics): T {
+  return scene.id === 'commercial-street' ? expandCommercialStreetBoxForProjection(footprint, screenMetrics) : footprint
+}
+
+function expandSceneFootprint<T extends CollisionBox>(scene: MainlineSceneDefinition, screenMetrics: SceneScreenMetrics, footprint: T): T {
+  return mainlineSceneFootprint(scene, footprint, screenMetrics)
 }
 
 export function mainlineEntityShape(

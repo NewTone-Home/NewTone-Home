@@ -1,0 +1,4353 @@
+{
+  "jijia-ancestral-home": {
+    "objects": [
+      {
+        "id": "jijia-old-tree-stone-n-2",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-n-1",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-n",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-n+1",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-n+2",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-e",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-s-2",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-s-1",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-s",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-s+1",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-s+2",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree-stone-w",
+        "label": "石",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "jijia-old-tree",
+        "label": "老槐树",
+        "kind": "landmark",
+        "weight": "minor",
+        "groupId": "jijia-yard-group",
+        "interactionBehavior": "echo-pool"
+      },
+      {
+        "id": "jijia-main-door",
+        "label": "正门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "jijia-yard-gate",
+        "label": "院门",
+        "displayLabel": "院门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both",
+          "visualMode": "static"
+        }
+      }
+    ],
+    "portals": [
+      {
+        "id": "jijia-main-door",
+        "access": "open",
+        "targetSceneId": "jijia-ancestral-interior",
+        "transitionText": "修杰穿过正门，进入祖宅内堂。"
+      },
+      {
+        "id": "jijia-yard-gate",
+        "access": "open",
+        "transitionText": "修杰走到院门边，前院出口被触发。"
+      }
+    ],
+    "rooms": [],
+    "npcs": [],
+    "npcBehaviors": [],
+    "interactionText": {
+      "jijia-main-door": "正门通向独立的祖宅内堂。",
+      "jijia-yard-gate": "院门是前院的固定边界出口。",
+      "jijia-old-tree": "老槐树的影子落在石砖地面上。"
+    },
+    "echoPool": [
+      "树上刻着某些痕迹，岁月磨去了不少。",
+      "树下的土还带着点湿润。",
+      "树荫底下非常阴凉，老槐树把太阳遮挡了大半。",
+      "妹妹总说，为什么不能砍树呀，这样多亮堂。",
+      "树下的石块已经失去了大半棱角，变得光滑了许多。"
+    ]
+  },
+  "jijia-ancestral-interior": {
+    "objects": [
+      {
+        "id": "jijia-portrait-top-1",
+        "label": "画像",
+        "kind": "landmark",
+        "weight": "minor",
+        "interactive": false,
+        "interactionBehavior": "direct-wall"
+      },
+      {
+        "id": "jijia-portrait-top-2",
+        "label": "画像",
+        "kind": "landmark",
+        "weight": "minor",
+        "interactive": false,
+        "interactionBehavior": "direct-wall"
+      },
+      {
+        "id": "jijia-portrait-bottom-1",
+        "label": "画像",
+        "kind": "landmark",
+        "weight": "minor",
+        "interactive": false,
+        "interactionBehavior": "direct-wall"
+      },
+      {
+        "id": "jijia-portrait-bottom-2",
+        "label": "画像",
+        "kind": "landmark",
+        "weight": "minor",
+        "interactive": false,
+        "interactionBehavior": "direct-wall"
+      },
+      {
+        "id": "jijia-portrait-right-center",
+        "label": "画像",
+        "kind": "landmark",
+        "weight": "minor",
+        "interactive": false,
+        "interactionBehavior": "direct-wall"
+      },
+      {
+        "id": "jijia-offering-table-north",
+        "label": "供桌",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "jijia-altar-group"
+      },
+      {
+        "id": "jijia-offering-table-east",
+        "label": "供桌",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "jijia-altar-group"
+      },
+      {
+        "id": "jijia-offering-table-south",
+        "label": "供桌",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "jijia-altar-group"
+      },
+      {
+        "id": "jijia-offering-table-west",
+        "label": "供桌",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "jijia-altar-group"
+      },
+      {
+        "id": "jijia-incense-burner",
+        "label": "香炉",
+        "kind": "fixture",
+        "weight": "fixture",
+        "groupId": "jijia-altar-group",
+        "interactionBehavior": "incense"
+      },
+      {
+        "id": "jijia-main-door",
+        "label": "正门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "jijia-secret-door",
+        "label": "后门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      }
+    ],
+    "portals": [
+      {
+        "id": "jijia-main-door",
+        "access": "open",
+        "targetSceneId": "jijia-ancestral-home",
+        "transitionText": "修杰从祖宅内堂穿过正门，回到前院。"
+      },
+      {
+        "id": "jijia-secret-door",
+        "access": "open",
+        "targetSceneId": "zhongshuyuan-passage",
+        "transitionText": "修杰穿过祖宅后门，进入中枢院窄暗道。"
+      }
+    ],
+    "rooms": [],
+    "npcs": [],
+    "npcBehaviors": [],
+    "interactionText": {
+      "jijia-main-door": "正门通向前院。",
+      "jijia-secret-door": "后门通向中枢院的窄暗道。",
+      "jijia-offering-table-north": "桌子上摆放着不少的牌位。",
+      "jijia-offering-table-south": "桌子上摆放着不少的牌位。",
+      "jijia-offering-table-west": "桌子上摆放着一些瓜果。",
+      "jijia-offering-table-east": "桌子上只摆放着一个牌位，上面写着“姬家家主”。"
+    },
+    "explorationText": {
+      "jijia-portrait-top-1": [
+        "画像上的人，修杰都从没见过，只听家里人提起过。",
+        "画像上有些色块已经掉了，木板上还出现了一些细微的裂缝。",
+        "画像太高了，阳光根本照不到上半身，但是眼睛却格外有神，像是在盯着修杰看。",
+        "以前爷爷讲过这些先祖的故事，但是从没提起过名字。",
+        "妹妹小时候每次进来，都会被吓到嚎啕大哭。"
+      ],
+      "jijia-portrait-top-2": [
+        "画像上的人，修杰都从没见过，只听家里人提起过。",
+        "画像上有些色块已经掉了，木板上还出现了一些细微的裂缝。",
+        "画像太高了，阳光根本照不到上半身，但是眼睛却格外有神，像是在盯着修杰看。",
+        "以前爷爷讲过这些先祖的故事，但是从没提起过名字。",
+        "妹妹小时候每次进来，都会被吓到嚎啕大哭。"
+      ],
+      "jijia-portrait-bottom-1": [
+        "画像上的人，修杰都从没见过，只听家里人提起过。",
+        "画像上有些色块已经掉了，木板上还出现了一些细微的裂缝。",
+        "画像太高了，阳光根本照不到上半身，但是眼睛却格外有神，像是在盯着修杰看。",
+        "以前爷爷讲过这些先祖的故事，但是从没提起过名字。",
+        "妹妹小时候每次进来，都会被吓到嚎啕大哭。"
+      ],
+      "jijia-portrait-bottom-2": [
+        "画像上的人，修杰都从没见过，只听家里人提起过。",
+        "画像上有些色块已经掉了，木板上还出现了一些细微的裂缝。",
+        "画像太高了，阳光根本照不到上半身，但是眼睛却格外有神，像是在盯着修杰看。",
+        "以前爷爷讲过这些先祖的故事，但是从没提起过名字。",
+        "妹妹小时候每次进来，都会被吓到嚎啕大哭。"
+      ],
+      "jijia-portrait-right-center": [
+        "画像上的人，修杰都从没见过，只听家里人提起过。",
+        "画像上有些色块已经掉了，木板上还出现了一些细微的裂缝。",
+        "画像太高了，阳光根本照不到上半身，但是眼睛却格外有神，像是在盯着修杰看。",
+        "以前爷爷讲过这些先祖的故事，但是从没提起过名字。",
+        "妹妹小时候每次进来，都会被吓到嚎啕大哭。"
+      ],
+      "jijia-offering-table-north": [
+        "桌子上摆放着不少的牌位。"
+      ],
+      "jijia-offering-table-south": [
+        "桌子上摆放着不少的牌位。"
+      ],
+      "jijia-offering-table-west": [
+        "桌子上摆放着一些瓜果。"
+      ],
+      "jijia-offering-table-east": [
+        "桌子上只摆放着一个牌位，上面写着“姬家家主”。"
+      ]
+    }
+  },
+  "commercial-street": {
+    "objects": [
+      {
+        "id": "commercial-s5-milk-tea-table",
+        "label": "桌子",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-s5-milk-tea-table-group"
+      },
+      {
+        "id": "commercial-s5-milk-tea-seat-a",
+        "label": "椅子",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-s5-milk-tea-table-group",
+        "seat": {
+          "id": "commercial-s5-milk-tea-seat-a",
+          "tableId": "commercial-s5-milk-tea-table",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-s5-milk-tea-seat-b",
+        "label": "椅子",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-s5-milk-tea-table-group",
+        "seat": {
+          "id": "commercial-s5-milk-tea-seat-b",
+          "tableId": "commercial-s5-milk-tea-table",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-1",
+        "label": "柜",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-2",
+        "label": "台",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-3",
+        "label": "柜",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-4",
+        "label": "台",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-5",
+        "label": "柜",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-6",
+        "label": "台",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-7",
+        "label": "柜",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-8",
+        "label": "台",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-9",
+        "label": "柜",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-1-10",
+        "label": "台",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-2-2",
+        "label": "柜",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-counter-2-3",
+        "label": "台",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-rear-partition-0-2",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-rear-partition-0-3",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-rear-partition-0-4",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-rear-partition-1-1",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-rear-partition-1-2",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-rear-partition-1-3",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-rear-partition-2-1",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-warehouse-door",
+        "label": "门",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-door",
+        "label": "门",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-warehouse-sign",
+        "label": "仓库",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-sign",
+        "label": "厨房",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s5-milk-tea-menu-service-label",
+        "label": "菜单",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s5-milk-tea-order-service-label",
+        "label": "点单",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s5-milk-tea-pickup-service-label",
+        "label": "取餐",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-divider-2",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-divider-3",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-divider-4",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-divider-5",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-divider-6",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-divider-7",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-divider-8",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s5-milk-tea-kitchen-divider-9",
+        "label": "墙",
+        "roomId": "commercial-south-s5-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-table-a",
+        "label": "桌子",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-s2-fast-food-table-group-a"
+      },
+      {
+        "id": "commercial-s2-fast-food-seat-a1",
+        "label": "椅子",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-s2-fast-food-table-group-a",
+        "seat": {
+          "id": "commercial-s2-fast-food-seat-a1",
+          "tableId": "commercial-s2-fast-food-table-a",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-s2-fast-food-seat-a2",
+        "label": "椅子",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-s2-fast-food-table-group-a",
+        "seat": {
+          "id": "commercial-s2-fast-food-seat-a2",
+          "tableId": "commercial-s2-fast-food-table-a",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-s2-fast-food-table-b",
+        "label": "桌子",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-s2-fast-food-table-group-b"
+      },
+      {
+        "id": "commercial-s2-fast-food-seat-b1",
+        "label": "椅子",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-s2-fast-food-table-group-b",
+        "seat": {
+          "id": "commercial-s2-fast-food-seat-b1",
+          "tableId": "commercial-s2-fast-food-table-b",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-s2-fast-food-seat-b2",
+        "label": "椅子",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-s2-fast-food-table-group-b",
+        "seat": {
+          "id": "commercial-s2-fast-food-seat-b2",
+          "tableId": "commercial-s2-fast-food-table-b",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-1",
+        "label": "柜",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-2",
+        "label": "台",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-3",
+        "label": "柜",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-4",
+        "label": "台",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-5",
+        "label": "柜",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-6",
+        "label": "台",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-7",
+        "label": "柜",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-8",
+        "label": "台",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-9",
+        "label": "柜",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-counter-1-10",
+        "label": "台",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-2",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-3",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-4",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-5",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-6",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-7",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-8",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-9",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-10",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-11",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-12",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-13",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-14",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-15",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-16",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-0-17",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-1-1",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-1-2",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-rear-partition-2-1",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-door",
+        "label": "门",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-warehouse-door",
+        "label": "门",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-sign",
+        "label": "厨房",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s2-fast-food-warehouse-sign",
+        "label": "仓库",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s2-fast-food-menu-service-label",
+        "label": "菜单",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s2-fast-food-order-service-label",
+        "label": "点单",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s2-fast-food-pickup-service-label",
+        "label": "取餐",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-warehouse-divider-2",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-warehouse-divider-3",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-warehouse-divider-4",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-warehouse-divider-5",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-warehouse-divider-6",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-warehouse-divider-7",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-warehouse-divider-8",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-s2-fast-food-kitchen-warehouse-divider-9",
+        "label": "墙",
+        "roomId": "commercial-south-s2-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-north-cafe-table-front",
+        "label": "桌子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-north-cafe-table-group-front"
+      },
+      {
+        "id": "commercial-north-cafe-seat-front-a",
+        "label": "椅子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-north-cafe-table-group-front",
+        "seat": {
+          "id": "commercial-north-cafe-seat-front-a",
+          "tableId": "commercial-north-cafe-table-front",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-north-cafe-seat-front-b",
+        "label": "椅子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-north-cafe-table-group-front",
+        "seat": {
+          "id": "commercial-north-cafe-seat-front-b",
+          "tableId": "commercial-north-cafe-table-front",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-north-cafe-table-middle",
+        "label": "桌子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-north-cafe-table-group-middle"
+      },
+      {
+        "id": "commercial-north-cafe-seat-middle-a",
+        "label": "椅子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-north-cafe-table-group-middle",
+        "seat": {
+          "id": "commercial-north-cafe-seat-middle-a",
+          "tableId": "commercial-north-cafe-table-middle",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-north-cafe-seat-middle-b",
+        "label": "椅子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-north-cafe-table-group-middle",
+        "seat": {
+          "id": "commercial-north-cafe-seat-middle-b",
+          "tableId": "commercial-north-cafe-table-middle",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-north-cafe-table-rear",
+        "label": "桌子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-north-cafe-table-group-rear"
+      },
+      {
+        "id": "commercial-north-cafe-seat-rear-a",
+        "label": "椅子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-north-cafe-table-group-rear",
+        "seat": {
+          "id": "commercial-north-cafe-seat-rear-a",
+          "tableId": "commercial-north-cafe-table-rear",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-north-cafe-seat-rear-b",
+        "label": "椅子",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-north-cafe-table-group-rear",
+        "seat": {
+          "id": "commercial-north-cafe-seat-rear-b",
+          "tableId": "commercial-north-cafe-table-rear",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-north-cafe-counter-1-1",
+        "label": "柜",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-counter-1-2",
+        "label": "台",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-counter-1-3",
+        "label": "柜",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-counter-1-4",
+        "label": "台",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-counter-1-5",
+        "label": "柜",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-counter-1-6",
+        "label": "台",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-counter-2-2",
+        "label": "柜",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-counter-2-3",
+        "label": "台",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-counter-2-4",
+        "label": "柜",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-menu-label-1",
+        "label": "菜",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-menu-label-2",
+        "label": "单",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-order-label-1",
+        "label": "点",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-order-label-2",
+        "label": "单",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-staff-opening",
+        "label": "门",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "fixture"
+      },
+      {
+        "id": "commercial-north-cafe-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-cafe-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-north-cafe-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-counter-1",
+        "label": "柜",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-counter-2",
+        "label": "台",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-counter-3",
+        "label": "柜",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-counter-4",
+        "label": "台",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-counter-5",
+        "label": "柜",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-counter-6",
+        "label": "台",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-counter-7",
+        "label": "柜",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-order-1",
+        "label": "点",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-order-2",
+        "label": "单",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-pickup-1",
+        "label": "取",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n1-fruit-tea-pickup-2",
+        "label": "货",
+        "roomId": "commercial-north-n1-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-display-west-wall-1",
+        "label": "架",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-display-west-wall-2",
+        "label": "架",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-display-east-wall-1",
+        "label": "架",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-display-east-wall-2",
+        "label": "架",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-display-central-group-a-1",
+        "label": "架",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-display-central-group-a-2",
+        "label": "架",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-display-central-group-b-1",
+        "label": "架",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-display-central-group-b-2",
+        "label": "架",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-counter-1",
+        "label": "台",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-counter-2",
+        "label": "柜",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-counter-3",
+        "label": "台",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-counter-4",
+        "label": "柜",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-storage-connector-2",
+        "label": "墙",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-storage-connector-3",
+        "label": "墙",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-storage-return-2",
+        "label": "墙",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n2-creative-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-north-n2-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-display-west-wall-1",
+        "label": "架",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-display-west-wall-2",
+        "label": "架",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-display-west-wall-3",
+        "label": "架",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-display-east-wall-1",
+        "label": "架",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-display-east-wall-2",
+        "label": "架",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-display-east-wall-3",
+        "label": "架",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-counter-1",
+        "label": "柜",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-counter-2",
+        "label": "台",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-counter-3",
+        "label": "柜",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-counter-4",
+        "label": "台",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-counter-5",
+        "label": "柜",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n3-beauty-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-north-n3-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-display-west-wall-1",
+        "label": "架",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-display-west-wall-2",
+        "label": "架",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-display-west-wall-3",
+        "label": "架",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-display-east-wall-front-1",
+        "label": "架",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-display-east-wall-front-2",
+        "label": "架",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-counter-1",
+        "label": "台",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-counter-2",
+        "label": "柜",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-counter-3",
+        "label": "台",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-counter-4",
+        "label": "柜",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n4-eyewear-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-north-n4-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-display-display-a-1",
+        "label": "架",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-display-display-b-1",
+        "label": "架",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-display-display-c-1",
+        "label": "架",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-display-display-d-1",
+        "label": "架",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-counter-1",
+        "label": "台",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-counter-2",
+        "label": "柜",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-counter-3",
+        "label": "台",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-counter-4",
+        "label": "柜",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n5-toys-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-north-n5-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-display-west-wall-1",
+        "label": "架",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-display-west-wall-2",
+        "label": "架",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-display-east-wall-1",
+        "label": "架",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-display-east-wall-2",
+        "label": "架",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-counter-1",
+        "label": "柜",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-counter-2",
+        "label": "台",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-counter-3",
+        "label": "柜",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-counter-4",
+        "label": "台",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-counter-5",
+        "label": "柜",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-n6-fragrance-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-north-n6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-display-west-wall-1",
+        "label": "架",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-display-west-wall-2",
+        "label": "架",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-display-west-wall-3",
+        "label": "架",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-display-east-wall-rear-1",
+        "label": "架",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-display-east-wall-rear-2",
+        "label": "架",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-counter-1",
+        "label": "柜",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-counter-2",
+        "label": "台",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-counter-3",
+        "label": "柜",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-counter-4",
+        "label": "台",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-counter-5",
+        "label": "柜",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s1-fashion-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-south-s1-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-display-west-wall-1",
+        "label": "架",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-display-west-wall-2",
+        "label": "架",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-display-west-wall-3",
+        "label": "架",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-display-east-wall-1",
+        "label": "架",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-display-east-wall-2",
+        "label": "架",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-display-east-wall-3",
+        "label": "架",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-counter-1",
+        "label": "柜",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-counter-2",
+        "label": "台",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-counter-3",
+        "label": "柜",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-counter-4",
+        "label": "台",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-storage-connector-2",
+        "label": "墙",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-storage-connector-3",
+        "label": "墙",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-storage-return-2",
+        "label": "墙",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s4-clothing-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-south-s4-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-front-1",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-front-2",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-front-3",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-mid-1",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-mid-2",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-mid-3",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-rear-1",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-rear-2",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-display-west-display-rear-3",
+        "label": "架",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-counter-1",
+        "label": "柜",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-counter-2",
+        "label": "台",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-counter-3",
+        "label": "柜",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-counter-4",
+        "label": "台",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-counter-5",
+        "label": "柜",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-menu-1",
+        "label": "菜",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-menu-2",
+        "label": "单",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-pickup-1",
+        "label": "取",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-pickup-2",
+        "label": "货",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-organization-1",
+        "label": "整",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s6-dessert-organization-2",
+        "label": "理",
+        "roomId": "commercial-south-s6-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-display-near-counter-a-1",
+        "label": "架",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-display-near-counter-a-2",
+        "label": "架",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-display-near-counter-b-1",
+        "label": "架",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-counter-1",
+        "label": "柜",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-counter-2",
+        "label": "台",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-counter-3",
+        "label": "柜",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-counter-4",
+        "label": "台",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-storage-connector-2",
+        "label": "墙",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-storage-connector-3",
+        "label": "墙",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-storage-return-2",
+        "label": "墙",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s7-jewelry-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-south-s7-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-display-west-wall-rear-1",
+        "label": "架",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-display-west-wall-rear-2",
+        "label": "架",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-display-west-wall-rear-3",
+        "label": "架",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-display-east-wall-front-1",
+        "label": "架",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-display-east-wall-front-2",
+        "label": "架",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-counter-1",
+        "label": "柜",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-counter-2",
+        "label": "台",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-counter-3",
+        "label": "柜",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-counter-4",
+        "label": "台",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-counter-5",
+        "label": "柜",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-storage-label-1",
+        "label": "储",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-retail-s8-clothing-storage-label-2",
+        "label": "物",
+        "roomId": "commercial-south-s8-interior",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": false
+      },
+      {
+        "id": "commercial-north-slot-1-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-slot-2-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-slot-3-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-slot-4-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-slot-5-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-slot-6-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "street-cafe-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-slot-1-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-slot-2-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-slot-4-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-slot-5-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-slot-6-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-slot-7-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-slot-8-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-n1-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-n2-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-n3-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-n4-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-n5-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-n6-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-north-cafe-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-s1-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-s2-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-s4-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-s5-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-s6-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-s7-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "commercial-south-s8-interior-rear-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      }
+    ],
+    "portals": [
+      {
+        "id": "commercial-north-slot-1-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-north-n1-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-north-slot-2-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-north-n2-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-north-slot-3-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-north-n3-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-north-slot-4-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-north-n4-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-north-slot-5-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-north-n5-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-north-slot-6-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-north-n6-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "street-cafe-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-north-cafe-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-south-slot-1-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-south-s1-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-south-slot-2-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-south-s2-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-south-slot-4-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-south-s4-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-south-slot-5-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-south-s5-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-south-slot-6-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-south-s6-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-south-slot-7-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-south-s7-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-south-slot-8-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "commercial-street-public-lane",
+        "toRoomId": "commercial-south-s8-interior",
+        "transitionText": "此店铺尚未开放。"
+      },
+      {
+        "id": "commercial-north-n1-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-north-n2-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-north-n3-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-north-n4-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-north-n5-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-north-n6-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-north-cafe-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-south-s1-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-south-s2-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-south-s4-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-south-s5-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-south-s6-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-south-s7-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      },
+      {
+        "id": "commercial-south-s8-interior-rear-door",
+        "access": "locked",
+        "lockedText": "后门尚未开放。",
+        "transitionText": "后门尚未接通。"
+      }
+    ],
+    "rooms": [
+      {
+        "id": "commercial-street-public-lane",
+        "kind": "corridor"
+      },
+      {
+        "id": "commercial-north-n1-interior"
+      },
+      {
+        "id": "commercial-north-n2-interior"
+      },
+      {
+        "id": "commercial-north-n3-interior"
+      },
+      {
+        "id": "commercial-north-n4-interior"
+      },
+      {
+        "id": "commercial-north-n5-interior"
+      },
+      {
+        "id": "commercial-north-n6-interior"
+      },
+      {
+        "id": "commercial-north-cafe-interior"
+      },
+      {
+        "id": "commercial-south-s1-interior"
+      },
+      {
+        "id": "commercial-south-s2-interior"
+      },
+      {
+        "id": "commercial-south-s4-interior"
+      },
+      {
+        "id": "commercial-south-s5-interior"
+      },
+      {
+        "id": "commercial-south-s6-interior"
+      },
+      {
+        "id": "commercial-south-s7-interior"
+      },
+      {
+        "id": "commercial-south-s8-interior"
+      }
+    ],
+    "npcs": [
+      {
+        "id": "commercial-street-pedestrian-west-north",
+        "roleId": "pedestrian",
+        "label": "人",
+        "interactive": false
+      },
+      {
+        "id": "commercial-street-pedestrian-west-south",
+        "roleId": "pedestrian",
+        "label": "人",
+        "interactive": false
+      },
+      {
+        "id": "commercial-street-pedestrian-mid-east-north",
+        "roleId": "pedestrian",
+        "label": "人",
+        "interactive": false
+      },
+      {
+        "id": "commercial-street-pedestrian-mid-east-south",
+        "roleId": "pedestrian",
+        "label": "人",
+        "interactive": false
+      },
+      {
+        "id": "commercial-street-pedestrian-long",
+        "roleId": "pedestrian",
+        "label": "人",
+        "interactive": false
+      },
+      {
+        "id": "commercial-street-pedestrian-shopper",
+        "roleId": "pedestrian",
+        "label": "人",
+        "interactive": false
+      }
+    ],
+    "npcBehaviors": [],
+    "interactionText": {
+      "street-cafe-entry": "咖啡馆旧内容尚待迁移；当前街门进入的是沿街空壳。"
+    }
+  },
+  "commercial-cafe": {
+    "objects": [
+      {
+        "id": "commercial-cafe-menu",
+        "label": "菜单",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": true
+      },
+      {
+        "id": "commercial-cafe-blackboard",
+        "label": "黑板",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactive": true
+      },
+      {
+        "id": "commercial-cafe-counter-1",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-2",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-3",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-4",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-6",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-7",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-8",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-9",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-10",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-11",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-12",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-13",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-14",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-15",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-16",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-counter-17",
+        "label": "柜台",
+        "kind": "fixture",
+        "weight": "fixture",
+        "interactionBehavior": "cafe-order"
+      },
+      {
+        "id": "commercial-cafe-plant-upper",
+        "label": "绿植",
+        "kind": "fixture",
+        "weight": "minor"
+      },
+      {
+        "id": "commercial-cafe-plant-lower",
+        "label": "绿植",
+        "kind": "fixture",
+        "weight": "minor"
+      },
+      {
+        "id": "commercial-cafe-bottom-left-group-table",
+        "label": "桌子",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-cafe-bottom-left-group"
+      },
+      {
+        "id": "commercial-cafe-bottom-left-group-chair-top",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-left-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-left-group-chair-top",
+          "tableId": "commercial-cafe-bottom-left-group-table",
+          "side": "left"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-left-group-chair-right",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-left-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-left-group-chair-right",
+          "tableId": "commercial-cafe-bottom-left-group-table",
+          "side": "right"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-left-group-chair-bottom",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-left-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-left-group-chair-bottom",
+          "tableId": "commercial-cafe-bottom-left-group-table",
+          "side": "left"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-left-group-chair-left",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-left-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-left-group-chair-left",
+          "tableId": "commercial-cafe-bottom-left-group-table",
+          "side": "right"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-center-group-table",
+        "label": "桌子",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-cafe-bottom-center-group"
+      },
+      {
+        "id": "commercial-cafe-bottom-center-group-chair-top",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-center-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-center-group-chair-top",
+          "tableId": "commercial-cafe-bottom-center-group-table",
+          "side": "left"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-center-group-chair-right",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-center-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-center-group-chair-right",
+          "tableId": "commercial-cafe-bottom-center-group-table",
+          "side": "right"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-center-group-chair-bottom",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-center-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-center-group-chair-bottom",
+          "tableId": "commercial-cafe-bottom-center-group-table",
+          "side": "left"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-center-group-chair-left",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-center-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-center-group-chair-left",
+          "tableId": "commercial-cafe-bottom-center-group-table",
+          "side": "right"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-right-group-table",
+        "label": "桌子",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-cafe-bottom-right-group"
+      },
+      {
+        "id": "commercial-cafe-bottom-right-group-chair-top",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-right-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-right-group-chair-top",
+          "tableId": "commercial-cafe-bottom-right-group-table",
+          "side": "left"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-right-group-chair-right",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-right-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-right-group-chair-right",
+          "tableId": "commercial-cafe-bottom-right-group-table",
+          "side": "right"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-right-group-chair-bottom",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-right-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-right-group-chair-bottom",
+          "tableId": "commercial-cafe-bottom-right-group-table",
+          "side": "left"
+        }
+      },
+      {
+        "id": "commercial-cafe-bottom-right-group-chair-left",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-bottom-right-group",
+        "seat": {
+          "id": "commercial-cafe-bottom-right-group-chair-left",
+          "tableId": "commercial-cafe-bottom-right-group-table",
+          "side": "right"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-inner-upper-group-table",
+        "label": "桌子",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-cafe-right-inner-upper-group"
+      },
+      {
+        "id": "commercial-cafe-right-inner-upper-group-chair-top",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-inner-upper-group",
+        "seat": {
+          "id": "commercial-cafe-right-inner-upper-group-chair-top",
+          "tableId": "commercial-cafe-right-inner-upper-group-table",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-inner-upper-group-chair-bottom",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-inner-upper-group",
+        "seat": {
+          "id": "commercial-cafe-right-inner-upper-group-chair-bottom",
+          "tableId": "commercial-cafe-right-inner-upper-group-table",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-inner-middle-group-table",
+        "label": "桌子",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-cafe-right-inner-middle-group"
+      },
+      {
+        "id": "commercial-cafe-right-inner-middle-group-chair-top",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-inner-middle-group",
+        "seat": {
+          "id": "commercial-cafe-right-inner-middle-group-chair-top",
+          "tableId": "commercial-cafe-right-inner-middle-group-table",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-inner-middle-group-chair-bottom",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-inner-middle-group",
+        "seat": {
+          "id": "commercial-cafe-right-inner-middle-group-chair-bottom",
+          "tableId": "commercial-cafe-right-inner-middle-group-table",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-inner-lower-group-table",
+        "label": "桌子",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-cafe-right-inner-lower-group"
+      },
+      {
+        "id": "commercial-cafe-right-inner-lower-group-chair-top",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-inner-lower-group",
+        "seat": {
+          "id": "commercial-cafe-right-inner-lower-group-chair-top",
+          "tableId": "commercial-cafe-right-inner-lower-group-table",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-inner-lower-group-chair-bottom",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-inner-lower-group",
+        "seat": {
+          "id": "commercial-cafe-right-inner-lower-group-chair-bottom",
+          "tableId": "commercial-cafe-right-inner-lower-group-table",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-window-upper-group-table",
+        "label": "桌子",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-cafe-right-window-upper-group"
+      },
+      {
+        "id": "commercial-cafe-right-window-upper-group-chair-top",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-window-upper-group",
+        "seat": {
+          "id": "commercial-cafe-right-window-upper-group-chair-top",
+          "tableId": "commercial-cafe-right-window-upper-group-table",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-window-upper-group-chair-bottom",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-window-upper-group",
+        "seat": {
+          "id": "commercial-cafe-right-window-upper-group-chair-bottom",
+          "tableId": "commercial-cafe-right-window-upper-group-table",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-window-lower-group-table",
+        "label": "桌子",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "commercial-cafe-right-window-lower-group"
+      },
+      {
+        "id": "commercial-cafe-right-window-lower-group-chair-top",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-window-lower-group",
+        "seat": {
+          "id": "commercial-cafe-right-window-lower-group-chair-top",
+          "tableId": "commercial-cafe-right-window-lower-group-table",
+          "side": "top"
+        }
+      },
+      {
+        "id": "commercial-cafe-right-window-lower-group-chair-bottom",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "commercial-cafe-right-window-lower-group",
+        "seat": {
+          "id": "commercial-cafe-right-window-lower-group-chair-bottom",
+          "tableId": "commercial-cafe-right-window-lower-group-table",
+          "side": "bottom"
+        }
+      },
+      {
+        "id": "street-cafe-entry",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "cafe-back-door",
+        "label": "后门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "double",
+          "openLeaves": "both"
+        }
+      }
+    ],
+    "portals": [
+      {
+        "id": "street-cafe-entry",
+        "access": "open",
+        "targetSceneId": "commercial-street",
+        "transitionText": "修杰从咖啡馆返回商业街。"
+      },
+      {
+        "id": "cafe-back-door",
+        "access": "locked",
+        "lockedText": "后门暂未开启，当前权限不足。",
+        "transitionText": "后门暂时没有开放的去处。"
+      }
+    ],
+    "rooms": [],
+    "npcs": [
+      {
+        "id": "lao-zhou",
+        "roleId": "lao-zhou",
+        "label": "老周",
+        "interactionTargetEntityId": "commercial-cafe-right-window-upper-group-table"
+      },
+      {
+        "id": "cafe-coffee-owner",
+        "roleId": "cafe-coffee-owner",
+        "label": "店员",
+        "interactionTargetEntityId": "commercial-cafe-counter"
+      },
+      {
+        "id": "cafe-floor-server",
+        "roleId": "cafe-floor-server",
+        "label": "店员"
+      }
+    ],
+    "npcBehaviors": [
+      {
+        "npcId": "lao-zhou",
+        "dutyId": "lao-zhou.seated",
+        "targetId": "commercial-cafe-right-window-upper-group-chair-top",
+        "targetKind": "seat"
+      },
+      {
+        "npcId": "cafe-coffee-owner",
+        "dutyId": "cafe-coffee-owner.counter-service",
+        "targetId": "commercial-cafe-counter-service",
+        "targetKind": "point",
+        "interactionContactEntityId": "commercial-cafe-counter"
+      },
+      {
+        "npcId": "cafe-floor-server",
+        "dutyId": "cafe-floor-server.table-service",
+        "targetId": "commercial-cafe-floor-service-staging",
+        "targetKind": "point"
+      }
+    ],
+    "interactionText": {
+      "street-cafe-entry": "入口已经接入商业街，咖啡馆内部和主线使用同一套空间规则。",
+      "commercial-cafe-counter": "柜台位于店内前侧。",
+      "commercial-cafe-menu": "菜单挂在后墙上。",
+      "commercial-cafe-blackboard": "黑板挂在菜单旁边。",
+      "commercial-cafe-plant-upper": "靠窗的绿植留在通道边缘。",
+      "commercial-cafe-plant-lower": "另一盆绿植靠着玻璃边。",
+      "cafe-back-door": "后门暂未开启，当前权限不足。"
+    }
+  },
+  "yonghe-mining-perimeter": {
+    "objects": [
+      {
+        "id": "mining-shop-door-1",
+        "label": "修鞋",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "yonghe-street-entry",
+        "label": "永和小馆",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-3",
+        "label": "药店",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-4",
+        "label": "五金店",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-5",
+        "label": "小吃",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-6",
+        "label": "面馆",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-7",
+        "label": "修理",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-8",
+        "label": "早点",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "yonghe-back-door",
+        "label": "后门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      }
+    ],
+    "portals": [
+      {
+        "id": "mining-shop-door-1",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-1-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "yonghe-street-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-2-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-3",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-3-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-4",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-4-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-5",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-5-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-6",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-6-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-7",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-7-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-8",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-8-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "yonghe-back-door",
+        "access": "locked",
+        "lockedText": "后门暂未开放。",
+        "transitionText": "后门暂未开放。"
+      }
+    ],
+    "rooms": [
+      {
+        "id": "mining-street-public-lane",
+        "kind": "corridor"
+      },
+      {
+        "id": "mining-shop-1-interior"
+      },
+      {
+        "id": "mining-shop-2-interior"
+      },
+      {
+        "id": "mining-shop-3-interior"
+      },
+      {
+        "id": "mining-shop-4-interior"
+      },
+      {
+        "id": "mining-shop-5-interior"
+      },
+      {
+        "id": "mining-shop-6-interior"
+      },
+      {
+        "id": "mining-shop-7-interior"
+      },
+      {
+        "id": "mining-shop-8-interior"
+      }
+    ],
+    "npcs": [],
+    "npcBehaviors": [],
+    "interactionText": {
+      "mining-shop-door-1": "修鞋的空房间，布置和剧情尚未制作。",
+      "yonghe-street-entry": "永和小馆的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-3": "药店的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-4": "五金店的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-5": "小吃的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-6": "面馆的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-7": "修理的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-8": "早点的空房间，布置和剧情尚未制作。",
+      "yonghe-back-door": "后门暂未开放。"
+    }
+  },
+  "yonghe-eatery": {
+    "objects": [
+      {
+        "id": "mining-shop-door-1",
+        "label": "修鞋",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "yonghe-street-entry",
+        "label": "永和小馆",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-3",
+        "label": "药店",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-4",
+        "label": "五金店",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-5",
+        "label": "小吃",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-6",
+        "label": "面馆",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-7",
+        "label": "修理",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "mining-shop-door-8",
+        "label": "早点",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "yonghe-back-door",
+        "label": "后门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      }
+    ],
+    "portals": [
+      {
+        "id": "mining-shop-door-1",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-1-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "yonghe-street-entry",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-2-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-3",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-3-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-4",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-4-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-5",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-5-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-6",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-6-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-7",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-7-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "mining-shop-door-8",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "mining-street-public-lane",
+        "toRoomId": "mining-shop-8-interior",
+        "transitionText": "进入空房间，室内内容尚未制作。"
+      },
+      {
+        "id": "yonghe-back-door",
+        "access": "locked",
+        "lockedText": "后门暂未开放。",
+        "transitionText": "后门暂未开放。"
+      }
+    ],
+    "rooms": [
+      {
+        "id": "mining-street-public-lane",
+        "kind": "corridor"
+      },
+      {
+        "id": "mining-shop-1-interior"
+      },
+      {
+        "id": "mining-shop-2-interior"
+      },
+      {
+        "id": "mining-shop-3-interior"
+      },
+      {
+        "id": "mining-shop-4-interior"
+      },
+      {
+        "id": "mining-shop-5-interior"
+      },
+      {
+        "id": "mining-shop-6-interior"
+      },
+      {
+        "id": "mining-shop-7-interior"
+      },
+      {
+        "id": "mining-shop-8-interior"
+      }
+    ],
+    "npcs": [],
+    "npcBehaviors": [],
+    "interactionText": {
+      "mining-shop-door-1": "修鞋的空房间，布置和剧情尚未制作。",
+      "yonghe-street-entry": "永和小馆的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-3": "药店的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-4": "五金店的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-5": "小吃的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-6": "面馆的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-7": "修理的空房间，布置和剧情尚未制作。",
+      "mining-shop-door-8": "早点的空房间，布置和剧情尚未制作。",
+      "yonghe-back-door": "后门暂未开放。"
+    }
+  },
+  "zhongshuyuan-passage": {
+    "objects": [
+      {
+        "id": "jijia-secret-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-secret-door",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      }
+    ],
+    "portals": [
+      {
+        "id": "jijia-secret-door",
+        "access": "open",
+        "targetSceneId": "jijia-ancestral-interior",
+        "transitionText": "修杰从暗道回到祖宅内堂。"
+      },
+      {
+        "id": "zhongshuyuan-office-secret-door",
+        "access": "open",
+        "targetSceneId": "zhongshuyuan-office",
+        "transitionText": "修杰穿过暗道尽头的门，进入中枢院办公室。"
+      }
+    ],
+    "rooms": [],
+    "npcs": [],
+    "npcBehaviors": [],
+    "interactionText": {
+      "jijia-secret-door": "这扇门回到祖宅内堂。",
+      "zhongshuyuan-office-secret-door": "这扇门通向中枢院办公室。"
+    }
+  },
+  "zhongshuyuan-office": {
+    "objects": [
+      {
+        "id": "zhongshuyuan-office-window",
+        "label": "窗户",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactive": true,
+        "interactionBehavior": "blinds-toggle"
+      },
+      {
+        "id": "zhongshuyuan-office-desk",
+        "label": "办公桌",
+        "kind": "table",
+        "weight": "anchor",
+        "groupId": "zhongshuyuan-office-workstation",
+        "interactionBehavior": "desk-device"
+      },
+      {
+        "id": "zhongshuyuan-office-chair",
+        "label": "椅子",
+        "kind": "seat",
+        "weight": "minor",
+        "groupId": "zhongshuyuan-office-workstation",
+        "seat": {
+          "id": "zhongshuyuan-office-chair",
+          "tableId": "zhongshuyuan-office-desk",
+          "side": "top"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-plant",
+        "label": "绿植",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactionBehavior": "plant-choice"
+      },
+      {
+        "id": "zhongshuyuan-office-rack",
+        "label": "衣架",
+        "kind": "fixture",
+        "weight": "minor"
+      },
+      {
+        "id": "zhongshuyuan-office-port-plant-left-top",
+        "label": "绿植",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactionBehavior": "plant-choice"
+      },
+      {
+        "id": "zhongshuyuan-office-port-plant-left-bottom",
+        "label": "绿植",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactionBehavior": "plant-choice"
+      },
+      {
+        "id": "zhongshuyuan-office-port-plant-right-top",
+        "label": "绿植",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactionBehavior": "plant-choice"
+      },
+      {
+        "id": "zhongshuyuan-office-port-plant-right-bottom",
+        "label": "绿植",
+        "kind": "fixture",
+        "weight": "minor",
+        "interactionBehavior": "plant-choice"
+      },
+      {
+        "id": "zhongshuyuan-office-north-door-1",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-north-door-2",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-north-door-3",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-north-door-4",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-south-door-1",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-south-door-2",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-south-door-3",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-south-door-4",
+        "label": "门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      },
+      {
+        "id": "zhongshuyuan-office-secret-door",
+        "label": "暗道门",
+        "displayLabel": "门",
+        "kind": "door",
+        "weight": "gateway",
+        "doorBehavior": {
+          "leafCount": "single",
+          "openLeaves": "both"
+        }
+      }
+    ],
+    "portals": [
+      {
+        "id": "zhongshuyuan-office-north-door-1",
+        "access": "locked",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-corridor",
+        "toRoomId": "zhongshuyuan-office-north-room-1",
+        "lockedText": "这道门锁上了。",
+        "transitionText": "门打开了，办公室与中央长廊连通。"
+      },
+      {
+        "id": "zhongshuyuan-office-north-door-2",
+        "access": "locked",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-corridor",
+        "toRoomId": "zhongshuyuan-office-north-room-2",
+        "lockedText": "这道门锁上了。",
+        "transitionText": "门打开了，办公室与中央长廊连通。"
+      },
+      {
+        "id": "zhongshuyuan-office-north-door-3",
+        "access": "locked",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-corridor",
+        "toRoomId": "zhongshuyuan-office-north-room-3",
+        "lockedText": "这道门锁上了。",
+        "transitionText": "门打开了，办公室与中央长廊连通。"
+      },
+      {
+        "id": "zhongshuyuan-office-north-door-4",
+        "access": "locked",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-corridor",
+        "toRoomId": "zhongshuyuan-office-north-room-4",
+        "lockedText": "这道门锁上了。",
+        "transitionText": "门打开了，办公室与中央长廊连通。"
+      },
+      {
+        "id": "zhongshuyuan-office-south-door-1",
+        "access": "open",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-corridor",
+        "toRoomId": "zhongshuyuan-office-south-room-1",
+        "transitionText": "门打开了，办公室与中央长廊连通。"
+      },
+      {
+        "id": "zhongshuyuan-office-south-door-2",
+        "access": "locked",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-corridor",
+        "toRoomId": "zhongshuyuan-office-south-room-2",
+        "lockedText": "这道门锁上了。",
+        "transitionText": "门打开了，办公室与中央长廊连通。"
+      },
+      {
+        "id": "zhongshuyuan-office-south-door-3",
+        "access": "locked",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-corridor",
+        "toRoomId": "zhongshuyuan-office-south-room-3",
+        "lockedText": "这道门锁上了。",
+        "transitionText": "门打开了，办公室与中央长廊连通。"
+      },
+      {
+        "id": "zhongshuyuan-office-south-door-4",
+        "access": "locked",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-corridor",
+        "toRoomId": "zhongshuyuan-office-south-room-4",
+        "lockedText": "这道门锁上了。",
+        "transitionText": "门打开了，办公室与中央长廊连通。"
+      },
+      {
+        "id": "zhongshuyuan-office-secret-door",
+        "access": "open",
+        "targetSceneId": "zhongshuyuan-passage",
+        "routeThrough": true,
+        "fromRoomId": "zhongshuyuan-office-south-room-1",
+        "transitionText": "暗道门打开了，修杰进入中枢院窄暗道。"
+      }
+    ],
+    "rooms": [
+      {
+        "id": "zhongshuyuan-office-corridor",
+        "kind": "corridor"
+      },
+      {
+        "id": "zhongshuyuan-office-north-room-1",
+        "kind": "room"
+      },
+      {
+        "id": "zhongshuyuan-office-north-room-2",
+        "kind": "room"
+      },
+      {
+        "id": "zhongshuyuan-office-north-room-3",
+        "kind": "room"
+      },
+      {
+        "id": "zhongshuyuan-office-north-room-4",
+        "kind": "room"
+      },
+      {
+        "id": "zhongshuyuan-office-south-room-1",
+        "kind": "room"
+      },
+      {
+        "id": "zhongshuyuan-office-south-room-2",
+        "kind": "room"
+      },
+      {
+        "id": "zhongshuyuan-office-south-room-3",
+        "kind": "room"
+      },
+      {
+        "id": "zhongshuyuan-office-south-room-4",
+        "kind": "room"
+      }
+    ],
+    "npcs": [],
+    "npcBehaviors": [],
+    "interactionText": {
+      "zhongshuyuan-office-desk": "左下办公室的办公桌上留着一份尚未归档的材料。",
+      "zhongshuyuan-office-chair": "椅子靠近左下办公格的通道一侧，正对着办公桌。",
+      "zhongshuyuan-office-plant": "角落里摆着一盆绿植。",
+      "zhongshuyuan-office-rack": "衣架靠在办公室角落。",
+      "zhongshuyuan-office-window": "底墙的窗户可以查看中枢院外侧。",
+      "zhongshuyuan-office-secret-door": "墙里的暗道门通向中枢院窄暗道。"
+    },
+    "explorationText": {
+      "zhongshuyuan-office-desk": [
+        "左下办公室的办公桌上留着一份尚未归档的材料。"
+      ],
+      "zhongshuyuan-office-chair": [
+        "这椅子有些年头了，坐上去并不是很舒服。"
+      ],
+      "zhongshuyuan-office-plant": [
+        "有段时间没浇水了，不那么精神了。"
+      ],
+      "zhongshuyuan-office-rack": [
+        "看起来有点老派的衣架。"
+      ],
+      "zhongshuyuan-office-window": [
+        "外面的阳光白的有些刺眼。",
+        "外面看起来跟表世界没什么区别。"
+      ]
+    }
+  }
+}

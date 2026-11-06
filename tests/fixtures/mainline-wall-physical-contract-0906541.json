@@ -1,0 +1,58 @@
+{
+  "jijia-ancestral-home": {
+    "physical": "e7ce8583f3ce357c560ec9f583cf799cdace2d2747d0219bd8193010cd374b17",
+    "doorAndFeature": "075778258c32ab14370760dd2cadb89f771f245f2b63fce70bbd1cad951c8e12",
+    "passages": "e5c4c358fc2aa7bda690152e0bf58c96f0d3c86ddb2986d42fb04de39375d540",
+    "bounds": "d944a768d0807d951f67e5bb78165cdd16f321dc9687e282287f8e61a4be59a6",
+    "objects": "2a156d991be642ba3d47f4d52b7379651e920d089bf0ebfde45aa254766e8982"
+  },
+  "jijia-ancestral-interior": {
+    "physical": "143e797ef459808ab5cb584f4d7a96a1cd1a3b22706b1561e29b245f6a94d8a7",
+    "doorAndFeature": "a44f3b914d7378a90c0b037fc8052f4f9169d2b9c62ac73fe42dffbbd51f0c9a",
+    "passages": "568ee01ac4ea62042fdece845f3b8f3a42989445da1787bcc8cf86d7d7220564",
+    "bounds": "d944a768d0807d951f67e5bb78165cdd16f321dc9687e282287f8e61a4be59a6",
+    "objects": "c518b04e8596c80e11117680842eaae46f0178f00812d489ac3360dbf77dbb1e"
+  },
+  "commercial-street": {
+    "physical": "67f49d1fc7da12d73e40780ea43a2bcf0f1e2e68f6ed7e6511b45a71b7581e50",
+    "doorAndFeature": "996362de0f4fa94e23a897b6a1e2963ac6012d8ca74d9b6462c679e689308fb8",
+    "passages": "92efa562eafc14621e7b5c1bbe0262db21f03797ff2ee268d6c47956b1dbb0e0",
+    "bounds": "080d7d912e9a220dbd7f16708bc606c46b1ab068a0ff0ab7d096f6d394a0ce94",
+    "objects": "7a1f17b022953643e26831d4ce7fd63f4655cd6272679258a6f32e9d9aece12b"
+  },
+  "commercial-cafe": {
+    "physical": "ee96b8a5827acfd8a22ec985e33ba748695dd38c4c943a089b2dba8105b3e924",
+    "doorAndFeature": "56f1e745d350272c0b6df9e9a5ec697fc9d47d5bafc4424f44cf8ada7cb4da06",
+    "passages": "35e46e446314ee4ba3383aeef2aeac0108478e5923ac06fb3b5087fa5476272a",
+    "bounds": "2a8f2c0f53dd8753803b8ecf66f271bbadf0a1176cdd32ebf6d8826517669df5",
+    "objects": "9292ac5823c84802c219ab3cd0a30b648f80abb97b7c7bdd2840f6c1c17a3043"
+  },
+  "yonghe-mining-perimeter": {
+    "physical": "7a98b8c41908f1c110fb047336da769b82a395fd88471b37e5d2a33c98102528",
+    "doorAndFeature": "603804049233f080342a50123699f051a88abb54698a02f4381440d5392c32e7",
+    "passages": "e027f5ebcc6bb2ea147a8947a459b4ed2e5f4500a454c20bf51aca2ee2eb91e5",
+    "bounds": "af24e2c73e37c944f79f6117cd5c5ea2024b64aebfa525dfb513bff8b9c198bf",
+    "objects": "8e9c45e62f9086ca22001f69a4c7fc88638eb77fe05a0e415bfb7b9d10734ae2"
+  },
+  "yonghe-eatery": {
+    "physical": "7a98b8c41908f1c110fb047336da769b82a395fd88471b37e5d2a33c98102528",
+    "doorAndFeature": "603804049233f080342a50123699f051a88abb54698a02f4381440d5392c32e7",
+    "passages": "e027f5ebcc6bb2ea147a8947a459b4ed2e5f4500a454c20bf51aca2ee2eb91e5",
+    "bounds": "af24e2c73e37c944f79f6117cd5c5ea2024b64aebfa525dfb513bff8b9c198bf",
+    "objects": "8e9c45e62f9086ca22001f69a4c7fc88638eb77fe05a0e415bfb7b9d10734ae2"
+  },
+  "zhongshuyuan-passage": {
+    "physical": "d2ea2aa3311d06c112ac521937f5892306e7240d676084e6aa4fb82721ee604c",
+    "doorAndFeature": "7ee3ba35c3669078f7e5528c0d41db61dba28480778345e9f5e63c096b66dd8e",
+    "passages": "cf63e53a693703d84d57dc160e6cbc51c586d0aaa3f8bb0ccd3f5ce96f73054d",
+    "bounds": "1b16a1c1b22ab0427515d23ce62b87d819cc783bf2fcb47480c24bedb0d6648a",
+    "objects": "dae59b55c12a557ce54168b57087f0491911087d841522cc89df493c3c4fdbff"
+  },
+  "zhongshuyuan-office": {
+    "physical": "3fd000b405e493d90cfc6da01f1c459b231a7c2307dcee5479fcce307b2a680d",
+    "doorAndFeature": "fe09c153d0c42c60456d7469f1b8c0d67f2bd16d339c154e6d3d9824493982ae",
+    "passages": "08d59f8ddf01bd8b40faf0d77b256a6b0c96c213c4f4be78bc7c1df733b3b7e0",
+    "bounds": "f83d9f30a3694fff2dbb41ef023b1cf2663ecb2ee5f51cfdc211987992688a9d",
+    "objects": "8c3d07eb24465f67c08b4e84fe8fea03a0fa228711fcb26b056b5d727fb944d4"
+  }
+}

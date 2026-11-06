@@ -1,6 +1,7 @@
+import { phoneCommercialCafeCenter } from './phoneCommercialStreetPlan'
 import { mainlineMapLandmarksByWorld, type MainlineMapLandmark, type MainlineMapWorld, type MainlineSceneId } from './mainlineScenes'
 
-export const phoneMapZoomBounds = { min: 1, max: 3.5, poi: 1.45 } as const
+export const phoneMapZoomBounds = { min: 1, max: 7, poi: 1.45 } as const
 export type PhoneMapZoomLevel = number
 export function clampPhoneMapZoom(value: number) {
   return Math.max(phoneMapZoomBounds.min, Math.min(phoneMapZoomBounds.max, value))
@@ -28,7 +29,7 @@ const regionContent: Record<MainlineMapWorld, Record<string, { detail: string; p
   inner: {
     commercial: {
       detail: '里世界商业街。',
-      pois: [{ id: 'commercial-cafe', label: 'Café', detail: '商业街上的咖啡馆。', sceneId: 'commercial-cafe', offset: [6, 4] }],
+      pois: [{ id: 'commercial-cafe', label: '咖啡馆', detail: '商业街上的咖啡馆。', sceneId: 'commercial-cafe', offset: phoneCommercialCafeCenter() }],
     },
     zhongshuyuan: {
       detail: '里世界中枢院。',

@@ -44,7 +44,7 @@ describe('story clock', () => {
     storage.setItem(PLAYER_SAVE_STORAGE_KEY, JSON.stringify(oldSave))
     const loaded = loadPlayerSave(storage)
 
-    expect(loaded.storyClock).toMatchObject({ dayId: 'story-day-001', stage: 'cafe', month:4, day:12, weekday:6, hour:12, minute:0, weatherCycle:'sunny' })
+    expect(loaded.storyClock).toMatchObject({ dayId: 'story-day-001', stage: 'cafe', year:2025, month:4, day:12, weekday:6, hour:10, minute:0, weatherCycle:'sunny' })
     savePlayerSave(loaded, storage, 10)
     expect(JSON.parse(storage.getItem(PLAYER_SAVE_STORAGE_KEY) ?? '{}').storyClock).toEqual(loaded.storyClock)
   })

@@ -38,7 +38,7 @@ export function advanceSessionClock(state, now) {
   const at = Math.max(state.lastAccountedAt, Number.isFinite(now) ? now : state.lastAccountedAt)
   const delta = at - state.lastAccountedAt
   const foregroundDelta = state.foreground ? delta : 0
-  const idleEligible = state.foreground && !state.moving && !state.reading
+  const idleEligible = state.foreground && !state.moving
   const idleStart = Math.max(state.lastAccountedAt, state.lastMeaningfulActivityAt + SESSION_IDLE_THRESHOLD_MS)
   const idleDelta = idleEligible ? Math.max(0, at - idleStart) : 0
   const engagedDelta = Math.max(0, foregroundDelta - idleDelta)

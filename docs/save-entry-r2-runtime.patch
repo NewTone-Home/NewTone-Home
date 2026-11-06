@@ -1,0 +1,1063 @@
+--- a/src/center/CenterExperience.jsx
++++ b/src/center/CenterExperience.jsx
+@@ -1,4 +1,5 @@
+-import { assertGameSession, getGameStorage } from '../save-session.mjs'
++import { getGameStorage } from '../save-session.mjs'
++import { createRuntimeSaveLifecycle } from './runtime/runtimeSaveLifecycle.mjs'
+ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+ import { attachSessionGameClockVisibilityLifecycle, createSessionGameClock } from './runtime/sessionGameClock'
+ import { MainlineScenePage } from './runtime/MainlineScenePage'
+@@ -122,15 +123,19 @@
+   entryPhase = 'active',
+   onSceneReady,
+   onRevealComplete,
++  sessionHandle,
+ }) {
+   const reducedMotion = useReducedMotion()
+   const fixtureStorage = syntheticShopOrderStorage()
++  const [runtimeStorage] = useState(() => sessionHandle?.storage ?? fixtureStorage ?? getGameStorage())
++  const [saveLifecycle] = useState(() => createRuntimeSaveLifecycle(runtimeStorage, sessionHandle))
++  useEffect(() => saveLifecycle.connect(), [saveLifecycle])
+   const [debugClockTrial] = useState(() => {
+     if (!hasSyntheticClockTrialStorage()) return null
+     const mode = new URLSearchParams(window.location.search).get('debugClockTrial')
+     return mode === 'formal-dialogue' || mode === 'inner-monologue' ? mode : null
+   })
+-  const [playerSave, setPlayerSave] = useState(() => loadPlayerSave(fixtureStorage ?? undefined))
++  const [playerSave, setPlayerSave] = useState(() => loadPlayerSave(runtimeStorage))
+   const sessionGameClockRef = useRef(null)
+   if (!sessionGameClockRef.current) {
+     sessionGameClockRef.current = createSessionGameClock({
+@@ -141,7 +146,7 @@
+   }
+   const [trialClockSnapshot, setTrialClockSnapshot] = useState(() => sessionGameClockRef.current.read())
+   const playerSaveRef = useRef(playerSave)
+-  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave(fixtureStorage ?? undefined).currentSceneId ?? initialSceneId, resolveLegacyCafeEntryPosition()))
++  const [route, setRoute] = useState(() => createRoute(resolveMainlineSceneId() ?? loadPlayerSave(runtimeStorage).currentSceneId ?? initialSceneId, resolveLegacyCafeEntryPosition()))
+   useEffect(() => {
+     if (new URLSearchParams(window.location.search).get('scene') === 'commercial-cafe') {
+       window.history.replaceState({ newtoneCenterScene: 'commercial-street' }, '', mainlineSceneRoute('commercial-street', route.entryPosition ?? legacyCafeEntryPosition()))
+@@ -171,10 +176,11 @@
+       setSave: next => { playerSaveRef.current = next },
+       getCurrentSceneId: () => currentSceneIdRef.current,
+       recordPosition: recordPlayerScenePosition,
+-        persist: next => persistPlayerSave({
++      canPersist: saveLifecycle.canPersist,
++      persist: next => persistPlayerSave({
+         ...next,
+         gameTimeMs: sessionGameClockRef.current.read().gameTimeMs,
+-      }, fixtureStorage ?? undefined),
++      }, runtimeStorage),
+     })
+   }
+   const gameTimeSaveCheckpointRef = useRef(null)
+@@ -183,9 +189,11 @@
+       getSave: () => playerSaveRef.current,
+       setSave: next => { playerSaveRef.current = next; setPlayerSave(next) },
+       getGameTimeMs: () => sessionGameClockRef.current.read().gameTimeMs,
+-      persist: next => persistPlayerSave(next, fixtureStorage ?? undefined, undefined, { preserveFreshSeatOnly: true }),
++      canPersist: saveLifecycle.canPersist,
++      persist: next => persistPlayerSave(next, runtimeStorage, undefined, { preserveFreshSeatOnly: true }),
+     })
+   }
++  useEffect(() => saveLifecycle.onStop(() => positionSaveCoordinatorRef.current.clear()), [saveLifecycle])
+   const getRideMapSnapshot = useCallback(() => {
+     const current = latestWorldPositionRef.current
+     if (!current || current.sceneId !== route.sceneId) return null
+@@ -202,17 +210,17 @@
+         sceneId,
+         positionX,
+         positionY,
+-      }, { deferred: true }).then(() => checkpointSessionActivityIfDue()),
++      }, { deferred: true }).then(() => saveLifecycle.run(() => checkpointSessionActivityIfDue())),
+     })
+   }
+-  const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave(fixtureStorage ?? undefined).phoneDevice)
++  const [phoneDevice, setPhoneDevice] = useState(() => loadPlayerSave(runtimeStorage).phoneDevice)
+   const [requestedPhoneApp, setRequestedPhoneApp] = useState(null)
+   const [resumeSceneId, setResumeSceneId] = useState(null)
+   const [resumePosition, setResumePosition] = useState(undefined)
+   const [localSlideHandoffRoute, setLocalSlideHandoffRoute] = useState(null)
+   const [sceneSlot, setSceneSlot] = useState(0)
+   const [boundaryNotice, setBoundaryNotice] = useState('')
+-  const [rideOrder, setRideOrder] = useState(() => mainlineRideOrderFromState(loadPlayerSave(fixtureStorage ?? undefined).sceneState))
++  const [rideOrder, setRideOrder] = useState(() => mainlineRideOrderFromState(loadPlayerSave(runtimeStorage).sceneState))
+   const rideBoardingRef = useRef(() => {})
+   const phoneRetractedRef = useRef(true)
+   useEffect(() => {
+@@ -237,7 +245,7 @@
+ 
+ 
+   const commitPlayerSave = useCallback((update) => {
+-    assertGameSession()
++    saveLifecycle.assertActive()
+     const previous = playerSaveRef.current
+     const next = positionSaveCoordinatorRef.current.commit(update)
+     if (next !== previous) setPlayerSave(next)
+@@ -385,6 +393,7 @@
+     const productName = yongheTakeawayCatalog.find(product => product.id === order.productId)?.name ?? order.productId
+     let timer = null
+     const checkGameClock = () => {
++      if (!saveLifecycle.canPersist()) return true
+       const nowGameTimeMs = sessionGameClockRef.current.read().gameTimeMs
+       if (nowGameTimeMs >= order.readyAtGameTimeMs) {
+         if (timer !== null) window.clearInterval(timer)
+@@ -395,7 +404,9 @@
+     }
+     if (checkGameClock()) return
+     timer = window.setInterval(checkGameClock, 250)
+-    return () => { if (timer !== null) window.clearInterval(timer) }
++    const cancel = () => { if (timer !== null) window.clearInterval(timer) }
++    const unsubscribe = saveLifecycle.onStop(cancel)
++    return () => { unsubscribe(); cancel() }
+   }, [handleYongheOrderReady, playerSave.shopOrders?.[crossShopIds.yonghe]?.id, playerSave.shopOrders?.[crossShopIds.yonghe]?.productId, playerSave.shopOrders?.[crossShopIds.yonghe]?.readyAtGameTimeMs, playerSave.shopOrders?.[crossShopIds.yonghe]?.status])
+ 
+   useEffect(() => {
+@@ -611,8 +622,9 @@
+     const remaining = milkTeaOrder.readyAt - Date.now()
+     if (remaining <= 0) { handleMilkTeaOrderReady(milkTeaOrder); return }
+     // The order deadline owns readiness even when its app and Phone are closed.
+-    const timer = window.setTimeout(() => handleMilkTeaOrderReady(milkTeaOrder), remaining)
+-    return () => window.clearTimeout(timer)
++    const timer = window.setTimeout(() => saveLifecycle.run(() => handleMilkTeaOrderReady(milkTeaOrder)), remaining)
++    const unsubscribe = saveLifecycle.onStop(() => window.clearTimeout(timer))
++    return () => { unsubscribe(); window.clearTimeout(timer) }
+   }, [handleMilkTeaOrderReady, milkTeaOrder?.number, milkTeaOrder?.readyAt, playerSave.shopOrders])
+ 
+   const handleFeedbackModeChange = useCallback((mode) => {
+@@ -668,14 +680,15 @@
+ 
+   useEffect(() => {
+     const sessionClock = sessionGameClockRef.current
+-    const detachVisibilityLifecycle = attachSessionGameClockVisibilityLifecycle(sessionClock, setTrialClockSnapshot)
++    const detachVisibilityLifecycle = attachSessionGameClockVisibilityLifecycle(sessionClock, snapshot => saveLifecycle.run(() => setTrialClockSnapshot(snapshot)))
+     const recordTrustedInput = (event) => {
+-      if (!event.isTrusted) return
++      if (!event.isTrusted || !saveLifecycle.canPersist()) return
+       setTrialClockSnapshot(sessionClock.markInput())
+     }
+     const inputEvents = ['pointerdown', 'touchstart', 'keydown', 'wheel', 'click']
+     inputEvents.forEach((name) => window.addEventListener(name, recordTrustedInput, true))
+     const timer = window.setInterval(() => {
++      if (!saveLifecycle.canPersist()) return
+       const next = sessionClock.read()
+       setTrialClockSnapshot((current) => {
+         const minuteChanged = Math.floor(current.gameTimeMs / 60_000) !== Math.floor(next.gameTimeMs / 60_000)
+@@ -685,14 +698,18 @@
+       })
+     }, 250)
+     const saveTimer = window.setInterval(() => gameTimeSaveCheckpointRef.current(), 10_000)
+-    return () => {
++    const cancel = () => {
+       inputEvents.forEach((name) => window.removeEventListener(name, recordTrustedInput, true))
+       window.clearInterval(timer)
+       window.clearInterval(saveTimer)
+       detachVisibilityLifecycle()
++    }
++    const unsubscribe = saveLifecycle.onStop(cancel)
++    return () => {
++      unsubscribe(); cancel()
+       gameTimeSaveCheckpointRef.current()
+     }
+-  }, [])
++  }, [saveLifecycle])
+ 
+   const handleMeaningfulActivity = useCallback(() => {
+     markSessionActivity()
+@@ -703,7 +720,7 @@
+     setResumeSceneId(null)
+     setResumePosition(undefined)
+     if (route.spawnMode === 'ride' || route.entryPosition) return
+-    setResumePosition(loadPlayerSave(fixtureStorage ?? undefined, route.sceneId).scenePositions[route.sceneId])
++    setResumePosition(loadPlayerSave(runtimeStorage, route.sceneId).scenePositions[route.sceneId])
+     setResumeSceneId(route.sceneId)
+   }, [route.sceneId, route.entryPosition?.x, route.entryPosition?.y, route.spawnMode])
+ 
+@@ -952,12 +969,14 @@
+   useEffect(() => {
+     if (!rideOrder || route.sceneId !== rideOrder.sourceSceneId) return
+     const arrived = () => {
++      if (!saveLifecycle.canPersist()) return
+       notifyPhone({ id: 'ride:' + rideOrder.sourceSceneId + ':' + rideOrder.targetSceneId + ':' + rideOrder.driverArrivesAt, app: 'ride', title: '司机已到达', body: '请前往上车点' })
+       const current = latestWorldPositionRef.current
+       if (current) rideBoardingRef.current(current.sceneId, current.position, current.context)
+     }
+     const timer = window.setTimeout(arrived, Math.max(0, rideOrder.driverArrivesAt - Date.now()))
+-    return () => window.clearTimeout(timer)
++    const unsubscribe = saveLifecycle.onStop(() => window.clearTimeout(timer))
++    return () => { unsubscribe(); window.clearTimeout(timer) }
+   }, [notifyPhone, rideOrder, route.sceneId])
+   const handleRideRequest = useCallback((device, destinationSceneId, presentation) => {
+     if (rideOrder) return { ok: false, reason: '已有进行中的订单' }
+@@ -995,14 +1014,17 @@
+   }, [])
+ 
+   useEffect(() => {
+-    return attachPositionSaveLifecycle(
++    const detach = attachPositionSaveLifecycle(
+       flushPositionSave,
+       () => route.sceneId,
+       undefined,
+       undefined,
+       () => gameTimeSaveCheckpointRef.current(),
++      saveLifecycle.canPersist,
+     )
+-  }, [flushPositionSave, route.sceneId])
++    const unsubscribe = saveLifecycle.onStop(detach)
++    return () => { unsubscribe(); detach() }
++  }, [flushPositionSave, route.sceneId, saveLifecycle])
+ 
+   const cafeClockInsideRef = useRef(false)
+   const handleRuntimePositionChange = useCallback((sceneId, position, context) => {
+--- a/src/center/runtime/cafeStoryOrderDelivery.test.ts
++++ b/src/center/runtime/cafeStoryOrderDelivery.test.ts
+@@ -1,8 +1,9 @@
+ import { describe, expect, it } from 'vitest'
+-import { crossShopIds } from './crossShopOrders'
++import { crossShopIds, claimCrossShopOrder } from './crossShopOrders'
+ import {
+   beginCafeStoryOrderDelivery, cafeStoryOrderStatus, completeCafeStoryOrderDeliveryPresentation,
+   beginCafeTableOrderDelivery, completeCafeTableOrderDelivery, retargetCafeTableOrderDelivery,
++  completeCafeTableOrderDeliveryReturn, cafeTableOrderDeliveryAfterRefresh, completeCafeTableOrderDeliveryResult,
+   sanitizeCafeStoryDeliveries, type CafeStoryDeliveryRecord, type CafeStoryOrderState,
+ } from './cafeStoryOrderDelivery'
+ 
+@@ -55,7 +56,7 @@
+     expect(state.shopOrders[crossShopIds.cafeTakeaway]).toBeDefined()
+   })
+ 
+-  it('reserves a ready ordinary Cafe order for the current seat without claiming it, and restores/retargets it safely', () => {
++  it('reserves without claiming, then atomically completes ordinary table delivery into the hand exactly once', () => {
+     const initial: CafeStoryOrderState = { shopOrders: { [crossShopIds.cafeTakeaway]: { ...cafeOrder, readyAtGameTimeMs: 300 } }, heldConsumable: null, cafeStoryDeliveries: {}, phoneNotifications: [{ id: `shop-order-ready:${cafeOrder.id}`, app: 'cafe-takeaway', shopId: crossShopIds.cafeTakeaway, title: 'ready', body: 'pickup', unread: true, presented: true }] }
+     expect(beginCafeTableOrderDelivery({ shopOrders: {}, heldConsumable: null, cafeStoryDeliveries: {} }, 'seat-a', 300)).toMatchObject({ ok: false, reason: 'no-order' })
+     expect(beginCafeTableOrderDelivery(initial, 'seat-a', 299)).toMatchObject({ ok: false, reason: 'not-ready' })
+@@ -73,20 +74,54 @@
+     expect(Object.values(moved)[0]).toMatchObject({ seatId: 'seat-b' })
+     const completed = completeCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: moved }, cafeOrder.id, 'seat-b')
+     expect(completed.shopOrders[crossShopIds.cafeTakeaway]).toBeUndefined()
+-    expect(completed.heldConsumable).toBeNull()
++    expect(completed.heldConsumable).toEqual({ id: `held-${cafeOrder.id}`, shopId: crossShopIds.cafeTakeaway, productId: cafeOrder.productId, kind: 'drink', sourceOrderId: cafeOrder.id })
+     expect(completed.phoneNotifications).toEqual([])
+     expect(Object.values(completed.cafeStoryDeliveries)[0]).toMatchObject({ presentation: 'complete', deliveryKind: 'table' })
+     expect(completeCafeTableOrderDelivery(completed, cafeOrder.id, 'seat-b')).toBe(completed)
++    const durable = { ...completed, cafeStoryDeliveries: sanitizeCafeStoryDeliveries(JSON.parse(JSON.stringify(completed.cafeStoryDeliveries))) }
++    expect(completeCafeTableOrderDelivery(durable, cafeOrder.id, 'seat-b')).toBe(durable)
++    // Even after consuming the delivered item, no counter order remains to claim again.
++    expect(claimCrossShopOrder({ ordersByShop: durable.shopOrders, heldConsumable: null }, crossShopIds.cafeTakeaway, 500)).toMatchObject({ ok: false, reason: 'no-order' })
++    // This is ordinary table service, not Lao Zhou's story delivery/presentation.
++    expect(beginCafeStoryOrderDelivery(durable, 'lao-zhou-meeting-v1', 500)).toMatchObject({ ok: false, reason: 'claimed' })
+   })
+ 
+-  it('releases a table reservation on leaving and preserves a separately held/full-hand state', () => {
++  it('persists an interrupted table return until counter arrival and preserves the other held item', () => {
+     const pending = beginCafeTableOrderDelivery({ shopOrders: { [crossShopIds.cafeTakeaway]: { ...cafeOrder, readyAtGameTimeMs: 300 } }, heldConsumable: { shopId: crossShopIds.yonghe, sourceOrderId: 'meal-1' }, cafeStoryDeliveries: {} }, 'seat-a', 300)
+     expect(pending.ok).toBe(true)
+     if (!pending.ok) return
+-    const released = retargetCafeTableOrderDelivery(pending.state.cafeStoryDeliveries, null)
+-    expect(Object.keys(released)).toHaveLength(0)
+-    expect(pending.state.shopOrders[crossShopIds.cafeTakeaway]?.id).toBe(cafeOrder.id)
+-    expect(pending.state.heldConsumable?.shopId).toBe(crossShopIds.yonghe)
+-    expect(beginCafeTableOrderDelivery({ ...pending.state, cafeStoryDeliveries: released }, 'seat-b', 400)).toMatchObject({ ok: true, replayed: false })
++    const returning = retargetCafeTableOrderDelivery(pending.state.cafeStoryDeliveries, null)
++    expect(Object.values(returning)).toHaveLength(1)
++    expect(Object.values(returning)[0]).toMatchObject({ deliveryKind: 'table', presentation: 'pending', deliveryPhase: 'returning-to-counter', seatId: 'seat-a' })
++    const restored = { ...pending.state, cafeStoryDeliveries: sanitizeCafeStoryDeliveries(JSON.parse(JSON.stringify(returning))) }
++    expect(cafeTableOrderDeliveryAfterRefresh(restored)).toEqual({ orderId: cafeOrder.id, seatId: 'seat-a', phase: 'returning-to-counter' })
++    expect(restored.shopOrders[crossShopIds.cafeTakeaway]?.id).toBe(cafeOrder.id)
++    expect(restored.heldConsumable).toBe(pending.state.heldConsumable)
++    expect(beginCafeTableOrderDelivery(restored, 'seat-b', 400)).toMatchObject({ ok: false, reason: 'returning-to-counter' })
++    expect(completeCafeTableOrderDelivery(restored, cafeOrder.id, 'seat-a')).toBe(restored)
++    const released = completeCafeTableOrderDeliveryReturn(restored, cafeOrder.id)
++    expect(Object.keys(released.cafeStoryDeliveries)).toHaveLength(0)
++    expect(released.shopOrders[crossShopIds.cafeTakeaway]?.id).toBe(cafeOrder.id)
++    expect(released.heldConsumable?.shopId).toBe(crossShopIds.yonghe)
++    expect(completeCafeTableOrderDeliveryReturn(released, cafeOrder.id)).toBe(released)
++    const retry = beginCafeTableOrderDelivery(released, 'seat-b', 400)
++    expect(retry).toMatchObject({ ok: true, replayed: false })
++    if (!retry.ok) return
++    expect(completeCafeTableOrderDeliveryResult(retry.state, cafeOrder.id, 'seat-b')).toMatchObject({ ok: false, reason: 'hand-full', state: retry.state })
+   })
+ })
++
++it('counter pickup before a delayed table callback cannot deliver the same ordinary order twice', () => {
++  const initial: CafeStoryOrderState = { shopOrders: { [crossShopIds.cafeTakeaway]: { ...cafeOrder, readyAtGameTimeMs: 300 } }, heldConsumable: null, cafeStoryDeliveries: {} }
++  const pending = beginCafeTableOrderDelivery(initial, 'seat-a', 300)
++  expect(pending.ok).toBe(true)
++  if (!pending.ok) return
++  const counter = claimCrossShopOrder({ ordersByShop: pending.state.shopOrders, heldConsumable: null }, crossShopIds.cafeTakeaway, 300)
++  expect(counter.ok).toBe(true)
++  if (!counter.ok) return
++  const current: CafeStoryOrderState = { ...pending.state, shopOrders: counter.state.ordersByShop, heldConsumable: counter.value }
++  expect(completeCafeTableOrderDelivery(current, cafeOrder.id, 'seat-a')).toBe(current)
++  expect(completeCafeTableOrderDeliveryResult(current, cafeOrder.id, 'seat-a')).toMatchObject({ ok: false, reason: 'order-changed', state: current })
++  expect(current.heldConsumable?.sourceOrderId).toBe(cafeOrder.id)
++  expect(current.shopOrders[crossShopIds.cafeTakeaway]).toBeUndefined()
++})
+--- a/src/center/runtime/commercialStreetShopApps.test.ts
++++ b/src/center/runtime/commercialStreetShopApps.test.ts
+@@ -5,26 +5,33 @@
+   commercialStreetFruitTeaAppUnlockPatch, commercialStreetFruitTeaAppUnlocked,
+   unlockedCommercialDrinkShopIds,
+ } from './commercialStreetShopApps'
+-import { commercialStreetMilkTeaAppUnlockPatch } from './commercialStreetMilkTea'
++import { commercialStreetMilkTeaAppUnlockPatch, commercialStreetMilkTeaAppUnlocked } from './commercialStreetMilkTea'
+ import { sanitizePlayerSave, createInitialPlayerSave } from './playerSave'
+ 
++const sharedAppShops = [crossShopIds.cafeTakeaway, crossShopIds.milkTea, crossShopIds.fruitTea]
++
+ describe('scanned drink app unlocks', () => {
+-  it('shows only the shop whose QR unlock was saved, then exposes both after both scans', () => {
++  it('installs one three-shop app after any QR while keeping individual scan facts distinct', () => {
+     expect(unlockedCommercialDrinkShopIds({})).toEqual([])
+     const milk = commercialStreetMilkTeaAppUnlockPatch()
+-    expect(unlockedCommercialDrinkShopIds(milk)).toEqual([crossShopIds.milkTea])
++    expect(unlockedCommercialDrinkShopIds(milk)).toEqual(sharedAppShops)
++    expect(commercialStreetMilkTeaAppUnlocked(milk)).toBe(true)
++    expect(commercialStreetFruitTeaAppUnlocked(milk)).toBe(false)
++    expect(commercialStreetCafeAppUnlocked(milk)).toBe(false)
+     const fruit = commercialStreetFruitTeaAppUnlockPatch()
+     expect(commercialStreetFruitTeaAppUnlocked(fruit)).toBe(true)
+-    expect(unlockedCommercialDrinkShopIds(fruit)).toEqual([crossShopIds.fruitTea])
+-    expect(unlockedCommercialDrinkShopIds({ ...milk, ...fruit })).toEqual([crossShopIds.milkTea, crossShopIds.fruitTea])
++    expect(unlockedCommercialDrinkShopIds(fruit)).toEqual(sharedAppShops)
++    expect(unlockedCommercialDrinkShopIds({ ...milk, ...fruit })).toEqual(sharedAppShops)
+   })
+ 
+   it('persists each shop unlock through the existing save sanitizer independently', () => {
+     const save = createInitialPlayerSave('commercial-street')
+     const fruitState = { ...save.sceneState['commercial-street'], ...commercialStreetFruitTeaAppUnlockPatch() }
+     const restored = sanitizePlayerSave({ ...save, sceneState: { ...save.sceneState, 'commercial-street': fruitState } }, save.currentSceneId)
+-    expect(unlockedCommercialDrinkShopIds(restored.sceneState['commercial-street'])).toEqual([crossShopIds.fruitTea])
++    expect(unlockedCommercialDrinkShopIds(restored.sceneState['commercial-street'])).toEqual(sharedAppShops)
+     expect(restored.sceneState['commercial-street']?.commercialStreetFruitTeaAppUnlocked).toBe(true)
++    expect(commercialStreetMilkTeaAppUnlocked(restored.sceneState['commercial-street'])).toBe(false)
++    expect(commercialStreetCafeAppUnlocked(restored.sceneState['commercial-street'])).toBe(false)
+   })
+ 
+   it('persists the cafe QR unlock while routing its shop through the shared drink app', () => {
+@@ -32,11 +39,31 @@
+     const cafeState = { ...save.sceneState['commercial-street'], ...commercialStreetCafeAppUnlockPatch() }
+     const restored = sanitizePlayerSave({ ...save, sceneState: { ...save.sceneState, 'commercial-street': cafeState } }, save.currentSceneId)
+     expect(commercialStreetCafeAppUnlocked(restored.sceneState['commercial-street'])).toBe(true)
+-    expect(unlockedCommercialDrinkShopIds(restored.sceneState['commercial-street'])).toEqual([crossShopIds.cafeTakeaway])
++    expect(unlockedCommercialDrinkShopIds(restored.sceneState['commercial-street'])).toEqual(sharedAppShops)
+   })
+ 
+   it('keeps the synthetic all-shops unlock gated to an explicit fixture argument', () => {
+-    expect(unlockedCommercialDrinkShopIds({}, true)).toEqual([crossShopIds.milkTea, crossShopIds.fruitTea])
++    expect(unlockedCommercialDrinkShopIds({}, true)).toEqual(sharedAppShops)
+     expect(unlockedCommercialDrinkShopIds({})).toEqual([])
+   })
+ })
++
++it('installing the shared three-shop app preserves each shop order and balance independently', () => {
++  const save = createInitialPlayerSave('commercial-street')
++  const order = (shopId: string, productId: string, id: string) => ({ id, shopId, productId, status: 'queued' as const, placedAtGameTimeMs: 100, readyAtGameTimeMs: 300 })
++  const shopOrders = {
++    [crossShopIds.cafeTakeaway]: order(crossShopIds.cafeTakeaway, 'americano', 'cafe-own'),
++    [crossShopIds.milkTea]: order(crossShopIds.milkTea, 'original-milk-tea', 'milk-own'),
++    [crossShopIds.fruitTea]: order(crossShopIds.fruitTea, 'passionfruit-green-tea', 'fruit-own'),
++  }
++  const scanned = { ...save, walletBalance: 650, shopOrders, sceneState: { ...save.sceneState, 'commercial-street': commercialStreetCafeAppUnlockPatch() } }
++  const restored = sanitizePlayerSave(scanned, scanned.currentSceneId)
++  expect(unlockedCommercialDrinkShopIds(restored.sceneState['commercial-street'])).toEqual(sharedAppShops)
++  expect(restored.shopOrders).toEqual(shopOrders)
++  expect(restored.walletBalance).toBe(650)
++  expect(restored.heldConsumable).toBeNull()
++  expect(restored.shopOrderPaymentReceipts).toEqual(save.shopOrderPaymentReceipts)
++  expect(commercialStreetCafeAppUnlocked(restored.sceneState['commercial-street'])).toBe(true)
++  expect(commercialStreetMilkTeaAppUnlocked(restored.sceneState['commercial-street'])).toBe(false)
++  expect(commercialStreetFruitTeaAppUnlocked(restored.sceneState['commercial-street'])).toBe(false)
++})
+--- a/src/center/runtime/miningStreetShell.ts
++++ b/src/center/runtime/miningStreetShell.ts
+@@ -249,7 +249,7 @@
+   const warehouseDoorY = backAlleyUpperWallY + 2 * warehouseDoorCellHeight
+   portals.push({
+     id: 'yonghe-warehouse-door',
+-    entity: { id: 'yonghe-warehouse-door', label: '\u95e8', displayLabel: '\u95e8', spaceId: backAlleyRoom.id, kind: 'door', weight: 'gateway', surface: 'wall', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
++    entity: { id: 'yonghe-warehouse-door', label: '\u95e8', displayLabel: '\u95e8', spaceId: backAlleyRoom.id, kind: 'door', weight: 'gateway', surface: 'wall', interactive: true, interactionBehavior: 'yonghe-warehouse', doorBehavior: { leafCount: 'single', openLeaves: 'both' } },
+     endpoint: {
+       doorPosition: { x: rowRight, y: warehouseDoorY },
+       threshold: { x: rowRight - 1.5 * horizontal, y: warehouseDoorY },
+--- a/src/center/runtime/playerSave.ts
++++ b/src/center/runtime/playerSave.ts
+@@ -453,15 +453,17 @@
+   setSave,
+   getGameTimeMs,
+   persist,
++  canPersist = () => true,
+ }: {
+   getSave: () => PlayerSave
+   setSave: (save: PlayerSave) => void
+   getGameTimeMs: () => number
++  canPersist?: () => boolean
+   persist: (save: PlayerSave) => PlayerSave
+ }) {
+   const generation = playerSaveResetGeneration
+   return () => {
+-    if (generation !== playerSaveResetGeneration) return getSave()
++    if (generation !== playerSaveResetGeneration || !canPersist()) return getSave()
+     const current = getSave()
+     const gameTimeMs = getGameTimeMs()
+     if (!Number.isFinite(gameTimeMs) || gameTimeMs < 0 || current.gameTimeMs === gameTimeMs) return current
+@@ -523,11 +525,13 @@
+   getCurrentSceneId,
+   recordPosition,
+   persist,
++  canPersist = () => true,
+ }: {
+   getSave: () => TSave
+   setSave: (save: TSave) => void
+   getCurrentSceneId: () => string
+   recordPosition: (save: TSave, sceneId: string, position: TPosition) => TSave
++  canPersist?: () => boolean
+   persist: (save: TSave) => TSave
+ }) {
+   const buffer = createPositionSaveBuffer<TPosition>()
+@@ -540,16 +544,19 @@
+     return persisted
+   }
+   return {
+-    queue: buffer.queue,
++    queue(sceneId: string, position: TPosition) {
++      if (generation !== playerSaveResetGeneration || !canPersist()) { buffer.clear(); return }
++      buffer.queue(sceneId, position)
++    },
+     flush(sceneId: string) {
+-      if (generation !== playerSaveResetGeneration) { buffer.clear(); return getSave() }
++      if (generation !== playerSaveResetGeneration || !canPersist()) { buffer.clear(); return getSave() }
+       const pending = buffer.take(sceneId)
+       if (!pending) return getSave()
+       const current = getSave()
+       return publish(apply(current, pending), current)
+     },
+     commit(update: (save: TSave) => TSave) {
+-      if (generation !== playerSaveResetGeneration) { buffer.clear(); return getSave() }
++      if (generation !== playerSaveResetGeneration || !canPersist()) { buffer.clear(); return getSave() }
+       const current = getSave()
+       const pending = buffer.take(getCurrentSceneId())
+       const positioned = pending ? apply(current, pending) : current
+@@ -565,14 +572,18 @@
+   windowTarget: Pick<Window, 'addEventListener' | 'removeEventListener'> = window,
+   documentTarget: Pick<Document, 'addEventListener' | 'removeEventListener' | 'visibilityState'> = document,
+   checkpoint?: () => void,
++  canPersist: () => boolean = () => true,
+ ) {
+-  const flushCurrent = () => { flush(getSceneId()); checkpoint?.() }
++  const flushCurrent = () => { if (canPersist()) { flush(getSceneId()); checkpoint?.() } }
+   const flushWhenHidden = () => {
+     if (documentTarget.visibilityState === 'hidden') flushCurrent()
+   }
+   windowTarget.addEventListener('pagehide', flushCurrent)
+   documentTarget.addEventListener('visibilitychange', flushWhenHidden)
++  let detached = false
+   return () => {
++    if (detached) return
++    detached = true
+     windowTarget.removeEventListener('pagehide', flushCurrent)
+     documentTarget.removeEventListener('visibilitychange', flushWhenHidden)
+     flushCurrent()
+--- /dev/null
++++ b/src/center/runtime/runtimeSaveLifecycle.mjs
+@@ -0,0 +1,40 @@
++// Bound to one runtime capability, never to a later global session.
++export function createRuntimeSaveLifecycle(storage, sessionHandle) {
++  let reason = null;
++  const cancellations = new Set();
++  function stop(firstReason) {
++    if (reason !== null) return;
++    reason = firstReason ?? 'save-session-stopped';
++    const callbacks = [...cancellations];
++    cancellations.clear();
++    for (const cancel of callbacks) cancel();
++  }
++  function canPersist() {
++    if (reason !== null) return false;
++    if (sessionHandle?.isOpen === false || storage?.isOpen === false) {
++      stop(sessionHandle?.stopReason ?? storage?.stopReason);
++      return false;
++    }
++    try { storage?.check?.(); }
++    catch (error) {
++      // check() reports the first failure through the service before revoking.
++      // Only that confirmed terminal capability may take the no-save exit.
++      if (sessionHandle?.isOpen !== false && storage?.isOpen !== false) throw error;
++      stop(sessionHandle?.stopReason ?? storage?.stopReason);
++      return false;
++    }
++    return true;
++  }
++  return {
++    canPersist,
++    assertActive() { if (!canPersist()) throw Error(reason); },
++    run(callback) { if (canPersist()) return callback(); },
++    onStop(cancel) {
++      if (!canPersist()) { cancel(); return () => {}; }
++      cancellations.add(cancel);
++      return () => cancellations.delete(cancel);
++    },
++    connect() { return sessionHandle?.onStop?.(stop) ?? (() => {}); },
++    get stopReason() { return reason; },
++  };
++}
+--- a/src/save-session.mjs
++++ b/src/save-session.mjs
+@@ -5,7 +5,7 @@
+ export function getGameStorage(){if(activeStorage)return activeStorage;if(typeof window==='undefined')return null;throw Error('save-session-not-open');}
+ export function installGameStorage(storage){activeStorage=storage;}
+ export function assertGameSession(){const storage=getGameStorage();storage?.check?.();return storage;}
+-export function rethrowStoppedSession(storage=activeStorage){storage?.check?.();}
++export function rethrowStoppedSession(storage=activeStorage){if(storage?.isOpen===false)throw Error(storage.stopReason??'save-session-stopped');storage?.check?.();}
+ export function runSaveTransaction(storage,callback){return storage?.transaction?storage.transaction(callback):callback();}
+ export function runGameTransaction(callback){return runSaveTransaction(assertGameSession(),callback);}
+ export function afterSaveCommit(callback,key=callback){const storage=assertGameSession();return storage?.afterCommit?storage.afterCommit(key,callback):callback();}
+@@ -29,8 +29,8 @@
+   let expected=JSON.stringify(initial);
+   let journal=structuredClone(initial);
+   const sources=structuredClone(sourceSnapshot);
+-  let stopped=false,transaction=null,validateValues=()=>{};
+-  const stop=reason=>{if(!stopped){stopped=true;onStop(reason);}throw Error(reason);};
++  let stopped=false,stopReason=null,transaction=null,validateValues=()=>{};
++  const stop=reason=>{if(!stopped){stopped=true;stopReason=reason;onStop(reason);}throw Error(reason);};
+   const check=()=>{
+     if(stopped)throw Error('save-session-stopped');
+     try{
+@@ -87,7 +87,7 @@
+     pendingState(key){return transaction?.states.get(key);},
+     stageState(key,state,publish){if(!transaction)throw Error('state-publication-outside-transaction');transaction.states.set(key,state);transaction.publish.set(key,publish);},
+     setValidator(validate){check();try{validate(journal.values);}catch(error){return stop('save-consistency-failed: '+error.message);}validateValues=validate;},
+-    check,stop:(reason='save-session-closed')=>stop(reason),get revision(){return journal.revision;},
++    check,stop:(reason='save-session-closed')=>stop(reason),get isOpen(){return !stopped;},get stopReason(){return stopReason;},get revision(){return journal.revision;},
+   };
+ }
+ export function isWritableGameKey(key){return key===PUBLICATION_KEY||key==='newtone-player-save-v1'||/^newtone-(progress-v[1-4]|narrative-progress-v[12]|reader-exit-tutorial-v1|landing-intro-v1)$/.test(key)||key==='newtone-choice-wheel-hint-seen'||key==='newtone-scene-motion-enabled'||key.startsWith('newtone:center:scene-layout:')||key.startsWith('newtone-layout-');}
+--- a/src/services/saveEntryService.mjs
++++ b/src/services/saveEntryService.mjs
+@@ -78,18 +78,20 @@
+ function inspectionWarnings(i){return i.authority?guidanceWarnings(parse(i.authority.values[PLAYER])):i.old&&classifyLaoZhouConversation(i.old.source.sceneState).state==='unknown'?['LAO_ZHOU_TRIGGER_UNKNOWN']:[];}
+ function ticketEqual(a,b){return a&&b&&a.operationId===b.operationId&&a.requestHash===b.requestHash&&a.baseSnapshotHash===b.baseSnapshotHash;}
+ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID(),digest=async text=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}}={}){
+-  let activeLease=null,activeHandle=null,preparing=false;
++  let activeLease=null,activeHandle=null,preparing=false,releasing=Promise.resolve();
+   const raw=()=>storage??globalThis.localStorage;
+   const failure=(status,e)=>({status,reasonCodes:[e instanceof Error?e.message:String(e)]});
+   async function acquire(){
++    // Resolving the lock callback is not the native request completion barrier.
++    await releasing;
+     if(activeLease)return activeLease;
+     const manager=locks??globalThis.navigator?.locks;if(!manager?.request)throw Error('LOCKING_UNAVAILABLE');
+-    return new Promise((resolve,reject)=>{let settled=false;Promise.resolve().then(()=>manager.request(LOCK,{mode:'exclusive',ifAvailable:true},lock=>{
++    return new Promise((resolve,reject)=>{let settled=false;const finished=Promise.resolve().then(()=>manager.request(LOCK,{mode:'exclusive',ifAvailable:true},lock=>{
+       if(!lock){settled=true;resolve(null);return;}
+-      return new Promise(release=>{const lease={release(){if(activeLease===lease)activeLease=null;release();}};activeLease=lease;settled=true;resolve(lease);});
+-    })).catch(error=>{if(!settled)reject(error);});});
+-  }
+-  const release=()=>{stop('lease-released');installGameStorage(null);activeLease?.release();};
++      return new Promise(release=>{const lease={release(){if(activeLease===lease)activeLease=null;releasing=finished;release();return finished;}};activeLease=lease;settled=true;resolve(lease);});
++    })).then(()=>undefined,error=>{if(!settled)reject(error);});});
++  }
++  const release=()=>{stop('lease-released');installGameStorage(null);return activeLease?.release()??releasing;};
+   function stop(reason){const h=activeHandle;activeHandle=null;if(h)h.revoke(reason);}
+   async function inspectInternal(){
+     const r=raw(),physical=sources(r),authorityRaw=r.getItem(AUTHORITY);let authority=null,old=null;
+@@ -141,12 +143,12 @@
+       const record={schema:2,ticket,intent,backupRequired:!i.authority||intent==='replace',candidateSHA256:await digest(JSON.stringify(candidate)),candidateRaw:JSON.stringify(candidate),backup:{operationId,authorityRaw:i.authorityRaw,sourceRaw:i.authority?.sources??i.physical},backupKey:BACKUP_PREFIX+operationId};
+       ticketForRecovery=ticket;prepareWriteAttempted=true;raw().setItem(PENDING,JSON.stringify(record));requireThat(raw().getItem(PENDING)===JSON.stringify(record),'PREPARE_OUTCOME_UNCERTAIN');
+       return {status:'prepared',ticket,warnings:warningsForRecovery};
+-    }catch(e){release();return {...failure(prepareWriteAttempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'blocked',e),...(ticketForRecovery?{ticket:ticketForRecovery,warnings:warningsForRecovery}:{})};}finally{preparing=false;}
++    }catch(e){await release();return {...failure(prepareWriteAttempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'blocked',e),...(ticketForRecovery?{ticket:ticketForRecovery,warnings:warningsForRecovery}:{})};}finally{preparing=false;}
+   }
+   function openHandle(j){
+-    stop('session-replaced');const listeners=new Set();let stopped=false,cleanup=()=>{};
++    stop('session-replaced');const listeners=new Set();let stopped=false,stopReason=null,cleanup=()=>{};
+     const r=raw(),baseline=canonical(protectedSources(j.sources));
+-    const handle={generation:j.generation.id,storage:null,check(){handle.storage.check();},onStop(fn){if(stopped){fn('save-session-stopped');return()=>{};}listeners.add(fn);return()=>listeners.delete(fn);},revoke(reason){if(stopped)return;stopped=true;try{cleanup();}catch{}try{handle.storage?.stop(reason);}catch{}for(const fn of listeners){try{fn(reason);}catch{}}},close(){handle.revoke('session-closed');if(activeHandle===handle){activeHandle=null;installGameStorage(null);release();}}};
++    const handle={generation:j.generation.id,storage:null,get isOpen(){return !stopped;},get stopReason(){return stopReason;},check(){handle.storage.check();},onStop(fn){if(stopped){fn(stopReason);return()=>{};}listeners.add(fn);return()=>listeners.delete(fn);},revoke(reason){if(stopped)return;stopped=true;stopReason=reason;try{cleanup();}catch{}try{handle.storage?.stop(reason);}catch{}for(const fn of listeners){try{fn(reason);}catch{}}},close(){handle.revoke('session-closed');if(activeHandle===handle){activeHandle=null;installGameStorage(null);return release();}return releasing;}};
+     handle.storage=createJournalStorage(r,j,baseline,store=>canonical(protectedSources(sources(store))),reason=>{handle.revoke(reason);if(activeHandle===handle){activeHandle=null;installGameStorage(null);release();}});
+     handle.storage.setValidator(validateValues);installGameStorage(handle.storage);activeHandle=handle;
+     if(globalThis.window){const target=globalThis.window;const check=()=>{try{handle.check();}catch{}};const timer=target.setInterval(check,250);target.addEventListener('storage',check);target.document?.addEventListener('visibilitychange',check);cleanup=()=>{target.clearInterval(timer);target.removeEventListener('storage',check);target.document?.removeEventListener('visibilitychange',check);};}
+@@ -163,7 +165,7 @@
+         raw().setItem(p.backupKey,JSON.stringify(p.backup));requireThat(raw().getItem(p.backupKey)===JSON.stringify(p.backup),'BACKUP_FAILED');}
+       const final=await inspectInternal();requireThat(final.baseSnapshotHash===ticket.baseSnapshotHash,'SNAPSHOT_STALE');
+       attempted=true;raw().setItem(AUTHORITY,p.candidateRaw);requireThat(raw().getItem(AUTHORITY)===p.candidateRaw,'COMMIT_OUTCOME_UNCERTAIN');return await committed(p);
+-    }catch(e){release();return {...failure(attempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'not-committed',e),ticket};}finally{preparing=false;}
++    }catch(e){await release();return {...failure(attempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'not-committed',e),ticket};}finally{preparing=false;}
+   }
+   async function acknowledgeEntry({ticket,sessionHandle}){
+     const ownedAtStart=Boolean(sessionHandle&&activeHandle===sessionHandle);let attempted=false;try{
+@@ -178,7 +180,7 @@
+     }catch(e){
+       // UI is about to abandon this runtime. Revoke before returning; retain all
+       // durable operation/ack evidence, including a write that actually landed.
+-      if(ownedAtStart){try{sessionHandle.close();}catch{release();}}
++      if(ownedAtStart){try{await sessionHandle.close();}catch{await release();}}
+       return {...failure(attempted?'outcome-uncertain':'blocked',e),ticket};
+     }
+   }
+@@ -192,10 +194,10 @@
+ 
+   async function resolveOperation({ticket}){
+     if(preparing)return failure('busy','OPERATION_ACTIVE');preparing=true;
+-    try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');const p=pending();if(!p||!ticketEqual(p.ticket,ticket)){release();return {status:'superseded',ticket};}
++    try{const lease=await acquire();if(!lease)return failure('busy','ANOTHER_SESSION_ACTIVE');const p=pending();if(!p||!ticketEqual(p.ticket,ticket)){await release();return {status:'superseded',ticket};}
+       await verifyPending(p);const a=raw().getItem(AUTHORITY);if(a!==null&&ticketEqual(parse(a).operationReceipt,ticket))return await committed(p);
+-      const i=await inspectInternal();release();const same=i.baseSnapshotHash===ticket.baseSnapshotHash;return {status:same?'not-committed':'superseded',ticket,resumeAllowed:same,warnings:same?guidanceWarnings(parse(parse(p.candidateRaw).values[PLAYER])):[]};
+-    }catch(e){release();return {...failure('unresolved',e),ticket};}finally{preparing=false;}
++      const i=await inspectInternal();await release();const same=i.baseSnapshotHash===ticket.baseSnapshotHash;return {status:same?'not-committed':'superseded',ticket,resumeAllowed:same,warnings:same?guidanceWarnings(parse(parse(p.candidateRaw).values[PLAYER])):[]};
++    }catch(e){await release();return {...failure('unresolved',e),ticket};}finally{preparing=false;}
+   }
+   return {inspectSave,prepareEntry,commitEntry,getRecoveryState,resolveOperation,acknowledgeEntry};
+ }
+--- a/src/stores/narrativeProgressStore.js
++++ b/src/stores/narrativeProgressStore.js
+@@ -1,5 +1,6 @@
+ import { getGameStorage, commitStoreState, runSaveTransaction } from '../save-session.mjs'
+ import { useStore } from 'zustand'
++import { useReaderStoreScope } from './readerStoreScope'
+ import { createStore } from 'zustand/vanilla'
+ import { beginNarrativeEvent, completeNarrativeEvent, completeSkippedNarrativeEvent, createInitialNarrativeProgressState, loadNarrativeProgressState, saveNarrativeProgressState } from './narrativeProgressStorage'
+ function narrativeProgressStateCreator(storage){
+@@ -21,6 +22,7 @@
+ const boundStores=new WeakMap();
+ export function getSessionNarrativeStore(storage){let store=boundStores.get(storage);if(!store){store=createNarrativeProgressStore(storage);boundStores.set(storage,store);}return store;}
+ function currentStore(){const storage=getGameStorage();if(!storage)throw Error('save-session-not-open');return getSessionNarrativeStore(storage);}
+-export function useNarrativeProgressStore(selector){return useStore(currentStore(),selector)}
++export function useNarrativeProgressStoreApi(){const preview=useReaderStoreScope();return preview?.narrativeStore??currentStore()}
++export function useNarrativeProgressStore(selector){return useStore(useNarrativeProgressStoreApi(),selector)}
+ useNarrativeProgressStore.getState=()=>currentStore().getState();
+ useNarrativeProgressStore.subscribe=(...args)=>currentStore().subscribe(...args);
+--- a/src/stores/progressStore.js
++++ b/src/stores/progressStore.js
+@@ -1,16 +1,27 @@
+-import { getGameStorage, commitStoreState, runSaveTransaction } from '../save-session.mjs'
++import { getGameStorage, commitStoreState, runSaveTransaction, memoryStorage } from '../save-session.mjs'
+ import { useStore } from 'zustand'
++import { useReaderStoreScope } from './readerStoreScope'
++export { ReaderPreviewStoreProvider } from './readerStoreScope'
+ import { createStore } from 'zustand/vanilla'
+ import { readerContent } from '../data/readerContent'
+ import { getNextReaderLanguage, READER_LANGUAGE_CODES } from '../i18n/languages'
+-import { comparePosition, resolvePosition } from '../reader/readerPosition'
++import { resolvePosition } from '../reader/readerPosition'
+ import { clampThemePosition, migrateThemePosition, legacyThemeName } from '../reader/readerTheme'
+-import { useNarrativeProgressStore, getSessionNarrativeStore } from './narrativeProgressStore'
++import { useNarrativeProgressStore, getSessionNarrativeStore, createNarrativeProgressStore } from './narrativeProgressStore'
+ import { createInitialProgressState, loadProgressState, saveProgressState, PROGRESS_STORAGE_KEYS } from './progressMigration'
+ 
+ function storedLocation(value){const item=resolvePosition(value);return {phaseId:item.phaseId,pageId:item.pageId,beatIndex:item.beatIndex}}
+ function chapterAt(value){return readerContent.find(phase=>phase.id===value.phaseId)?.pages.find(page=>page.id===value.pageId)?.chapterId??readerContent[0]?.pages?.[0]?.chapterId??null}
+-export function chooseFurthestLocation(committed,previous){return comparePosition(committed,previous)>0?{...committed}:previous}
++export function chooseFurthestLocation(committed,previous){
++  // A stale previous publication may fall back only after current is verified.
++  const current=resolvePosition(committed);
++  if(!previous||typeof previous!=='object')resolvePosition(previous);
++  const address={phaseId:previous.phaseId,pageId:previous.pageId,beatIndex:previous.beatIndex};
++  if(typeof address.phaseId!=='string'||typeof address.pageId!=='string'||!Number.isInteger(address.beatIndex)||address.beatIndex<0)resolvePosition(address);
++  let old;
++  try{old=resolvePosition(address);}catch(error){if(!(error instanceof RangeError))throw error;return {...committed};}
++  return current.linearIndex>old.linearIndex?{...committed}:previous;
++}
+ function progressStateCreator(storage,narrative=useNarrativeProgressStore){
+   return (publish,get)=>{
+     const owner={};
+@@ -49,6 +60,23 @@
+ export function createProgressStore(storage,narrative){return createStore(progressStateCreator(storage,narrative))}
+ const boundStores=new WeakMap();
+ function currentStore(){const storage=getGameStorage();if(!storage)throw Error('save-session-not-open');let store=boundStores.get(storage);if(!store){store=createProgressStore(storage,getSessionNarrativeStore(storage));boundStores.set(storage,store);runSaveTransaction(storage,()=>getSessionNarrativeStore(storage).getState().initialize({furthestLocation:store.getState().furthestLocation}));}return store;}
+-export function useProgressStore(selector){return useStore(currentStore(),selector)}
++export function useProgressStoreApi(){const preview=useReaderStoreScope();return preview?.progressStore??currentStore()}
++export function useProgressStore(selector){return useStore(useProgressStoreApi(),selector)}
++// Must be called after the owner has validated/installed its preview content.
++// Only fresh private memory is read or written; no player key or lock is touched.
++export function createReaderPreviewStores({language='zh',themePosition=.5,motionMode='full'}={}){
++  const first=readerContent[0],page=first?.pages?.[0];
++  const start={phaseId:first?.id,pageId:page?.id,beatIndex:0};
++  resolvePosition(start);
++  const storage=memoryStorage({[PROGRESS_STORAGE_KEYS.V4]:JSON.stringify({
++    _version:4,committedLocation:start,furthestLocation:start,currentView:'reader',
++    readerStarted:true,resumeRequested:false,hasInitializedLanguage:true,
++    hasInitializedReadingMode:true,readingMode:'standard',language,themePosition,motionMode,
++  })});
++  const narrativeStore=createNarrativeProgressStore(storage);
++  const progressStore=createProgressStore(storage,narrativeStore);
++  narrativeStore.getState().initialize({furthestLocation:start});
++  return {progressStore,narrativeStore};
++}
+ useProgressStore.getState=()=>currentStore().getState();
+ useProgressStore.subscribe=(...args)=>currentStore().subscribe(...args);
+--- /dev/null
++++ b/src/stores/readerStoreScope.js
+@@ -0,0 +1,9 @@
++import { createContext, createElement, useContext } from 'react'
++
++const ReaderPreviewStoreScope = createContext(null)
++// Root-local memory stores. This never installs a game storage capability.
++export function ReaderPreviewStoreProvider({ stores, children }) {
++  if (!stores?.progressStore || !stores?.narrativeStore) throw Error('INVALID_READER_PREVIEW_STORES')
++  return createElement(ReaderPreviewStoreScope.Provider, { value: stores }, children)
++}
++export function useReaderStoreScope() { return useContext(ReaderPreviewStoreScope) }
+--- a/tests/playerSave.test.js
++++ b/tests/playerSave.test.js
+@@ -195,7 +195,7 @@
+     expect(hasResumablePlayerSave(storage)).toBe(true)
+   })
+ 
+-  it('keeps the in-memory game time when checkpoint storage is unavailable', () => {
++  it('reports unavailable checkpoint storage without publishing unsaved game time', () => {
+     const unavailable = {
+       getItem: () => null,
+       setItem: () => { throw new Error('storage denied') },
+@@ -208,9 +208,12 @@
+       getGameTimeMs: () => 48_000_000,
+       persist: next => savePlayerSave(next, unavailable, 200),
+     })
+-    expect(() => checkpoint()).not.toThrow()
+-    expect(save.gameTimeMs).toBe(48_000_000)
+-    expect(() => loadPlayerSave(unavailable)).not.toThrow()
++    const before = save
++    expect(() => checkpoint()).toThrow('player-save-write-failed')
++    expect(save).toBe(before)
++    expect(save.gameTimeMs).toBe(before.gameTimeMs)
++    expect(save.gameTimeMs).not.toBe(48_000_000)
++    expect(save.storyClock).toEqual(before.storyClock)
+   })
+ 
+   it('keeps the version-one phone migration while adding the clock fallback', () => {
+--- a/tests/progressStorePreviewCompatibility.test.js
++++ b/tests/progressStorePreviewCompatibility.test.js
+@@ -1,10 +1,12 @@
+-import { describe, expect, it } from 'vitest'
++import { describe, expect, it, vi, afterEach } from 'vitest'
++import { createElement } from 'react'
++import { renderToString } from 'react-dom/server'
+ import { compileWorkspace } from '../src/admin/contentWorkspace.js'
+ import { setReaderContent } from '../src/data/readerContent.js'
+-import { chooseFurthestLocation } from '../src/stores/progressStore.js'
++import { chooseFurthestLocation, createReaderPreviewStores, ReaderPreviewStoreProvider, useProgressStore, useProgressStoreApi } from '../src/stores/progressStore.js'
++import { useNarrativeProgressStoreApi } from '../src/stores/narrativeProgressStore.js'
+ 
+-describe('preview progress compatibility', () => {
+-  it('uses the current preview location when saved progress references another publication', () => {
++function setPreview() {
+     setReaderContent(compileWorkspace({
+       schemaVersion: 1,
+       chapters: [{
+@@ -26,9 +28,66 @@
+         }],
+       }],
+     }))
++}
++afterEach(() => vi.unstubAllGlobals())
++
++describe('preview progress compatibility', () => {
++  it('uses the current preview location when saved progress references another publication', () => {
++    setPreview()
+ 
+     const current = { phaseId: 'M1', pageId: 'preview-page', beatIndex: 1 }
+     expect(chooseFurthestLocation(current, { phaseId: 'M1', pageId: '', beatIndex: 0 }))
+       .toEqual(current)
+   })
+ })
++
++describe('bounded stale Reader comparison', () => {
++  it('preserves a valid later previous address without moving backwards', () => {
++    setPreview()
++    const current = { phaseId: 'M1', pageId: 'preview-page', beatIndex: 0 }
++    const previous = { ...current, beatIndex: 1 }
++    expect(chooseFurthestLocation(current, previous)).toBe(previous)
++  })
++  it('rejects an invalid current address even when the previous publication is stale', () => {
++    setPreview()
++    expect(() => chooseFurthestLocation({ phaseId: 'M1', pageId: 'missing-current', beatIndex: 0 }, { phaseId: 'M1', pageId: '', beatIndex: 0 })).toThrow(RangeError)
++  })
++  it('does not classify malformed previous data or arbitrary getters as stale addresses', () => {
++    setPreview()
++    const current = { phaseId: 'M1', pageId: 'preview-page', beatIndex: 0 }
++    expect(() => chooseFurthestLocation(current, null)).toThrow(TypeError)
++    expect(() => chooseFurthestLocation(current, { phaseId: 'M1', pageId: 'preview-page', beatIndex: '0' })).toThrow(RangeError)
++    const failure = RangeError('unrelated accessor failure')
++    expect(() => chooseFurthestLocation(current, { get phaseId() { throw failure } })).toThrow(failure)
++  })
++})
++describe('owner Reader stores stay in a root-local memory scope', () => {
++  it('uses current preview content and never opens player storage or a game handle', () => {
++    setPreview()
++    const physicalRead = vi.fn(() => { throw Error('player storage must stay closed') })
++    vi.stubGlobal('localStorage', { getItem: physicalRead, setItem: physicalRead, removeItem: physicalRead })
++    const first = createReaderPreviewStores({ language: 'en', themePosition: .75, motionMode: 'reduced' })
++    const second = createReaderPreviewStores()
++    expect(first.progressStore.getState()).toMatchObject({ currentView: 'reader', readerStarted: true, language: 'en', motionMode: 'reduced', hasInitializedLanguage: true, hasInitializedReadingMode: true, committedLocation: { phaseId: 'M1', pageId: 'preview-page', beatIndex: 0 } })
++    first.progressStore.getState().setLanguage('zh')
++    first.progressStore.getState().commitLocation({ phaseId: 'M1', pageId: 'preview-page', beatIndex: 1 })
++    expect(second.progressStore.getState().committedLocation.beatIndex).toBe(0)
++    expect(first.narrativeStore).not.toBe(second.narrativeStore)
++    expect(useProgressStore.setState).toBeUndefined()
++    expect(physicalRead).not.toHaveBeenCalled()
++  })
++  it('resolves hook and command APIs from the provider instead of ambient player storage', () => {
++    setPreview()
++    const physicalRead = vi.fn(() => { throw Error('player storage must stay closed') })
++    vi.stubGlobal('localStorage', { getItem: physicalRead, setItem: physicalRead })
++    const stores = createReaderPreviewStores({ language: 'en' })
++    function PreviewProbe() {
++      expect(useProgressStoreApi()).toBe(stores.progressStore)
++      expect(useNarrativeProgressStoreApi()).toBe(stores.narrativeStore)
++      return createElement('span', null, useProgressStore(state => state.language))
++    }
++    const html = renderToString(createElement(ReaderPreviewStoreProvider, { stores }, createElement(PreviewProbe)))
++    expect(html).toContain('en')
++    expect(physicalRead).not.toHaveBeenCalled()
++  })
++})
+--- a/tests/publicReleaseMigration.test.js
++++ b/tests/publicReleaseMigration.test.js
+@@ -17,7 +17,7 @@
+ }
+ 
+ describe('public release cutover', () => {
+-  it('clears the old player state once while preserving analytics state', () => {
++  it('does not cut over or delete original game, Reader, layout or analytics state', () => {
+     const storage = memoryStorage({
+       'newtone-progress-v4': '{"currentView":"reader"}',
+       'newtone-narrative-progress-v2': '{}',
+@@ -27,21 +27,29 @@
+       'newtone-analytics-pending-v1': '[]',
+     })
+ 
+-    expect(applyPublicReleaseCutover(storage)).toEqual({ status: 'applied' })
+-    expect(storage.getItem('newtone-progress-v4')).toBeNull()
+-    expect(storage.getItem('newtone-narrative-progress-v2')).toBeNull()
+-    expect(storage.getItem('newtone-player-save-v1')).toBeNull()
+-    expect(storage.getItem('newtone:center:scene-layout:jijia-ancestral-home:v3')).toBeNull()
++    const before = Object.fromEntries(Array.from({ length: storage.length }, (_, i) => [storage.key(i), storage.getItem(storage.key(i))]))
++    expect(applyPublicReleaseCutover(storage)).toEqual({ status: 'save-entry-service-owns-migration' })
++    expect(storage.getItem('newtone-progress-v4')).toBe(before['newtone-progress-v4'])
++    expect(storage.getItem('newtone-narrative-progress-v2')).toBe(before['newtone-narrative-progress-v2'])
++    expect(storage.getItem('newtone-player-save-v1')).toBe(before['newtone-player-save-v1'])
++    expect(storage.getItem('newtone:center:scene-layout:jijia-ancestral-home:v3')).toBe(before['newtone:center:scene-layout:jijia-ancestral-home:v3'])
+     expect(storage.getItem('newtone-analytics-visitor-v1')).toBe('visitor-1')
+     expect(storage.getItem('newtone-analytics-pending-v1')).toBe('[]')
+-    expect(storage.getItem(PUBLIC_RELEASE_CUTOVER_STORAGE_KEY)).toBe(PUBLIC_RELEASE_CUTOVER_ID)
++    expect(storage.getItem(PUBLIC_RELEASE_CUTOVER_STORAGE_KEY)).toBeNull()
++    expect(Object.fromEntries(Array.from({ length: storage.length }, (_, i) => [storage.key(i), storage.getItem(storage.key(i))]))).toEqual(before)
++    expect(applyPublicReleaseCutover(storage)).toEqual({ status: 'save-entry-service-owns-migration' })
++    expect(Object.fromEntries(Array.from({ length: storage.length }, (_, i) => [storage.key(i), storage.getItem(storage.key(i))]))).toEqual(before)
+   })
+ 
+-  it('does not clear state again after the cutover marker exists', () => {
++  it('keeps a historical cutover marker and repeated calls completely unchanged', () => {
+     const storage = memoryStorage({ [PUBLIC_RELEASE_CUTOVER_STORAGE_KEY]: PUBLIC_RELEASE_CUTOVER_ID })
+     storage.setItem('newtone-player-save-v1', '{"currentSceneId":"jijia-ancestral-home"}')
+ 
+-    expect(applyPublicReleaseCutover(storage)).toEqual({ status: 'already-applied' })
++    const before = Object.fromEntries(Array.from({ length: storage.length }, (_, i) => [storage.key(i), storage.getItem(storage.key(i))]))
++    expect(applyPublicReleaseCutover(storage)).toEqual({ status: 'save-entry-service-owns-migration' })
++    expect(applyPublicReleaseCutover(storage)).toEqual({ status: 'save-entry-service-owns-migration' })
++    expect(Object.fromEntries(Array.from({ length: storage.length }, (_, i) => [storage.key(i), storage.getItem(storage.key(i))]))).toEqual(before)
++    expect(storage.getItem(PUBLIC_RELEASE_CUTOVER_STORAGE_KEY)).toBe(PUBLIC_RELEASE_CUTOVER_ID)
+     expect(storage.getItem('newtone-player-save-v1')).not.toBeNull()
+   })
+ })
+--- a/tests/saveEntryService.test.mjs
++++ b/tests/saveEntryService.test.mjs
+@@ -1,7 +1,9 @@
+ import {test,expect,afterEach,vi} from 'vitest';
+ import {createHash} from 'node:crypto';
+ import {createSaveEntryService,AUTHORITY,PENDING,PLAYER,ACKNOWLEDGED} from '../src/services/saveEntryService.mjs';
+-import {memoryStorage} from '../src/save-session.mjs';
++import {memoryStorage,installGameStorage} from '../src/save-session.mjs';
++import {createRuntimeSaveLifecycle} from '../src/center/runtime/runtimeSaveLifecycle.mjs';
++import {createGameTimeSaveCheckpoint,createPositionSaveCoordinator,recordPlayerScenePosition,attachPositionSaveLifecycle} from '../src/center/runtime/playerSave.ts';
+ import {createInitialPlayerSave,savePlayerSave,sanitizePlayerSave} from '../src/center/runtime/playerSave.ts';
+ import {mainlineScenes} from '../src/center/runtime/mainlineScenes.ts';
+ import {commercialCafeStoryStatePatch,initialCommercialCafeStoryState,commercialCafeNarrativeDialogue} from '../src/center/runtime/commercialCafeStory.ts';
+@@ -109,3 +111,169 @@
+   const r=rig(),c=await choose(r,'create'),set=r.raw.setItem.bind(r.raw);expect(timers.size).toBe(1);r.raw.setItem=(k,v)=>{if(k===ACKNOWLEDGED)throw Error('quota');set(k,v)};
+   expect((await r.service.acknowledgeEntry({ticket:c.ticket,sessionHandle:c.sessionHandle})).status).toBe('outcome-uncertain');expect(timers.size).toBe(0);expect(events.size).toBe(0);expect(docEvents.size).toBe(0);expect(()=>c.sessionHandle.check()).toThrow();
+ });
++
++// A native request may finish after its callback's promise is resolved. The old
++// synchronous-ish mock never held the lock through this handoff window.
++function delayedReleaseLocks(){
++  let occupied=false,nextDelay=null;
++  return {
++    delayNextRelease(){
++      let entered,finish;
++      const started=new Promise(resolve=>{entered=resolve;});
++      const gate=new Promise(resolve=>{finish=resolve;});
++      nextDelay={entered,gate};
++      return {started,finish};
++    },
++    async request(_key,_options,callback){
++      if(occupied)return callback(null);
++      occupied=true;
++      try{return await callback({name:'native-shaped-lock'});}
++      finally{const delay=nextDelay;nextDelay=null;if(delay){delay.entered();await delay.gate;}occupied=false;}
++    },
++  };
++}
++test('prepared recovery waits for native request release before same-ticket commit',async()=>{
++  const locks=delayedReleaseLocks(),r=rig(memoryStorage(),locks),inspection=await r.service.inspectSave();
++  const prepared=await r.service.prepareEntry({intent:'create',snapshotToken:inspection.snapshotToken});
++  expect(prepared.status).toBe('prepared');
++  const originalPending=r.raw.getItem(PENDING),gate=locks.delayNextRelease();
++  let returned=false;
++  const resolving=r.service.resolveOperation({ticket:prepared.ticket}).then(result=>{returned=true;return result;});
++  await gate.started;
++  await Promise.resolve();
++  const premature=returned;
++  // This is genuinely still another owner's lock, not permission to bypass it.
++  const other=rig(r.raw,locks),blocked=await other.service.resolveOperation({ticket:prepared.ticket});
++  gate.finish();
++  const resolved=await resolving;
++  expect(premature).toBe(false);
++  expect(blocked).toMatchObject({status:'busy',reasonCodes:['ANOTHER_SESSION_ACTIVE']});
++  expect(resolved).toMatchObject({status:'not-committed',resumeAllowed:true,ticket:prepared.ticket});
++  const committed=await r.service.commitEntry({ticket:resolved.ticket});
++  expect(committed.status).toBe('committed');handles.push(committed.sessionHandle);
++  expect(committed.receipt.operationId).toBe(prepared.ticket.operationId);
++  expect(r.raw.getItem(PENDING)).toBe(originalPending);
++  expect(JSON.parse(committed.sessionHandle.storage.getItem(PLAYER)).walletBalance).toBe(800);
++  const updated=JSON.parse(committed.sessionHandle.storage.getItem(PLAYER));
++  savePlayerSave({...updated,walletBalance:750},committed.sessionHandle.storage);
++  await committed.sessionHandle.close();
++  const recovered=await other.service.resolveOperation({ticket:prepared.ticket});
++  expect(recovered.status).toBe('committed');handles.push(recovered.sessionHandle);
++  expect(recovered.snapshot.generation).toEqual(committed.snapshot.generation);
++  expect(JSON.parse(recovered.sessionHandle.storage.getItem(PLAYER)).walletBalance).toBe(750);
++});
++test('prepare write landed but threw: release completes before uncertain result permits recovery',async()=>{
++  const locks=delayedReleaseLocks(),r=rig(memoryStorage(),locks),inspection=await r.service.inspectSave();
++  const set=r.raw.setItem.bind(r.raw);let inject=true;
++  r.raw.setItem=(key,value)=>{set(key,value);if(key===PENDING&&inject){inject=false;throw Error('prepare response lost');}};
++  const gate=locks.delayNextRelease();let returned=false;
++  const preparing=r.service.prepareEntry({intent:'create',snapshotToken:inspection.snapshotToken}).then(result=>{returned=true;return result;});
++  await gate.started;await Promise.resolve();const premature=returned;
++  gate.finish();const uncertain=await preparing;
++  expect(premature).toBe(false);
++  expect(uncertain).toMatchObject({status:'outcome-uncertain',reasonCodes:['prepare response lost']});
++  expect(r.raw.getItem(AUTHORITY)).toBeNull();
++  const next=rig(r.raw,locks),pending=await next.service.getRecoveryState();
++  expect(pending.ticket).toEqual(uncertain.ticket);
++  const resolved=await next.service.resolveOperation({ticket:pending.ticket});
++  expect(resolved).toMatchObject({status:'not-committed',resumeAllowed:true});
++  const committed=await next.service.commitEntry({ticket:resolved.ticket});
++  expect(committed.status).toBe('committed');handles.push(committed.sessionHandle);
++  expect(JSON.parse(committed.sessionHandle.storage.getItem(PLAYER)).walletBalance).toBe(800);
++  expect(Array.from({length:r.raw.length},(_,i)=>r.raw.key(i)).filter(key=>key.startsWith('newtone-save-entry-backup-v2:'))).toHaveLength(1);
++});
++function boundRuntime(committed){
++  let saved=JSON.parse(committed.sessionHandle.storage.getItem(PLAYER)),publications=0;
++  const lifecycle=createRuntimeSaveLifecycle(committed.sessionHandle.storage,committed.sessionHandle);
++  const disconnect=lifecycle.connect();
++  const publish=next=>{publications++;saved=next;};
++  const coordinator=createPositionSaveCoordinator({getSave:()=>saved,setSave:publish,getCurrentSceneId:()=>saved.currentSceneId,recordPosition:recordPlayerScenePosition,canPersist:lifecycle.canPersist,persist:next=>savePlayerSave(next,committed.sessionHandle.storage)});
++  const checkpoint=createGameTimeSaveCheckpoint({getSave:()=>saved,setSave:publish,getGameTimeMs:()=>saved.gameTimeMs+60_000,canPersist:lifecycle.canPersist,persist:next=>savePlayerSave(next,committed.sessionHandle.storage)});
++  const clear=lifecycle.onStop(()=>coordinator.clear());
++  return {lifecycle,coordinator,checkpoint,read:()=>saved,publications:()=>publications,dispose:()=>{clear();disconnect();}};
++}
++test('valid runtime unmount flushes position and clock once, using the captured storage',async()=>{
++  const r=rig(),committed=await choose(r,'create'),runtime=boundRuntime(committed);
++  const revision=JSON.parse(r.raw.getItem(AUTHORITY)).revision;
++  runtime.coordinator.queue('commercial-street',{x:42,y:37});
++  // Ambient lookup is gone during a transition; this runtime still owns its lease.
++  installGameStorage(null);
++  const win=new EventTarget(),doc=new EventTarget();doc.visibilityState='visible';
++  const detach=attachPositionSaveLifecycle(id=>runtime.coordinator.flush(id),()=>runtime.read().currentSceneId,win,doc,runtime.checkpoint,runtime.lifecycle.canPersist);
++  detach();detach();
++  expect(JSON.parse(r.raw.getItem(AUTHORITY)).revision).toBe(revision+2);
++  expect(JSON.parse(committed.sessionHandle.storage.getItem(PLAYER))).toMatchObject({currentPosition:{x:42,y:37},walletBalance:800,gameTimeMs:runtime.read().gameTimeMs});
++  expect(runtime.publications()).toBe(2);
++  runtime.dispose();
++});
++test('source conflict cancels runtime work; stopped unmount never checkpoints or flushes',async()=>{
++  const original=JSON.stringify(save()),r=rig(memoryStorage({[PLAYER]:original})),committed=await choose(r,'continue'),runtime=boundRuntime(committed);
++  let cancelled=0,lateBusiness=0;
++  runtime.lifecycle.onStop(()=>{cancelled++;});
++  runtime.coordinator.queue('commercial-street',{x:42,y:37});
++  const win=new EventTarget(),doc=new EventTarget();doc.visibilityState='hidden';
++  const detach=attachPositionSaveLifecycle(id=>runtime.coordinator.flush(id),()=>runtime.read().currentSceneId,win,doc,runtime.checkpoint,runtime.lifecycle.canPersist);
++  const authority=r.raw.getItem(AUTHORITY);
++  r.raw.setItem(PLAYER,original+' ');
++  expect(()=>committed.sessionHandle.check()).toThrow('legacy-or-bootstrap-slot-changed');
++  expect(runtime.lifecycle.stopReason).toBe('legacy-or-bootstrap-slot-changed');
++  expect(cancelled).toBe(1);
++  expect(()=>{detach();detach();win.dispatchEvent(new Event('pagehide'));runtime.checkpoint();runtime.coordinator.flush('commercial-street');runtime.lifecycle.run(()=>{lateBusiness++;});}).not.toThrow();
++  expect(r.raw.getItem(AUTHORITY)).toBe(authority);
++  expect(r.raw.getItem(PLAYER)).toBe(original+' ');
++  expect(runtime.publications()).toBe(0);expect(lateBusiness).toBe(0);
++  expect(()=>committed.sessionHandle.storage.setItem(PLAYER,original)).toThrow('save-session-stopped');
++  await committed.sessionHandle.close();await committed.sessionHandle.close();
++  expect(cancelled).toBe(1);runtime.dispose();
++});
++test('first failed business commit retains its reason, money and receipts; cleanup cannot publish it',async()=>{
++  const r=rig(),committed=await choose(r,'create'),runtime=boundRuntime(committed),before=r.raw.getItem(AUTHORITY);
++  const set=r.raw.setItem.bind(r.raw);let faults=0;
++  r.raw.setItem=(key,value)=>{if(key===AUTHORITY){faults++;throw Error('synthetic purchase write failure');}return set(key,value);};
++  expect(()=>runtime.coordinator.commit(current=>({...current,walletBalance:current.walletBalance-50}))).toThrow('storage-write-failed');
++  expect(committed.sessionHandle.stopReason).toBe('storage-write-failed');
++  expect(runtime.lifecycle.stopReason).toBe('storage-write-failed');
++  expect(()=>{runtime.checkpoint();runtime.coordinator.flush('commercial-street');}).not.toThrow();
++  expect(faults).toBe(1);expect(runtime.publications()).toBe(0);
++  expect(r.raw.getItem(AUTHORITY)).toBe(before);
++  const preserved=JSON.parse(JSON.parse(before).values[PLAYER]);
++  expect(preserved.walletBalance).toBe(800);expect(preserved.shopOrderPaymentReceipts).toEqual({});
++  await committed.sessionHandle.close();await committed.sessionHandle.close();
++  runtime.dispose();
++});
++test('revoked runtime never adopts a replacement global session or writes its generation',async()=>{
++  const r=rig(),first=await choose(r,'create'),runtime=boundRuntime(first);
++  runtime.coordinator.queue('commercial-street',{x:42,y:37});
++  await first.sessionHandle.close();
++  const next=await choose(r,'replace',true),authority=r.raw.getItem(AUTHORITY);
++  expect(next.sessionHandle.generation).not.toBe(first.sessionHandle.generation);
++  expect(()=>{runtime.checkpoint();runtime.coordinator.queue('commercial-street',{x:1,y:2});runtime.coordinator.flush('commercial-street');}).not.toThrow();
++  expect(r.raw.getItem(AUTHORITY)).toBe(authority);expect(runtime.publications()).toBe(0);
++  expect(()=>runtime.lifecycle.assertActive()).toThrow('session-closed');
++  runtime.dispose();
++});
++test('lifecycle does not hide an unrelated storage check failure',()=>{
++  const failure=Error('unexpected validator failure');
++  const lifecycle=createRuntimeSaveLifecycle({check(){throw failure;}});
++  expect(()=>lifecycle.canPersist()).toThrow(failure);
++});
++
++test('ACK failure revokes bound cleanup before returning, and another service recovers the same save',async()=>{
++  const locks=delayedReleaseLocks(),r=rig(memoryStorage({[PLAYER]:JSON.stringify(save())}),locks);
++  const committed=await choose(r,'continue'),runtime=boundRuntime(committed),before=r.raw.getItem(AUTHORITY);
++  runtime.coordinator.queue('commercial-street',{x:42,y:37});
++  const set=r.raw.setItem.bind(r.raw);
++  r.raw.setItem=(key,value)=>{if(key===ACKNOWLEDGED)throw Error('ack storage failure');return set(key,value);};
++  const result=await r.service.acknowledgeEntry({ticket:committed.ticket,sessionHandle:committed.sessionHandle});
++  expect(result).toMatchObject({status:'outcome-uncertain',ticket:committed.ticket});
++  expect(committed.sessionHandle.isOpen).toBe(false);
++  expect(()=>{runtime.checkpoint();runtime.coordinator.flush('commercial-street');}).not.toThrow();
++  expect(r.raw.getItem(AUTHORITY)).toBe(before);expect(runtime.publications()).toBe(0);
++  const next=rig(r.raw,locks),recovered=await next.service.resolveOperation({ticket:committed.ticket});
++  expect(recovered.status).toBe('committed');handles.push(recovered.sessionHandle);
++  expect(recovered.sessionHandle).not.toBe(committed.sessionHandle);
++  expect(recovered.snapshot.generation).toEqual(committed.snapshot.generation);
++  expect(JSON.parse(recovered.sessionHandle.storage.getItem(PLAYER)).walletBalance).toBe(650);
++  expect(()=>committed.sessionHandle.check()).toThrow('save-session-stopped');
++  runtime.dispose();
++});
+--- a/tests/yongheInteriorTrial.test.ts
++++ b/tests/yongheInteriorTrial.test.ts
+@@ -96,6 +96,7 @@
+       expect(passage.targetSceneId).toBeUndefined()
+       expect(passage.toRoomId).toBeUndefined()
+       expect(passage.lockedText).toBe('\u95e8\u9501\u7740\uff0c\u6253\u4e0d\u5f00\u3002')
++      expect(warehouse.interactive).toBe(true)
+       expect(warehouse.interactionBehavior).toBe('yonghe-warehouse')
+     })
+ 
+@@ -116,6 +117,7 @@
+       }
+       const safePath = findMainlinePath(start, safeTarget, scene, {}, options)
+ 
++      expect(warehouse.interactive).toBe(true)
+       expect(warehouse.interactionBehavior).toBe('yonghe-warehouse')
+       expect(passage.access).toBe('locked')
+       expect(contact.path).not.toBeNull()

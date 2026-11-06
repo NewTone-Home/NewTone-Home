@@ -6,3 +6,25 @@ export async function loadCenterAnalytics() {
   if (error) throw error
   return data
 }
+
+// Separate from legacy all-time Reader/taxi reports. RLS remains owner-only.
+export async function loadReleaseAnalytics({ environment = 'production', from, to } = {}) {
+  if (!supabase) throw new Error('Supabase unavailable')
+  const { data, error } = await supabase.rpc('owner_release_analytics', {
+    p_release: '0.3.0', p_environment: environment,
+    p_from: from ?? new Date(Date.now() - 7 * 86400000).toISOString(),
+    p_to: to ?? new Date().toISOString(),
+  })
+  if (error) throw error
+  return data
+}
+
+export async function loadPlayerHistory({ from, to, environment = 'production', visitorId = null, cursor = null }) {
+  if (!supabase) throw new Error('Supabase unavailable')
+  const { data, error } = await supabase.rpc('owner_player_history', {
+    p_release: '0.3.0', p_environment: environment, p_from: from, p_to: to,
+    p_visitor: visitorId || null, p_before_time: cursor?.at ?? null, p_before_id: cursor?.id ?? null,
+  })
+  if (error) throw error
+  return data
+}

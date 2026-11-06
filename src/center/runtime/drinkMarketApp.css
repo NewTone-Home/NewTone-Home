@@ -1,0 +1,55 @@
+.world-phone .drink-market { position:relative; display:flex; flex-direction:column; min-height:100%; color:var(--phone-text); }
+:where(.drink-market) button { font:inherit; color:inherit; }
+.world-phone .drink-market__body { flex:1; padding:6px 0 14px; }
+.world-phone .drink-market__shops { display:grid; gap:10px; }
+.world-phone .drink-market__shop-card { display:grid; gap:5px; text-align:left; padding:14px; border:1px solid var(--phone-border); border-radius:12px; background:#ffffff08; }
+.world-phone .drink-market__shop-card:active { background:#ffffff14; }
+.world-phone .drink-market__shop-name { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:700; font-size:16px; }
+.world-phone .drink-market em { font-style:normal; font-size:12px; font-weight:600; padding:2px 8px; border-radius:999px; background:#ffffff14; color:var(--phone-muted); }
+.world-phone .drink-market em[data-status=served] { background:#d9d2c6; color:#27231d; }
+.world-phone .drink-market__shop-intro { color:var(--phone-muted); font-size:13px; }
+.world-phone .drink-market__shop-meta { display:flex; flex-wrap:wrap; gap:4px 12px; color:var(--phone-muted); font-size:12px; }
+.world-phone .drink-market__shop-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.world-phone .drink-market__shop-head div { display:grid; }
+.world-phone .drink-market__shop-head small { color:var(--phone-muted); font-size:12px; }
+.world-phone .drink-market__back { width:34px; height:34px; border:1px solid var(--phone-border); border-radius:50%; background:#ffffff08; font-size:20px; line-height:1; }
+.world-phone .drink-market__products { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+.world-phone .drink-market__product { display:grid; grid-template-columns:1fr auto auto; align-items:center; gap:10px; width:100%; text-align:left; padding:12px; border:1px solid var(--phone-border); border-radius:11px; background:#ffffff08; }
+.world-phone .drink-market__product[aria-pressed=true] { background:#d9d2c6; border-color:#d9d2c6; color:#27231d; }
+.world-phone .drink-market__product-text { display:grid; gap:2px; min-width:0; }
+.world-phone .drink-market__product-text small { color:var(--phone-muted); font-size:12px; display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical; overflow:hidden; }
+.world-phone .drink-market__product[aria-pressed=true] small { color:#27231dcc; }
+.world-phone .drink-market__product-price { font-weight:700; }
+.world-phone .drink-market__product-add { display:grid; place-items:center; width:26px; height:26px; border-radius:50%; background:#ffffff1f; font-size:18px; line-height:1; }
+.world-phone .drink-market__notice { margin:10px 0 0; color:var(--phone-muted); font-size:13px; }
+.world-phone .drink-market__orders h3 { margin:14px 0 8px; font-size:13px; color:var(--phone-muted); font-weight:600; }
+.world-phone .drink-market__orders h3:first-child { margin-top:2px; }
+.world-phone .drink-market__none { margin:0 0 6px; color:var(--phone-muted); font-size:13px; }
+.world-phone .drink-market__order { display:grid; gap:3px; margin-bottom:8px; padding:12px; border:1px solid var(--phone-border); border-radius:11px; background:#ffffff08; }
+.world-phone .drink-market__order small { color:var(--phone-muted); font-size:12px; }
+.world-phone .drink-market__order-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.world-phone .drink-market__order--history { background:transparent; }
+.world-phone .drink-market__link { justify-self:start; margin-top:6px; padding:8px 12px; border:1px solid var(--phone-border); border-radius:8px; background:#ffffff08; }
+.world-phone .drink-market__empty { display:grid; justify-items:center; gap:12px; padding:70px 0 0; color:var(--phone-muted); }
+.world-phone .drink-market__empty p { margin:0; }
+.world-phone .drink-market__empty button { padding:10px 20px; border:1px solid var(--phone-border); border-radius:999px; background:#ffffff0d; }
+.world-phone .drink-market__cart { position:sticky; bottom:56px; display:grid; gap:8px; padding:10px 2px 8px; background:linear-gradient(to bottom, transparent, var(--phone-bg, #141519) 22%); }
+.world-phone .drink-market__cart-line { display:flex; align-items:center; justify-content:space-between; gap:8px; font-size:13px; }
+.world-phone .drink-market__cart-line button { width:28px; height:28px; border:0; border-radius:50%; background:#ffffff14; }
+.world-phone .drink-market__cart-confirm { padding:12px; border:0; border-radius:10px; background:#d9d2c6; color:#27231d; font-weight:700; }
+.world-phone .drink-market__cart-confirm:disabled { opacity:1; background:#ffffff14; color:var(--phone-muted); }
+.world-phone .drink-market__tabs { position:sticky; bottom:0; display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); background:var(--phone-bg, #141519); border-top:1px solid var(--phone-border); }
+.world-phone .drink-market__tabs button { position:relative; padding:10px; border:0; border-radius:9px; background:transparent; color:var(--phone-muted); font-weight:600; }
+.world-phone .drink-market__tabs button[aria-pressed=true] { background:#ffffff14; color:var(--phone-text); }
+.world-phone .drink-market__tabs i { position:absolute; top:8px; margin-left:4px; width:7px; height:7px; border-radius:50%; background:#d9d2c6; }
+.world-phone .drink-market__sheet-backdrop { position:absolute; inset:0; z-index:5; display:flex; align-items:flex-end; background:#00000080; }
+.world-phone .drink-market__sheet { width:100%; display:grid; gap:12px; padding:16px 14px calc(14px + env(safe-area-inset-bottom, 0px)); border-radius:16px 16px 0 0; background:#1d1e23; border:1px solid var(--phone-border); border-bottom:0; }
+.world-phone .drink-market__sheet p { margin:0; color:var(--phone-muted); font-size:13px; }
+.world-phone .drink-market__sheet-head { display:flex; justify-content:space-between; font-size:16px; }
+.world-phone .drink-market__sheet fieldset { border:0; margin:0; padding:0; display:grid; gap:6px; }
+.world-phone .drink-market__sheet legend { color:var(--phone-muted); font-size:12px; margin-bottom:4px; padding:0; }
+.world-phone .drink-market__sheet fieldset > div { display:flex; gap:7px; }
+.world-phone .drink-market__sheet fieldset button { flex:1 1 0; min-width:0; padding:11px 4px; border:1px solid var(--phone-border); border-radius:9px; background:#ffffff08; }
+.world-phone .drink-market__sheet fieldset button[aria-pressed=true] { background:#d9d2c6; border-color:#d9d2c6; color:#27231d; font-weight:700; }
+.world-phone .drink-market__sheet-add { padding:12px; border:0; border-radius:10px; background:#d9d2c6; color:#27231d; font-weight:700; }
+.world-phone .drink-market__sheet-add:disabled { opacity:1; background:#ffffff14; color:var(--phone-muted); }

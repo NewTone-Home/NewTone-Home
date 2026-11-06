@@ -1,12 +1,17 @@
-import { mainlineStoryTimeLabel, type MainlineStoryClock } from './mainlineStoryClock'
+import { mainlineStoryTimeLabel, mainlineTimeOfDayLabel, type MainlineStoryClock } from './mainlineStoryClock'
 
 // Phone presentation estimates only: neither real geography nor a StoryClock update.
 const tripMinutes: Record<string, number> = { 'commercial:zhongshuyuan': 12, 'commercial:mine': 18, 'mine:zhongshuyuan': 24 }
-export function phoneRideTripEstimate(sourceId: string | undefined, targetId: string | null, clock: MainlineStoryClock) {
+export function phoneRideTripEstimate(sourceId: string | undefined, targetId: string | null, clock: MainlineStoryClock, gameTimeMs?: number) {
   if (!sourceId || !targetId) return null
   const minutes = tripMinutes[[sourceId, targetId].sort().join(':')]
   if (!minutes) return null
-  const [hour, minute] = mainlineStoryTimeLabel(clock.stage).split(':').map(Number)
+  const label = Number.isFinite(gameTimeMs)
+    ? mainlineTimeOfDayLabel(gameTimeMs!)
+    : Number.isInteger(clock.hour) && Number.isInteger(clock.minute)
+      ? `${String(clock.hour).padStart(2, '0')}:${String(clock.minute).padStart(2, '0')}`
+      : mainlineStoryTimeLabel(clock.stage)
+  const [hour, minute] = label.split(':').map(Number)
   const arrival = (hour * 60 + minute + minutes) % (24 * 60)
   return { minutes, arrivalLabel: `${String(Math.floor(arrival / 60)).padStart(2, '0')}:${String(arrival % 60).padStart(2, '0')}` }
 }

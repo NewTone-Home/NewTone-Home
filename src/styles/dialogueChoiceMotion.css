@@ -1,0 +1,2 @@
+/* Shared with live dialogue choices: reuse the exact existing breathing curve. */
+@keyframes dialogue-choice-breathe { 0%, 100% { opacity: .62; } 50% { opacity: 1; } }

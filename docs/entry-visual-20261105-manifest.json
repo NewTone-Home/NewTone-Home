@@ -1,0 +1,173 @@
+{
+  "base": "7d55a84ec1f785e08f25a999e86937647ed37440",
+  "baseTree": "91ba22933caa465ace86959d422485ea7472a4a7",
+  "branch": "fix/entry-visual-20261105",
+  "originalStyleSource": "33ba1d3e570d07505833f9a8a9a136dd8d27104b",
+  "files": {
+    "src/App.jsx": {
+      "beforeSHA256": "0e98962335dd6da0115c7768a80c6abcd7fd858349da288bf6c85f8ec6018284",
+      "afterSHA256": "917921f8e4c957c5f3b1c2740d518b57315dde66d99243614b3608f6a0175dfe"
+    },
+    "src/center/runtime/DialogueChoiceWheel.css": {
+      "beforeSHA256": "1ab7a99c2ddfa61eee1f99ca31eedb05c813688d3aa3af5e4aa9a2be4a642e2c",
+      "afterSHA256": "e1c0cb1aa0a967af99b9ca592716edc6d849d5630e43a56883550e381af04796"
+    },
+    "src/components/SaveEntry.css": {
+      "beforeSHA256": "b3c9d5e11f0e50f19a99f207b2e07e08b7ffde72748370e84d3b409034795acc",
+      "afterSHA256": "aff0ffd9140cff7021d1f1038dd9c1f035175483fff942f36e6be1ae0ed50891"
+    },
+    "src/services/entryPresentation.mjs": {
+      "beforeSHA256": "c60e47e0410a38a11f48fc6a5239f9d00eef5d406a6550573cad1fe9b922acc2",
+      "afterSHA256": "557ea7fc499c3b1cba3ef7d317fd542eb1cbea8ae96c993b64e7bac2f57c720b"
+    },
+    "src/views/Landing.jsx": {
+      "beforeSHA256": "61b1bbcc5ead8ceb524af216e3e001f7a08870748dd5d55a5791033308144ac1",
+      "afterSHA256": "5d952f0b62d406aa0788e2f76826ac4050987609b6c1f1dd50f457faed549c9a"
+    },
+    "src/views/LandingUpdatesEntry.css": {
+      "beforeSHA256": "e9e3eef03c87f6f5c81efbe112e22c78396a6d03e91257af2ffe935dbcc7bfcc",
+      "afterSHA256": "84fddc76407a49f822b97b477dca0c95565885a2fc2672d26aec946f7a351453"
+    },
+    "src/components/SaveEntryMenu.jsx": {
+      "beforeSHA256": null,
+      "afterSHA256": "49b2c6eadded0395c5af1b4876ab8e52591f4b514810eac766c26ede11af3a9a"
+    },
+    "src/services/saveEntryMenuModel.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "f6a3ea2647b485916820e8f5ce5e21f6d187aaeb4f174ee0cb23548fb699115d"
+    },
+    "src/styles/dialogueChoiceMotion.css": {
+      "beforeSHA256": null,
+      "afterSHA256": "c5208d813c31afbcd00ae658d6efd5cd77db6feaaae05629c38e0574c0a4fdb8"
+    },
+    "src/services/saveEntryMenuModel.test.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "11d6d16b1fa0f214381691658d0d131d161fb47eeb5832bba8ea83a71a982eed"
+    },
+    "src/components/SaveEntryMenu.test.jsx": {
+      "beforeSHA256": null,
+      "afterSHA256": "0a44a8795edf13fb59f8249222fa2da8b84a07f37b3523a9cec73ef282b7fc0e"
+    },
+    "e2e/entryVisual.spec.ts": {
+      "beforeSHA256": null,
+      "afterSHA256": "0f82080a5c277eeed3f78d589496778acd5f33643d92fb938c0cc72a815325ed"
+    },
+    "src/components/EntryButtonSurface.jsx": {
+      "beforeSHA256": "6e6c03175af546e590051d32afefeed4a6c4c35985d64651fffecd49c1f90506",
+      "afterSHA256": "da8a48c7557845f13e05c4651991ec13781fd009d2f7e8dac412b3a57a45bb00"
+    },
+    "src/components/SaveEntryMenuVisibility.test.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "9702cc6d3223e730666eceedcddd9c6fc9543c3a4e3cbc803b25eadd3e4a1b19"
+    },
+    "src/components/EntrySurface.css": {
+      "beforeSHA256": "441ae3c922d6649d11126119c3da2cffb8c73013a0cb17c008895f3d4d6dc5ff",
+      "afterSHA256": "44d3a7b329b8051f3c1f422d776443edc952f53cd791bd1928bc2c4457bf0ab4"
+    },
+    "tests/landingUpdatesEntry.test.js": {
+      "beforeSHA256": "f49526b98b06405f2374e2bae403918aa32654c33d4b8074593adbb111b6d1ff",
+      "afterSHA256": "e0dfc0ed5b74a376ec86c7f5906ed5895baaada78262dfd66f3759002f225d98"
+    },
+    "src/services/entryMenuOutsideTap.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "c200020072506b475371b556fc66aa7ecb31b05b11ec8fcf6036de16561ab39b"
+    },
+    "src/services/entryMenuOutsideTap.test.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "290ef4f61b6ad85e09be116703df79d812a0c8376d24ecb60aff89530b416b7e"
+    },
+    "src/components/EntryTextFade.jsx": {
+      "beforeSHA256": null,
+      "afterSHA256": "f1ef9f31f10a00d0d714cee199cccbd9794e89300e303ac74455850b0792e33d"
+    },
+    "src/components/EntryTextFade.css": {
+      "beforeSHA256": null,
+      "afterSHA256": "96c580a85a4c62f5dcd6dbc26270ee65fafbf0a1658b4fff85ba985c982bf178"
+    },
+    "src/services/entryMenuMotion.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "7367d86193b1405139cf2862292884a35b0aef2b76476d8e33a2ed39661a8dfe"
+    },
+    "src/services/entryMenuMotion.test.mjs": {
+      "beforeSHA256": null,
+      "afterSHA256": "6516f7fc52ed682f29f8dde2de002ee612c244c81c9e920c8b8a4845706fe34e"
+    }
+  },
+  "checks": {
+    "gitDiffCheck": "passed",
+    "mjsSyntax": "passed",
+    "jsxTsParseOnly": "7 files passed; no emit",
+    "tests": "27 targeted passed; full suite not run",
+    "typecheck": "passed",
+    "build": "not run",
+    "browser": "not run"
+  },
+  "screenshot": {
+    "libraryId": "libfile_bca4384a52788191bcbf571d8861ceea",
+    "viewed": false,
+    "materializationBlock": "Windows helper os.setxattr unavailable; not bypassed"
+  },
+  "aggregateSHA256": "1e7cd0f628a2fefae2ec0f5eb7e5de985482443dbdcedd7ef33d8cc51088f3db",
+  "testReview": {
+    "productUnchangedFrom": "053e64081aa5915e34112921290eadee1dfcf716",
+    "testRun": false,
+    "reviewNote": "docs/entry-visual-test-review-20261105.md",
+    "noteSHA256": "e437e85ea7b290470cfa3efc8649864d1e1217bb9bf1924764372e95806db275",
+    "appliesTo": "9bbdfd8ab4963989a44f706139e15971a9fedd99; historical test-only revision"
+  },
+  "presentationRevision": {
+    "parent": "9bbdfd8ab4963989a44f706139e15971a9fedd99",
+    "requirement": "Keep the exact Start surface mounted in place while choices and confirmation appear below.",
+    "handoff": "docs/entry-start-retained-20261105.md"
+  },
+  "visibilityFix": {
+    "parent": "8a157f6d1733614b5d116566e05dddcaa266bc8c",
+    "scope": "explicit visible=true at Start call site only; shared default unchanged",
+    "test": "src/components/SaveEntryMenuVisibility.test.mjs",
+    "testsRun": false
+  },
+  "shortEntryScroll": {
+    "parent": "b456ce65e9c824be6ad1e23e59b2b4c9eb6466dc",
+    "scope": "max-width560px and max-height720px; world idle plus updates landing only",
+    "testsRun": false
+  },
+  "announcementReturnTestFix": {
+    "base": "f5b7be09e92675ecfe578806afc4f216e11e1e50",
+    "productDirectory": "src/",
+    "baseProductGitTree": "252d4f2f4aae3e462e81072c443479152d9e0426",
+    "filesCompared": 376,
+    "rawBytesBeforeAfterEqual": true,
+    "rawSourceFilesAggregateSHA256": "2d0eb24611eb582a0ee9434644e276e62e22c3c7531d794f3bec7be5eabbccac",
+    "gitProductDiff": "empty",
+    "scope": "test-only; no rebuild or browser run"
+  },
+  "dismissRevision": {
+    "parent": "7b0dc2d84288307e5a4ecae9e4d9b9234d76ec67",
+    "scope": "local presentation only; no preview/server/publication action",
+    "testsRun": false
+  },
+  "outsidePathFix": {
+    "parent": "41f85eb4bee583ef0b6d04c91e67fbe522b32e25",
+    "scope": "sticky same-pointer movement threshold; no other UI or save change",
+    "testsRun": false
+  },
+  "fadeLoadingRevision": {
+    "parent": "8cf9679682790372e30eb063a27c4b15abf7e327",
+    "scope": "local UI exit and retained frame caption handoff only",
+    "motionInvariantAssertions": 6,
+    "browserTestsRun": false,
+    "buildRun": false
+  },
+  "optionalCaptionCallbackFix": {
+    "parent": "10947c2ea331a14822862374cd797c014d4e2eae",
+    "sourceDiff": "onTextSettled -> onTextSettled = undefined",
+    "typecheck": "passed",
+    "targetedTests": "4 files / 27 passed",
+    "logs": {
+      "typecheck.log": "97acba52be37513654b2e861adb115862633bc093a2d3e45da34113b6e41df11",
+      "regression-approved.log": "3b7d83ebed9017e4db6f2fc85b66f305545842451d6c36e0fd00ad024bac500d"
+    },
+    "buildRun": false,
+    "browserRun": false
+  }
+}

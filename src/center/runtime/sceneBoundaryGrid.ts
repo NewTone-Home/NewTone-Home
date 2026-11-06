@@ -12,18 +12,28 @@ export type BoundaryGridCell = {
 }
 
 /**
- * The stage is authored in percentage coordinates, but glyph spacing is a
- * physical screen concern. Keep one spacing source and project it onto the
- * stage's two dimensions instead of authoring independent x/y steps.
+ * The mainline world is authored against one 1920×1080 reference. Viewport
+ * projection scales its fixed text, lattice and frames together. The legacy
+ * screen-spacing helper remains available to non-world callers.
  */
 export type SceneScreenMetrics = {
   width: number
   height: number
-  /** Viewport-based storefront typography; stage percentages still use width/height. */
+  /** Legacy viewport metadata; mainline world typography uses a fixed reference. */
   viewportWidth?: number
 }
 
+export const mainlineWorldFontSizePx = 16
 export const sharedBoundaryScreenSpacingPx = 28
+/** Shared vertical inset used by framed narrow walking passages. */
+export const sharedNarrowPassageWalkInset = 1.4
+export const sharedFurnitureGlyphSpacingPx = 16
+/** Logical scene authoring reference. Distances are CSS px at 1:1. */
+export const sceneDesignReferenceMetrics: SceneScreenMetrics = { width: 1920, height: 1080 }
+export const sharedNarrowPassageFrameIntervals = 4
+export const sharedNarrowPassageFrameHeight = sharedBoundaryScreenSpacingPx / sceneDesignReferenceMetrics.height * 100 * sharedNarrowPassageFrameIntervals
+export const sharedNarrowPassageWalkHeight = sharedNarrowPassageFrameHeight - 2 * sharedNarrowPassageWalkInset
+/** Existing runtime fallback metrics remain separate from authored design scale. */
 export const defaultSceneScreenMetrics: SceneScreenMetrics = { width: 1280, height: 720 }
 
 function positiveScreenDimension(value: number, fallback: number) {
@@ -37,6 +47,20 @@ export function boundaryGridStepsFromScreenSpacing(
   const spacing = positiveScreenDimension(screenSpacingPx, sharedBoundaryScreenSpacingPx)
   const width = positiveScreenDimension(metrics.width, defaultSceneScreenMetrics.width)
   const height = positiveScreenDimension(metrics.height, defaultSceneScreenMetrics.height)
+  return {
+    horizontal: Number(((spacing / width) * 100).toFixed(4)),
+    vertical: Number(((spacing / height) * 100).toFixed(4)),
+  }
+}
+
+/** Convert a design-reference CSS-pixel distance to logical stage percentages. */
+export function boundaryGridStepsFromReferenceSpacing(
+  referenceSpacingPx = sharedBoundaryScreenSpacingPx,
+  reference: SceneScreenMetrics = sceneDesignReferenceMetrics,
+) {
+  const spacing = positiveScreenDimension(referenceSpacingPx, sharedBoundaryScreenSpacingPx)
+  const width = positiveScreenDimension(reference.width, sceneDesignReferenceMetrics.width)
+  const height = positiveScreenDimension(reference.height, sceneDesignReferenceMetrics.height)
   return {
     horizontal: Number(((spacing / width) * 100).toFixed(4)),
     vertical: Number(((spacing / height) * 100).toFixed(4)),
@@ -78,6 +102,13 @@ export function fixedBoundaryGridCoordinates(start: number, end: number, cellCou
   return Array.from({ length: count }, (_, index) => (
     index === 0 ? start : index === count - 1 ? end : Number((start + step * index).toFixed(3))
   ))
+}
+
+/** A true shared lattice: no endpoint fitting, rounding or compressed tail. */
+export function latticeBoundaryGridCoordinates(start: number, end: number, origin: number, step: number): number[] {
+  const first=Math.round((start-origin)/step), last=Math.round((end-origin)/step)
+  if(!(step>0)||last<=first||Math.abs(origin+first*step-start)>.000001||Math.abs(origin+last*step-end)>.000001)throw new Error('Boundary endpoints do not belong to the declared world grid')
+  return Array.from({length:last-first+1},(_,index)=>origin+(first+index)*step)
 }
 
 export function boundaryGridCells(start: number, end: number, targetStep: number): BoundaryGridCell[] {
@@ -233,6 +264,7 @@ export type SharedBoundaryFrameEdge = {
   /** Use each fixed cell's owned interval for geometry instead of anchor spans. */
   geometrySource?: 'anchor' | 'cell-range'
   coordinateCount?: number
+  grid?: { origin: number; step: number }
   baselineEvery?: number
   visualEndpoints?: { start?: 'omit'; end?: 'omit' }
   openings?: readonly SharedBoundaryOpening[]
@@ -260,6 +292,7 @@ export type SharedBoundaryCell = SpatialLabel & {
   cellStart: number
   cellEnd: number
   featureCellRole?: 'content' | 'flank'
+  baselineGlyph?: string
   doorLabelPart?: string
 }
 
@@ -612,7 +645,9 @@ function compileSharedFrameEdge(
   replacementClaims: Map<string, string>,
 ): SharedBoundaryFrameEdgeCompilation {
   const axisStart = sharedBoundaryAxisStart(edge)
-  const coordinates = edge.coordinateCount
+  const coordinates = edge.grid
+    ? latticeBoundaryGridCoordinates(axisStart,axisStart+edge.length,edge.grid.origin,edge.grid.step)
+    : edge.coordinateCount
     ? fixedBoundaryGridCoordinates(axisStart, axisStart + edge.length, edge.coordinateCount)
     : boundaryGridCoordinates(axisStart, axisStart + edge.length, frame.steps[edge.orientation])
   const openings = [...(edge.openings ?? [])]
@@ -701,7 +736,8 @@ function compileSharedFrameEdge(
         layoutOrientation: edge.orientation,
         glyphOrientation: 'horizontal',
         glyph: featureSlot.glyph,
-        ...(featureSlot.featureCellRole === 'content' && featureSlot.feature.interactionId
+        baselineGlyph: '\u5899',
+        ...(featureSlot.feature.interactionId
           ? { interactionId: featureSlot.feature.interactionId }
           : {}),
         frameId: frame.id,

@@ -20,19 +20,16 @@ describe('Landing updates entry', () => {
     expect(landing).not.toContain('onTouchMove')
     expect(landingCss).not.toContain('landing-guide-arrow')
     expect(landingCss).not.toContain('landing-title:hover')
-    expect(landing).toContain('window.requestAnimationFrame(() => { begin() })')
+    expect(landing).toContain('if (!inspectionSettled || returnArrival')
+    expect(landing).toContain("begin({ markIntroComplete: introPreviewState === 'not-learned' })")
     expect(landing).toContain('landingLeaveRetractStartedRef')
     expect(landing).toContain('const duration = reducedMotion || motionMode === \'reduced\'')
     expect(landing).toContain('Math.max(0, leavingMs - LANDING_LEAVE_FADE_DELAY_MS)')
     expect(landing).toContain('retract({ duration })')
   })
 
-  it('shows the compact-world device note below the entry group', () => {
-    expect(landing).toContain('当前仍处于开发阶段，电脑或 iPad 体验更佳')
-    expect(landing).toContain('className="landing-device-hint"')
-    expect(landingCss).toContain('@media (max-width: 640px)')
-    expect(landingCss).toContain('.landing-device-hint[data-world-mode="true"]')
-    expect(landingCss).toContain('landing-device-hint-breath')
+  it('does not render the retired desktop/iPad development note', () => {
+    expect(landing).not.toContain('className="landing-device-hint"')
   })
 
   it('keeps Updates and Reader entries in one shared click group', () => {

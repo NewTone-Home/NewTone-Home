@@ -11,17 +11,29 @@ const dependencies = {
 }
 
 describe('Chapter Two commercial analytics contract', () => {
+  it('accepts the final three-character storefront names emitted by the restored commercial street', () => {
+    const labels = [
+      '\u679c\u8336\u5e97', '\u6587\u521b\u5e97', '\u7f8e\u5986\u5e97', '\u773c\u955c\u5e97', '\u73a9\u5177\u5e97', '\u9999\u6c1b\u5e97', '\u5496\u5561\u9986',
+      '\u6f6e\u724c\u5e97', '\u5feb\u9910\u5e97', '\u670d\u88c5\u5e97', '\u5976\u8336\u5e97', '\u751c\u54c1\u5e97', '\u73e0\u5b9d\u5e97',
+    ]
+    const events = labels.map((storeType, index) => buildAnalyticsEvent('commercial_storefront_interacted', {
+      sceneId: 'commercial-street',
+      eventData: { slotId: 'commercial-north-slot-2', storeType },
+    }, { ...dependencies, clientEventId: `00000000-0000-0000-0000-${String(index + 1).padStart(12, '0')}` }))
+    expect(events.map(event => event?.event_data.storeType)).toEqual(labels)
+  })
+
   it('keeps milk-tea order data structured and rejects arbitrary payload text', () => {
     const confirmed = buildAnalyticsEvent('milk_tea_order_confirmed', {
       sceneId: 'commercial-street',
       eventData: { drink: '芋泥奶茶', sugar: '少糖', ice: '去冰', orderNumber: 37, queueAheadAtOrder: 4 },
     }, dependencies)
-    expect(confirmed?.event_data).toEqual({ drink: '芋泥奶茶', sugar: '少糖', ice: '去冰', orderNumber: 37, queueAheadAtOrder: 4 })
+    expect(confirmed?.event_data).toEqual({ release: '0.3.0', environment: 'development', drink: '芋泥奶茶', sugar: '少糖', ice: '去冰', orderNumber: 37, queueAheadAtOrder: 4 })
 
     const rejected = buildAnalyticsEvent('milk_tea_order_confirmed', {
       eventData: { drink: '任意输入', sugar: '少糖', ice: '去冰', orderNumber: 37, queueAheadAtOrder: 4, freeText: '不要记录我写的内容' },
     }, { ...dependencies, clientEventId: '00000000-0000-0000-0000-000000000004' })
-    expect(rejected?.event_data).toEqual({})
+    expect(rejected?.event_data).toEqual({ release: '0.3.0', environment: 'development' })
   })
 
   it('aligns all Chapter Two event names between the client, Center owners, and repo-local migration', () => {

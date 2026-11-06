@@ -1,6 +1,8 @@
 import { createPoint, type CollisionBox, type NavigationBarrierSegment, type Point } from './sceneGeometry'
 
 export type PolygonNavigationOptions = {
+  /** Route-only meshes defer free-cell topology until projection is requested. */
+  deferTopology?: boolean
   /** The actor-clear walkable rectangle, before obstacle clearance is applied. */
   bounds: CollisionBox
   /** Raw static collision boxes from the shared scene contract. */
@@ -147,7 +149,17 @@ export function navigationBarriersAllowTravel(
 }
 
 function uniqueSorted(values: number[]) {
-  return [...new Set(values.map((value) => Number(value.toFixed(4))))].sort((first, second) => first - second)
+  const sorted = [...new Set(values.map((value) => Number(value.toFixed(4))))].sort((first, second) => first - second)
+  const normalized: number[] = []
+  for (const value of sorted) {
+    const previous = normalized.at(-1)
+    // The cell builder discards widths at or below epsilon. Merge those
+    // rounded boundaries first so their neighboring cells use one edge key
+    // instead of leaving a topological gap where the sliver was skipped.
+    if (previous !== undefined && value - previous <= epsilon) continue
+    normalized.push(value)
+  }
+  return normalized
 }
 
 function clippedObstacle(box: CollisionBox, bounds: CollisionBox, inset: { x: number; y: number }): CollisionBox | null {
@@ -223,26 +235,49 @@ function connectEdgeGroups(
   }
 }
 
+// A conservative broad phase: it only removes boxes outside the segment AABB.
+// The original open-interior slab test below still decides every candidate.
+type ObstacleTree = { bounds: CollisionBox; boxes?: readonly CollisionBox[]; left?: ObstacleTree; right?: ObstacleTree }
+const obstacleTrees = new WeakMap<readonly CollisionBox[], ObstacleTree>()
+function obstacleTree(boxes: readonly CollisionBox[]): ObstacleTree {
+  const left = Math.min(...boxes.map(box => box.x)), top = Math.min(...boxes.map(box => box.y))
+  const right = Math.max(...boxes.map(box => box.x + box.width)), bottom = Math.max(...boxes.map(box => box.y + box.height))
+  const bounds = { x: left, y: top, width: right - left, height: bottom - top }
+  if (boxes.length <= 8) return { bounds, boxes }
+  const axis = bounds.width >= bounds.height ? 'x' : 'y'
+  const ordered = [...boxes].sort((a, b) => a[axis] - b[axis])
+  const middle = Math.floor(ordered.length / 2)
+  return { bounds, left: obstacleTree(ordered.slice(0, middle)), right: obstacleTree(ordered.slice(middle)) }
+}
 function segmentCrossesInterior(start: Point, end: Point, box: CollisionBox) {
-  let entry = 0
-  let exit = 1
-  const axes = [
-    [start.x, end.x, box.x, box.x + box.width],
-    [start.y, end.y, box.y, box.y + box.height],
-  ] as const
-  for (const [startValue, endValue, minimum, maximum] of axes) {
-    const delta = endValue - startValue
-    if (Math.abs(delta) <= epsilon) {
-      if (startValue <= minimum + epsilon || startValue >= maximum - epsilon) return false
-      continue
-    }
-    const first = (minimum - startValue) / delta
-    const second = (maximum - startValue) / delta
-    entry = Math.max(entry, Math.min(first, second))
-    exit = Math.min(exit, Math.max(first, second))
+  // Reject disjoint boxes before divisions, without allocating axis arrays in
+  // the graph's innermost pair loop. Equality remains a candidate.
+  if (Math.max(start.x, end.x) < box.x || Math.min(start.x, end.x) > box.x + box.width
+    || Math.max(start.y, end.y) < box.y || Math.min(start.y, end.y) > box.y + box.height) return false
+  let entry = 0, exit = 1
+  const dx = end.x - start.x, dy = end.y - start.y
+  if (Math.abs(dx) <= epsilon) {
+    if (start.x <= box.x + epsilon || start.x >= box.x + box.width - epsilon) return false
+  } else {
+    const first = (box.x - start.x) / dx, second = (box.x + box.width - start.x) / dx
+    entry = Math.max(entry, Math.min(first, second)); exit = Math.min(exit, Math.max(first, second))
+    if (entry >= exit - epsilon) return false
+  }
+  if (Math.abs(dy) <= epsilon) {
+    if (start.y <= box.y + epsilon || start.y >= box.y + box.height - epsilon) return false
+  } else {
+    const first = (box.y - start.y) / dy, second = (box.y + box.height - start.y) / dy
+    entry = Math.max(entry, Math.min(first, second)); exit = Math.min(exit, Math.max(first, second))
     if (entry >= exit - epsilon) return false
   }
   return entry < 1 - epsilon && exit > epsilon && entry < exit - epsilon
+}
+function treeBlocksSegment(tree: ObstacleTree, start: Point, end: Point): boolean {
+  const box = tree.bounds
+  if (Math.max(start.x, end.x) < box.x || Math.min(start.x, end.x) > box.x + box.width
+    || Math.max(start.y, end.y) < box.y || Math.min(start.y, end.y) > box.y + box.height) return false
+  if (tree.boxes) return tree.boxes.some(box => segmentCrossesInterior(start, end, box))
+  return treeBlocksSegment(tree.left!, start, end) || treeBlocksSegment(tree.right!, start, end)
 }
 
 function segmentIsClear(
@@ -252,7 +287,9 @@ function segmentIsClear(
   barriers: readonly NavigationBarrierSegment[] = [],
   footprint: { width: number; height: number } = { width: 0, height: 0 },
 ) {
-  return obstacles.every((obstacle) => !segmentCrossesInterior(start, end, obstacle))
+  let tree = obstacleTrees.get(obstacles)
+  if (!tree && obstacles.length) { tree = obstacleTree(obstacles); obstacleTrees.set(obstacles, tree) }
+  return (!tree || !treeBlocksSegment(tree, start, end))
     && navigationBarriersAllowTravel(start, end, barriers, footprint)
 }
 
@@ -308,54 +345,63 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     height: (options.obstacleInset?.y ?? 0) * 2,
   }
 
-  const xLines = uniqueSorted([
-    bounds.x,
-    bounds.x + bounds.width,
-    ...obstacles.flatMap((obstacle) => [obstacle.x, obstacle.x + obstacle.width]),
-    ...barriers.flatMap((barrier) => [barrier.start.x, barrier.end.x]),
-  ]).filter((value) => value >= bounds.x - epsilon && value <= bounds.x + bounds.width + epsilon)
-  const yLines = uniqueSorted([
-    bounds.y,
-    bounds.y + bounds.height,
-    ...obstacles.flatMap((obstacle) => [obstacle.y, obstacle.y + obstacle.height]),
-    ...barriers.flatMap((barrier) => [barrier.start.y, barrier.end.y]),
-  ]).filter((value) => value >= bounds.y - epsilon && value <= bounds.y + bounds.height + epsilon)
-
   const cells: FreeCell[] = []
-  for (let xIndex = 0; xIndex < xLines.length - 1; xIndex += 1) {
-    for (let yIndex = 0; yIndex < yLines.length - 1; yIndex += 1) {
-      const left = xLines[xIndex]!
-      const right = xLines[xIndex + 1]!
-      const top = yLines[yIndex]!
-      const bottom = yLines[yIndex + 1]!
-      if (right - left <= epsilon || bottom - top <= epsilon) continue
-      const cell: CollisionBox = { x: left, y: top, width: right - left, height: bottom - top }
-      const center = { x: (left + right) / 2, y: (top + bottom) / 2 }
-      if (obstacles.some((obstacle) => containsPoint(obstacle, center) || overlaps(cell, obstacle))) continue
-      cells.push({ ...cell, index: cells.length })
-    }
-  }
-
-  const verticalEdges = new Map<string, CellEdge[]>()
-  const horizontalEdges = new Map<string, CellEdge[]>()
-  const addEdge = (map: Map<string, CellEdge[]>, coordinate: number, start: number, end: number, cell: number) => {
-    const key = coordinate.toFixed(4)
-    const group = map.get(key) ?? []
-    group.push({ cell, start, end })
-    map.set(key, group)
-  }
-  cells.forEach((cell) => {
-    addEdge(verticalEdges, cell.x, cell.y, cell.y + cell.height, cell.index)
-    addEdge(verticalEdges, cell.x + cell.width, cell.y, cell.y + cell.height, cell.index)
-    addEdge(horizontalEdges, cell.y, cell.x, cell.x + cell.width, cell.index)
-    addEdge(horizontalEdges, cell.y + cell.height, cell.x, cell.x + cell.width, cell.index)
-  })
   const links = new Map<number, CellLink[]>()
-  connectEdgeGroups(verticalEdges, cells, links, obstacles, barriers, actorFootprint)
-  connectEdgeGroups(horizontalEdges, cells, links, obstacles, barriers, actorFootprint)
+  let topologyReady = false
+  const ensureTopology = () => {
+    if (topologyReady) return
+    const xLines = uniqueSorted([
+      bounds.x,
+      bounds.x + bounds.width,
+      ...obstacles.flatMap((obstacle) => [obstacle.x, obstacle.x + obstacle.width]),
+      ...barriers.flatMap((barrier) => [barrier.start.x, barrier.end.x]),
+    ]).filter((value) => value >= bounds.x - epsilon && value <= bounds.x + bounds.width + epsilon)
+    const yLines = uniqueSorted([
+      bounds.y,
+      bounds.y + bounds.height,
+      ...obstacles.flatMap((obstacle) => [obstacle.y, obstacle.y + obstacle.height]),
+      ...barriers.flatMap((barrier) => [barrier.start.y, barrier.end.y]),
+    ]).filter((value) => value >= bounds.y - epsilon && value <= bounds.y + bounds.height + epsilon)
 
-  const cellContaining = (point: Point) => cells.find((cell) => containsPoint(cell, point))
+    for (let xIndex = 0; xIndex < xLines.length - 1; xIndex += 1) {
+      for (let yIndex = 0; yIndex < yLines.length - 1; yIndex += 1) {
+        const left = xLines[xIndex]!
+        const right = xLines[xIndex + 1]!
+        const top = yLines[yIndex]!
+        const bottom = yLines[yIndex + 1]!
+        if (right - left <= epsilon || bottom - top <= epsilon) continue
+        const cell: CollisionBox = { x: left, y: top, width: right - left, height: bottom - top }
+        const center = { x: (left + right) / 2, y: (top + bottom) / 2 }
+        if (obstacles.some((obstacle) => containsPoint(obstacle, center) || overlaps(cell, obstacle))) continue
+        cells.push({ ...cell, index: cells.length })
+      }
+    }
+
+    const verticalEdges = new Map<string, CellEdge[]>()
+    const horizontalEdges = new Map<string, CellEdge[]>()
+    const addEdge = (map: Map<string, CellEdge[]>, coordinate: number, start: number, end: number, cell: number) => {
+      const key = coordinate.toFixed(4)
+      const group = map.get(key) ?? []
+      group.push({ cell, start, end })
+      map.set(key, group)
+    }
+    cells.forEach((cell) => {
+      addEdge(verticalEdges, cell.x, cell.y, cell.y + cell.height, cell.index)
+      addEdge(verticalEdges, cell.x + cell.width, cell.y, cell.y + cell.height, cell.index)
+      addEdge(horizontalEdges, cell.y, cell.x, cell.x + cell.width, cell.index)
+      addEdge(horizontalEdges, cell.y + cell.height, cell.x, cell.x + cell.width, cell.index)
+    })
+    connectEdgeGroups(verticalEdges, cells, links, obstacles, barriers, actorFootprint)
+    connectEdgeGroups(horizontalEdges, cells, links, obstacles, barriers, actorFootprint)
+    topologyReady = true
+  }
+  // findPath uses visibility only. World projection still builds topology
+  // eagerly by default; deferred meshes build the exact same graph on demand.
+  if (!options.deferTopology) ensureTopology()
+
+  const cellContaining = (point: Point) => { ensureTopology(); return cells.find((cell) => containsPoint(cell, point)) }
   const nearestPoint = (point: Point): Point | null => {
+    ensureTopology()
     let closest: Point | null = null
     let closestDistance = Infinity
     for (const cell of cells) {
@@ -441,32 +487,29 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
     && obstacles.every((obstacle) => !containsPoint(obstacle, node))
   ))
   const staticVisibilityDistances = staticVisibilityNodes.map(() => new Map<number, number>())
-  let visibilityGraphReady = false
-  const ensureVisibilityGraph = () => {
-    if (visibilityGraphReady) return
-    visibilityGraphReady = true
-    staticVisibilityNodes.forEach((node, nodeIndex) => {
-      for (let candidateIndex = nodeIndex + 1; candidateIndex < staticVisibilityNodes.length; candidateIndex += 1) {
-        const candidate = staticVisibilityNodes[candidateIndex]!
-        if (!segmentIsClear(node, candidate, obstacles, barriers, actorFootprint)) continue
-        const distance = pointDistance(node, candidate)
-        staticVisibilityDistances[nodeIndex]!.set(candidateIndex, distance)
-        staticVisibilityDistances[candidateIndex]!.set(nodeIndex, distance)
-      }
-    })
+  const visibilityNeighborsReady = new Set<number>()
+  const ensureVisibilityNeighbors = (nodeIndex: number) => {
+    if (visibilityNeighborsReady.has(nodeIndex)) return
+    const node = staticVisibilityNodes[nodeIndex]!
+    for (let candidateIndex = 0; candidateIndex < staticVisibilityNodes.length; candidateIndex += 1) {
+      // A completed opposite row already tested this undirected edge, even
+      // when blocked. Retain both legal and blocked results without another
+      // scene-wide all-pairs build on the first route.
+      if (candidateIndex === nodeIndex || visibilityNeighborsReady.has(candidateIndex)) continue
+      const candidate = staticVisibilityNodes[candidateIndex]!
+      if (!segmentIsClear(node, candidate, obstacles, barriers, actorFootprint)) continue
+      const distance = pointDistance(node, candidate)
+      staticVisibilityDistances[nodeIndex]!.set(candidateIndex, distance)
+      staticVisibilityDistances[candidateIndex]!.set(nodeIndex, distance)
+    }
+    visibilityNeighborsReady.add(nodeIndex)
   }
 
   const findPathToGoal = (start: Point, goal: Point): Point[] | null => {
     if (segmentIsClear(start, goal, obstacles, barriers, actorFootprint)) return [start, goal]
-    ensureVisibilityGraph()
 
     const visibilityNodes = [start, goal, ...staticVisibilityNodes]
     const visibilityDistances = visibilityNodes.map(() => new Map<number, number>())
-    staticVisibilityDistances.forEach((links, nodeIndex) => {
-      links.forEach((distance, candidateIndex) => {
-        visibilityDistances[nodeIndex + 2]!.set(candidateIndex + 2, distance)
-      })
-    })
     for (let dynamicIndex = 0; dynamicIndex < 2; dynamicIndex += 1) {
       const node = visibilityNodes[dynamicIndex]!
       for (let candidateIndex = dynamicIndex + 1; candidateIndex < visibilityNodes.length; candidateIndex += 1) {
@@ -485,10 +528,19 @@ export function createPolygonNavigationMesh(options: PolygonNavigationOptions): 
       let current = -1
       for (let index = 0; index < visibilityCost.length; index += 1) {
         if (visited.has(index) || visibilityCost[index] === Infinity) continue
-        if (current < 0 || visibilityCost[index]! < visibilityCost[current]!) current = index
+        // Euclidean distance is a consistent lower bound for these Euclidean
+        // visibility edges: A* preserves shortest legal routes while avoiding
+        // expansion (and neighbor construction) of unrelated stores.
+        if (current < 0 || visibilityCost[index]! + pointDistance(visibilityNodes[index]!, goal)
+          < visibilityCost[current]! + pointDistance(visibilityNodes[current]!, goal)) current = index
       }
       if (current < 0) break
+      if (current === 1) break
       visited.add(current)
+      if (current >= 2) {
+        ensureVisibilityNeighbors(current - 2)
+        staticVisibilityDistances[current - 2]!.forEach((distance, candidate) => visibilityDistances[current]!.set(candidate + 2, distance))
+      }
       for (const [candidate, edgeCost] of visibilityDistances[current]!) {
         const nextCost = visibilityCost[current]! + edgeCost
         if (nextCost < visibilityCost[candidate]!) {

@@ -1,9 +1,10 @@
 import { isMainlineExternalExitTriggered } from './mainlineExternalExit'
-import { mainlineScenes, type MainlineSceneId } from './mainlineScenes'
+import { mainlineScenes, type MainlineSceneDefinition, type MainlineSceneId } from './mainlineScenes'
 import { canActorReachPassageApproach, findMainlinePath } from './mainlineNavigation'
 import { createMainlineSceneGeometrySnapshot } from './mainlineSceneGeometrySnapshot'
 import { type SceneScreenMetrics } from './sceneBoundaryGrid'
 import { movementDurationMsForPath, protagonistCharacterMovementOptions } from './useFreeRoamMovement'
+import { pointInStorefrontRoom, storefrontRoomConnection } from './storefrontRoomConnection'
 import type { Point } from './sceneGeometry'
 import type { SceneLayout } from './sceneLayout'
 import type { PlayerSceneState } from './playerSave'
@@ -52,26 +53,55 @@ export function mainlineRideAtPickup(order: MainlineRideOrder, sceneId: Mainline
 export function mainlineRideWalkingEtaMs(sceneId: MainlineSceneId, position: Point, context: MainlineRideWalkingContext): number | null {
   const zone = mainlineRideZone(sceneId)
   if (!zone) return null
-  let currentSceneId = sceneId
+  // `commercial-cafe` is a compatibility alias for the continuous street.
+  // Normalize it before walking the ride graph: there is no longer a
+  // cross-scene Cafe passage to traverse from that alias.
+  let currentSceneId: MainlineSceneId = sceneId === 'commercial-cafe' ? 'commercial-street' : sceneId
   let start = context.walkingStart ?? position
   let duration = 0
   const visited = new Set<MainlineSceneId>()
   while (!visited.has(currentSceneId)) {
     visited.add(currentSceneId)
-    const scene = mainlineScenes[currentSceneId]
+    const scene: MainlineSceneDefinition = mainlineScenes[currentSceneId]
     const layout = currentSceneId === sceneId ? context.layout : {}
     const geometrySnapshot = createMainlineSceneGeometrySnapshot(scene, start, layout, context.screenMetrics)
-    const options = { geometrySnapshot, screenMetrics: context.screenMetrics, actorId: 'protagonist', openPassageIds: new Set(scene.passages.filter(p => p.access === 'open').map(p => p.id)) }
+    const options = { geometrySnapshot, screenMetrics: context.screenMetrics, actorId: 'protagonist', openPassageIds: new Set<string>(scene.passages.filter(p => p.access === 'open').map(p => p.id)) }
     const movement = { ...protagonistCharacterMovementOptions(context.screenMetrics), preserveNavigationRoute: true }
     if (currentSceneId === zone.pickupSceneId) {
-      const durations = mainlineRidePickupPositions(currentSceneId).map(pickup => {
+      const pickupPositions = mainlineRidePickupPositions(currentSceneId)
+      const directDurations = pickupPositions.map(pickup => {
         const path = findMainlinePath(start, pickup, scene, layout, options)
         return path ? movementDurationMsForPath(path, start, movement) : Infinity
       })
-      const shortest = Math.min(...durations)
-      return Number.isFinite(shortest) ? duration + shortest : null
+      const shortestDirect = Math.min(...directDurations)
+      if (Number.isFinite(shortestDirect)) return duration + shortestDirect
+
+      // Same-world shop rooms use an explicit route-through passage. The path
+      // finder plans each side separately, so bridge the two legal doorway
+      // contacts instead of treating the shop interior and street as one
+      // unobstructed polygon.
+      for (const storefront of scene.storefronts) {
+        const connection = storefrontRoomConnection(scene, storefront)
+        if (!connection || !pointInStorefrontRoom(start, connection.interiorRoom)) continue
+        const { passage, interiorRoom, publicRoom } = connection
+        if (passage.access !== 'open' || !options.openPassageIds.has(passage.id)) continue
+        const interiorContact = passage.crossingTargets.find(point => pointInStorefrontRoom(point, interiorRoom))
+        const publicContact = passage.crossingTargets.find(point => pointInStorefrontRoom(point, publicRoom))
+        if (!interiorContact || !publicContact) continue
+        const insidePath = findMainlinePath(start, interiorContact, scene, layout, options)
+        if (!insidePath) continue
+        const outsideDurations = pickupPositions.map(pickup => {
+          const outsidePath = findMainlinePath(publicContact, pickup, scene, layout, options)
+          if (!outsidePath) return Infinity
+          return movementDurationMsForPath(insidePath, start, movement)
+            + movementDurationMsForPath(outsidePath, publicContact, movement)
+        })
+        const shortest = Math.min(...outsideDurations)
+        return Number.isFinite(shortest) ? duration + shortest : null
+      }
+      return null
     }
-    const exit = scene.passages.find(p => p.targetSceneId && zone.scenes.includes(p.targetSceneId))
+    const exit: MainlineSceneDefinition['passages'][number] | undefined = scene.passages.find(p => p.targetSceneId && zone.scenes.includes(p.targetSceneId))
     if (!exit?.targetSceneId) return null
     const approach = canActorReachPassageApproach(scene, exit, start, layout, options)
     if (!approach) return null

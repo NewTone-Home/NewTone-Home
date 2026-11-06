@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { recordRuntimeAudit } from '../services/runtimeAudit'
 import EntryButtonFrame, { FILL_DIRECTIONS, FRAME_ORIGINS } from './EntryButtonFrame'
 import EntryTextFlip from './EntryTextFlip'
-import { ENTRY_BUTTON_TIMINGS, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'
+import EntryTextFade from './EntryTextFade'
+import { ENTRY_BUTTON_TIMINGS, createEntryExitSteps, createEntryProgress, useEntryButtonTimeline } from './entryButtonTimeline'
 import './EntryButtonSurface.css'
 
 function randomItem(items) {
@@ -31,15 +32,21 @@ function EntryButtonSurface({
   materialMode = 'background',
   worldLayer = 'surface',
   entryId = 'entry',
+  actionScopeId,
   label,
   ariaLabel = label,
   className = '',
   contentSized = false,
   disabled = false,
+  retainOnAction = false,
+  textTransition = 'flip',
+  textMotionReduced = false,
+  onTextSettled = undefined,
   controlledProgress = null,
   dataAttributes = {},
   onActionStart,
   onActionComplete,
+  onExitComplete,
 }) {
   const [phase, setPhase] = useState('hidden')
   const [variant, setVariant] = useState(() => ({
@@ -57,10 +64,12 @@ function EntryButtonSurface({
   const inputTypeRef = useRef('programmatic')
   const onActionStartRef = useRef(onActionStart)
   const onActionCompleteRef = useRef(onActionComplete)
+  const onExitCompleteRef = useRef(onExitComplete)
 
   mobileRef.current = mobile
   onActionStartRef.current = onActionStart
   onActionCompleteRef.current = onActionComplete
+  onExitCompleteRef.current = onExitComplete
 
   const auditFields = useCallback((extra = {}) => ({
     entryId,
@@ -141,15 +150,12 @@ function EntryButtonSurface({
     entryCompleteRef.current = false
     actionModeRef.current = mode
     setPhaseValue('exiting')
-    runTimeline([
-      { key: 'text', to: 0, duration: ENTRY_BUTTON_TIMINGS.textExit },
-      { key: 'fill', to: 0, duration: ENTRY_BUTTON_TIMINGS.fillClose },
-      { key: 'frame', to: 0, duration: ENTRY_BUTTON_TIMINGS.frameExit },
-    ], () => {
+    runTimeline(createEntryExitSteps(), () => {
       if (phaseRef.current !== 'exiting') return
       const completedMode = actionModeRef.current
       actionModeRef.current = null
       setPhaseValue('hidden')
+      onExitCompleteRef.current?.({ entryId, inputType: inputTypeRef.current, mode: completedMode, actionScopeId })
       if (completedMode === 'activate') {
         actionRequestedRef.current = false
         recordRuntimeAudit('entry-action-complete', auditFields({
@@ -157,10 +163,10 @@ function EntryButtonSurface({
           fillProgress: 0,
           frameProgress: 0,
         }))
-        onActionCompleteRef.current?.({ entryId, inputType: inputTypeRef.current })
+        onActionCompleteRef.current?.({ entryId, inputType: inputTypeRef.current, actionScopeId })
       }
     })
-  }, [auditFields, entryId, runTimeline, setPhaseValue])
+  }, [actionScopeId, auditFields, entryId, runTimeline, setPhaseValue])
 
   useEffect(() => {
     if (visible) {
@@ -192,9 +198,16 @@ function EntryButtonSurface({
       fillProgress: progressRef.current.fill,
       frameProgress: progressRef.current.frame,
     }))
-    onActionStartRef.current?.({ entryId, inputType: inputTypeRef.current })
+    onActionStartRef.current?.({ entryId, inputType: inputTypeRef.current, actionScopeId })
+    if (retainOnAction) {
+      // Expanding a menu is not leaving this surface. Keep this exact text and
+      // SVG frame mounted; the host owns an idempotent presentation-only action.
+      try { onActionCompleteRef.current?.({ entryId, inputType: inputTypeRef.current, actionScopeId }) }
+      finally { actionRequestedRef.current = false }
+      return
+    }
     startExit('activate')
-  }, [auditFields, disabled, entryId, startExit, visible])
+  }, [actionScopeId, auditFields, disabled, entryId, retainOnAction, startExit, visible])
 
   const handlePointerDown = useCallback(event => {
     inputTypeRef.current = event.pointerType || 'pointer'
@@ -297,7 +310,9 @@ function EntryButtonSurface({
           materialMode={materialMode}
           worldLayer={worldLayer}
         />
-        <EntryTextFlip className="shared-entry-text" value={label} style={textStyle} />
+        {textTransition === 'fade'
+          ? <EntryTextFade className="shared-entry-text" value={label} style={textStyle} reduced={textMotionReduced} onSettled={onTextSettled} />
+          : <EntryTextFlip className="shared-entry-text" value={label} style={textStyle} />}
       </span>
     </button>
   )

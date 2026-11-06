@@ -1,3 +1,4 @@
+import { runSaveTransaction } from '../save-session.mjs'
 import { readerContent } from '../data/readerContent'
 import { READER_LANGUAGE_CODES } from '../i18n/languages'
 import { resolvePosition } from '../reader/readerPosition'
@@ -32,9 +33,9 @@ export function sanitizeProgress(value) {
 export function loadProgressState(storage) {
   applyPublicReleaseCutover(storage)
   for (const key of [PROGRESS_STORAGE_KEYS.V4, PROGRESS_STORAGE_KEYS.V3, PROGRESS_STORAGE_KEYS.V2, PROGRESS_STORAGE_KEYS.V1]) {
-    try { const raw = storage?.getItem(key); if (raw) return sanitizeProgress(JSON.parse(raw)) } catch { /* try older key */ }
+    const raw = storage?.getItem(key); if (raw) return sanitizeProgress(JSON.parse(raw))
   }
   return null
 }
 export function saveProgressState(storage, state) { storage?.setItem(PROGRESS_STORAGE_KEYS.V4, JSON.stringify({ _version: PROGRESS_VERSION, ...sanitizeProgress(state) })) }
-export function clearProgressStorage(storage) { Object.values(PROGRESS_STORAGE_KEYS).forEach(key => storage?.removeItem(key)); clearNarrativeProgressStorage(storage) }
+export function clearProgressStorage(storage) { return runSaveTransaction(storage,()=>{ Object.values(PROGRESS_STORAGE_KEYS).forEach(key => storage?.removeItem(key)); clearNarrativeProgressStorage(storage) }) }
