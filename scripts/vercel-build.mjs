@@ -1,11 +1,17 @@
 import { spawnSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
+import { analyticsBuildEnvironment } from '../src/services/analyticsRelease.js'
 
 const STAGING_BRANCH = 'staging'
 const STAGING_SUPABASE_URL = 'https://ksrvlkcpaiowhcvzimkc.supabase.co'
 const STAGING_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_57_sSKpMOtmoLTFKZtL1uQ_v77CvquY'
 
 const env = { ...process.env }
+env.VITE_BUILD_SHA = /^[a-f0-9]{40}$/i.test(env.VERCEL_GIT_COMMIT_SHA ?? '') ? env.VERCEL_GIT_COMMIT_SHA : ''
 const branch = env.VERCEL_GIT_COMMIT_REF ?? ''
+env.VITE_ANALYTICS_ENVIRONMENT = analyticsBuildEnvironment(branch, env.VERCEL_ENV)
+// Explicit false remains a deployment-level kill switch; reviewed public branches default on.
+env.VITE_PLAYER_HISTORY_V2 ??= ['main','staging'].includes(branch) ? 'true' : 'false'
 
 env.VITE_ENABLE_STAGING_TOOLS = branch === STAGING_BRANCH ? 'true' : 'false'
 
@@ -30,4 +36,8 @@ if (result.error) {
   process.exit(1)
 }
 
+if (result.status === 0) {
+  const metadata = { release:'0.3.0', environment:env.VITE_ANALYTICS_ENVIRONMENT, buildSha:env.VITE_BUILD_SHA||null, historyV2Enabled:env.VITE_PLAYER_HISTORY_V2==='true' }
+  writeFileSync(new URL('../dist/analytics-build.json', import.meta.url), JSON.stringify(metadata,null,2))
+}
 process.exit(result.status ?? 1)

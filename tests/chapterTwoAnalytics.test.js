@@ -28,12 +28,12 @@ describe('Chapter Two commercial analytics contract', () => {
       sceneId: 'commercial-street',
       eventData: { drink: '芋泥奶茶', sugar: '少糖', ice: '去冰', orderNumber: 37, queueAheadAtOrder: 4 },
     }, dependencies)
-    expect(confirmed?.event_data).toEqual({ drink: '芋泥奶茶', sugar: '少糖', ice: '去冰', orderNumber: 37, queueAheadAtOrder: 4 })
+    expect(confirmed?.event_data).toEqual({ release: '0.3.0', environment: 'development', drink: '芋泥奶茶', sugar: '少糖', ice: '去冰', orderNumber: 37, queueAheadAtOrder: 4 })
 
     const rejected = buildAnalyticsEvent('milk_tea_order_confirmed', {
       eventData: { drink: '任意输入', sugar: '少糖', ice: '去冰', orderNumber: 37, queueAheadAtOrder: 4, freeText: '不要记录我写的内容' },
     }, { ...dependencies, clientEventId: '00000000-0000-0000-0000-000000000004' })
-    expect(rejected?.event_data).toEqual({})
+    expect(rejected?.event_data).toEqual({ release: '0.3.0', environment: 'development' })
   })
 
   it('aligns all Chapter Two event names between the client, Center owners, and repo-local migration', () => {

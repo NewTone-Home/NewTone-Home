@@ -18,10 +18,10 @@ describe('event-driven session activity ledger', () => {
     expect(settled).toMatchObject({ movementMs: 60_000, idleMs: 0, engagedMs: 60_000 })
   })
 
-  it('counts a sixty-second Reading interval without classifying it as idle', () => {
+  it('keeps reading duration but labels no-input/no-movement after thirty seconds as possible idle', () => {
     const reading = { ...createSessionClockState({ startedAt: 0, lastAccountedAt: 0 }), reading: true }
     const settled = advanceSessionClock(reading, 60_000)
-    expect(settled).toMatchObject({ readingMs: 60_000, idleMs: 0, engagedMs: 60_000 })
+    expect(settled).toMatchObject({ readingMs: 60_000, idleMs: 30_000, engagedMs: 30_000 })
   })
 
   it('counts Phone use independently while idle begins after thirty seconds', () => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { trackEvent } from '../services/analytics'
 import EntryButtonGroup from './EntryButtonGroup'
 import EntryButtonSurface from './EntryButtonSurface'
 import { useReducedMotion } from '../hooks/useReducedMotion'
@@ -24,6 +25,7 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
   const requestExit = (kind, intent = null) => {
     if (exitRef.current || loadingRef.current) return
     const record = { kind, intent, epoch: entry.epoch, snapshot: entry.inspection?.snapshotToken }
+    if (kind === 'cancel' || kind === 'collapse') trackEvent('center_entry_action', { eventData: { intent: kind } })
     exitRef.current = record; setExiting(record); setTouched(null)
   }
   const completeExit = record => {
@@ -106,7 +108,7 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
     const target = mode === 'confirm' ? 'cancel' : entry.focusTarget
     if (target) root.current?.querySelector(`[data-entry-id="${target}"]`)?.focus()
   }, [mode, entry.focusTarget, entry.epoch, confirmationRevealing])
-  const expand = token => { setRevealing(!reduced); setExpandedSnapshot(token) }
+  const expand = token => { trackEvent('center_entry_action', { eventData: { intent: 'expand' } }); setRevealing(!reduced); setExpandedSnapshot(token) }
   const pureOption = (id, label, disabled = false) => {
     const blocked = disabled || revealing || !!exiting || !!loading || (['replace', 'cancel'].includes(id) && confirmationRevealing)
     return <button type="button" key={id}
@@ -119,7 +121,10 @@ export default function SaveEntryMenu({ entry, language, text, warnings, onActio
       setTouched(null)
       if (id === 'cancel') requestExit('cancel')
       else if (['replace', 'continue', 'restart'].includes(id)) requestExit('submit', id)
-      else onAction(id)
+      else {
+        if (id === 'request-replace') trackEvent('center_entry_action', { eventData: { intent: id } })
+        onAction(id)
+      }
     }}>{label}</button>
   }
   const message = mode === 'legacy' ? text['legacy-ready']

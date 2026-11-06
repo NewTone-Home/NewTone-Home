@@ -1,9 +1,19 @@
+import { historyContext, historyActivity, installPlayerHistory, installHistoryClock } from './playerHistoryRuntime.js'
+import { historyEnabled } from './playerHistory.js'
+import { cleanHistoryData } from './playerHistoryData.js'
+export { installHistoryClock }
 import { isSupabaseConfigured, supabase } from '../lib/supabaseClient'
+import { createInteractionSessions } from './interactionSessions.js'
+import { createLocationActivity } from './locationActivity.js'
+import { analyticsReleaseContext } from './analyticsRelease.js'
 import { createSessionActivityTracker } from './sessionActivityTracker.js'
 
 const VISITOR_KEY = 'newtone-analytics-visitor-v1'
 const SESSION_KEY = 'newtone-analytics-session-v1'
 const EVENTS = new Set([
+  'web_visit_state', 'foreground_no_operation', 'interaction_started', 'gameplay_ended', 'business_completed',
+  'center_entry_action', 'center_entry_completed',
+  'shop_order_submitted', 'shop_order_ready', 'shop_order_collected', 'shop_item_consumed',
   'landing_entry', 'reader_entry_requested', 'language_selected', 'mode_selected', 'reading_started',
   'page_entered', 'chapter_entered', 'beat_reached', 'beat_dwell', 'progress_milestone',
   'chapter_completed', 'reader_return', 'reader_exit', 'visibility_dwell', 'session_end', 'content_status',
@@ -19,7 +29,7 @@ const EVENTS = new Set([
   'commercial_storefront_interacted', 'milk_tea_app_unlocked', 'milk_tea_order_started',
   'milk_tea_order_confirmed', 'milk_tea_order_ready', 'milk_tea_order_picked_up',
   'cafe_storefront_revealed', 'cafe_entered', 'cafe_story_stage_reached',
-  'cafe_coffee_ordered', 'cafe_ready_to_leave', 'cafe_completed',
+  'cafe_coffee_ordered', 'cafe_ready_to_leave', 'cafe_completed', 'center_feedback_prompt_shown',
 ])
 const LANGUAGES = new Set(['zh', 'en'])
 const MODES = new Set(['immersive', 'standard'])
@@ -28,6 +38,7 @@ const PHONE_DEVICES = new Set(['surface', 'inner'])
 const DEVICE_CATEGORIES = new Set(['phone', 'tablet', 'computer', 'unknown'])
 const MILESTONES = [0.25, 0.5, 0.75, 1]
 const PENDING_EVENTS_KEY = 'newtone-analytics-pending-v1'
+const RAW_EVENT_PREFIX = 'newtone-analytics-event-v1:'
 const MAX_PENDING_EVENTS = 2000
 const PENDING_BATCH_SIZE = 20
 const KEEPALIVE_BATCH_SIZE = 10
@@ -37,11 +48,19 @@ const MAX_VIEWPORT_DIMENSION = 10000
 const PHONE_LAYOUT_MAX_WIDTH = 640
 const TABLET_LAYOUT_MAX_WIDTH = 1024
 let flushPromise = null
+let keepaliveFlushPromise = null
+let keepaliveRequested = false
 let sessionActivityTracker = null
 let analyticsPhoneDevice = null
+let locationActivity = null
+let interactionSessions = null
 const lifecycleObservers = new Set()
+let installedDwellCleanup = null
 
 const nonDroppableEvents = new Set([
+  'web_visit_state', 'foreground_no_operation', 'interaction_started', 'gameplay_ended', 'business_completed',
+  'center_entry_action', 'center_entry_completed',
+  'shop_order_submitted', 'shop_order_ready', 'shop_order_collected', 'shop_item_consumed',
   'center_entry_requested', 'center_object_interacted',
   'center_interaction_requested', 'center_interaction_completed', 'center_interaction_blocked',
   'center_scene_entered', 'center_scene_exited', 'center_door_attempted', 'center_door_blocked',
@@ -81,9 +100,16 @@ function normalizePendingEvent(event) {
 function readPendingEvents(storage = globalThis.localStorage) {
   try {
     const parsed = JSON.parse(safeRead(storage, PENDING_EVENTS_KEY) ?? '[]')
-    return Array.isArray(parsed)
-      ? parsed
-        .filter(event => event && typeof event === 'object' && typeof event.client_event_id === 'string')
+    const isolated = []
+    if (typeof storage?.key === 'function') for (let i=0;i<storage.length;i++) {
+      const key=storage.key(i)
+      if(key?.startsWith(RAW_EVENT_PREFIX))try { isolated.push(JSON.parse(safeRead(storage,key))) } catch { /* one bad telemetry record cannot hide others */ }
+    }
+    const combined=[...(Array.isArray(parsed)?parsed:[]),...isolated]
+    const seen=new Set()
+    return Array.isArray(combined)
+      ? combined
+        .filter(event => { if(!event || typeof event !== 'object' || typeof event.client_event_id !== 'string' || seen.has(event.client_event_id))return false;seen.add(event.client_event_id);return true })
         .map(normalizePendingEvent)
       : []
   } catch {
@@ -110,6 +136,12 @@ export function compactPendingEvents(events) {
 }
 
 function enqueuePendingEvent(payload, storage = globalThis.localStorage) {
+  // Each raw interaction has its own atomic key; another tab cannot overwrite it with an old array snapshot.
+  if((payload.event_name==='center_object_interacted' || payload.event_data?.historyProtocol===2) && typeof storage?.key==='function') {
+    const key=RAW_EVENT_PREFIX+payload.client_event_id
+    if(safeRead(storage,key)!==null)return true
+    return safeWrite(storage,key,JSON.stringify(payload))
+  }
   const pending = readPendingEvents(storage)
   if (pending.some(event => event.client_event_id === payload.client_event_id)) return true
   return writePendingEvents([...pending, payload], storage)
@@ -136,7 +168,13 @@ async function sendPendingBatch(events, keepalive) {
       headers: analyticsHeaders(),
       body: JSON.stringify(events),
     })
-    return response.ok
+    if (response.ok) return true
+    if (response.status !== 409) return false
+    for (const event of events) {
+      const single = await fetch(analyticsUrl(), { method: 'POST', keepalive: true, headers: analyticsHeaders(), body: JSON.stringify([event]) })
+      if (!single.ok && single.status !== 409) return false
+    }
+    return true
   }
   const { error } = await supabase.from('analytics_events').insert(events)
   if (!error) return true
@@ -150,13 +188,21 @@ async function sendPendingBatch(events, keepalive) {
 
 export function flushAnalyticsQueue({ keepalive = false, storage = globalThis.localStorage } = {}) {
   if (!isSupabaseConfigured || !supabase) return Promise.resolve(false)
-  if (flushPromise) return flushPromise
-  flushPromise = (async () => {
+  if (keepalive && keepaliveFlushPromise) { keepaliveRequested = true; return keepaliveFlushPromise }
+  if (!keepalive && flushPromise) return flushPromise
+  const operation = Promise.resolve().then(async () => {
     let allSent = true
+    let keepaliveBatches = 0
     while (true) {
+      if (keepalive) keepaliveRequested = false
       const pending = readPendingEvents(storage)
       if (pending.length === 0) break
-      const batch = pending.slice(0, keepalive ? KEEPALIVE_BATCH_SIZE : PENDING_BATCH_SIZE)
+      // Exit facts must not sit behind an old offline trajectory backlog.
+      const exitNames = new Set(['web_visit_state', 'foreground_no_operation', 'session_end', 'session_checkpoint', 'visibility_dwell'])
+      const candidates = keepalive
+        ? [...pending.filter(event => exitNames.has(event.event_name)).reverse(), ...pending.filter(event => !exitNames.has(event.event_name))]
+        : pending
+      const batch = candidates.slice(0, keepalive ? KEEPALIVE_BATCH_SIZE : PENDING_BATCH_SIZE)
       try {
         const sent = await sendPendingBatch(batch, keepalive)
         if (!sent) {
@@ -168,17 +214,21 @@ export function flushAnalyticsQueue({ keepalive = false, storage = globalThis.lo
           readPendingEvents(storage).filter(event => !sentIds.has(event.client_event_id)),
           storage,
         )
-        if (keepalive) break
+        for(const id of sentIds)try { storage?.removeItem(RAW_EVENT_PREFIX+id) } catch { /* same ID can safely retry */ }
+        if (keepalive && (++keepaliveBatches >= 3 || !keepaliveRequested)) break
       } catch {
         allSent = false
         break
       }
     }
     return allSent
-  })().finally(() => {
-    flushPromise = null
+  }).finally(() => {
+    if (keepalive) keepaliveFlushPromise = null
+    else flushPromise = null
   })
-  return flushPromise
+  if (keepalive) keepaliveFlushPromise = operation
+  else flushPromise = operation
+  return operation
 }
 
 function ensureVisitor(storage = globalThis.localStorage) {
@@ -192,7 +242,8 @@ function ensureVisitor(storage = globalThis.localStorage) {
 function ensureSession(storage = globalThis.sessionStorage) {
   try {
     const parsed = JSON.parse(safeRead(storage, SESSION_KEY) ?? 'null')
-    if (parsed?.id && Array.isArray(parsed.milestones)) {
+    const context = analyticsReleaseContext()
+    if (parsed?.id && Array.isArray(parsed.milestones) && parsed.context?.release === context.release && parsed.context?.environment === context.environment) {
       parsed.sequence = Number.isInteger(parsed.sequence) ? Math.max(0, Math.min(MAX_SEQUENCE, parsed.sequence)) : 0
       parsed.startedAt = Number.isFinite(Number(parsed.startedAt)) ? Number(parsed.startedAt) : Date.now()
       parsed.visibleTotalMs = Number.isFinite(Number(parsed.visibleTotalMs)) ? Number(parsed.visibleTotalMs) : 0
@@ -201,7 +252,7 @@ function ensureSession(storage = globalThis.sessionStorage) {
     }
   } catch { /* start a new anonymous session */ }
   const now = Date.now()
-  const state = { id: uuid(), sequence: 0, milestones: [], startedAt: now, visibleAt: now, visibleTotalMs: 0, activity: null }
+  const state = { context: analyticsReleaseContext(), id: uuid(), sequence: 0, milestones: [], startedAt: now, visibleAt: now, visibleTotalMs: 0, activity: null }
   safeWrite(storage, SESSION_KEY, JSON.stringify(state))
   return state
 }
@@ -299,8 +350,27 @@ function getViewportMetadata(viewportWindow) {
  * interaction copy, feedback text, or any arbitrary client object from being
  * written into the analytics payload.
  */
+function cleanLocationData(value) {
+  const result = {}
+  const roomId = cleanAnalyticsId(value?.roomId)
+  if (roomId) result.roomId = roomId
+  for (const key of ['sceneForegroundMs', 'sceneEngagedMs']) {
+    const metric = cleanActivityMs(value?.[key])
+    if (metric !== null) result[key] = metric
+  }
+  return result
+}
 function cleanEventData(eventName, value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  if (eventName === 'center_entry_action' || eventName === 'center_entry_completed') {
+    const intent = cleanChoice(value.intent, ['create', 'continue', 'replace', 'restart', 'recovered', 'expand', 'request-replace', 'cancel', 'collapse'])
+    return intent ? { intent } : {}
+  }
+  if (['shop_order_submitted', 'shop_order_ready', 'shop_order_collected', 'shop_item_consumed'].includes(eventName)) {
+    const shopId = cleanChoice(value.shopId, ['commercial-south-slot-5', 'commercial-north-slot-1', 'commercial-cafe-slot', 'yonghe-eatery'])
+    // Product/choice copy, payment keys and player input are deliberately excluded.
+    return shopId ? { shopId } : {}
+  }
   if (eventName === 'landing_entry' || eventName === 'language_selected') {
     const languageSource = cleanChoice(value.languageSource, ['user_selected', 'browser_default', 'product_default'])
     return languageSource ? { languageSource } : {}
@@ -328,16 +398,29 @@ function cleanEventData(eventName, value) {
     const stage = cleanChoice(value.stage, ['meeting-started', 'mine-lead', 'yonghe-lead', 'ready-to-leave', 'complete'])
     return stage ? { stage } : {}
   }
+  if (eventName === 'center_object_interacted') {
+    const data = cleanLocationData(value)
+    const contentId = cleanAnalyticsId(value.contentId)
+    if (contentId) data.contentId = contentId
+    if (typeof value.endedAt === 'number' && Number.isFinite(value.endedAt)) data.endedAt = value.endedAt
+    if (value.partial === true) data.partial = true
+    return data
+  }
+  if (eventName.startsWith('center_interaction_')) return cleanLocationData(value)
+  if (eventName === 'center_scene_entered' || eventName === 'center_scene_exited') return cleanLocationData(value)
   if (eventName === 'session_checkpoint') {
     const keys = ['elapsedMs', 'foregroundMs', 'engagedMs', 'idleMs', 'movementMs', 'readingMs', 'phoneMs']
     const entries = keys.map(key => [key, cleanActivityMs(value[key])])
-    return Object.fromEntries(entries.filter(([, metric]) => metric !== null))
+    return { ...Object.fromEntries(entries.filter(([, metric]) => metric !== null)), ...cleanLocationData(value) }
   }
   return {}
 }
 
 export function buildAnalyticsEvent(eventName, fields = {}, dependencies = {}) {
   if (!EVENTS.has(eventName)) return null
+  const eventData = { ...cleanEventData(eventName, fields.eventData), ...(historyEnabled(dependencies.env) ? cleanHistoryData(fields.eventData) : {}) }
+  if (['center_entry_action', 'center_entry_completed'].includes(eventName) && !eventData.intent) return null
+  if (['shop_order_submitted', 'shop_order_ready', 'shop_order_collected', 'shop_item_consumed'].includes(eventName) && !eventData.shopId) return null
   const visitorId = dependencies.visitorId ?? ensureVisitor(dependencies.localStorage)
   const session = dependencies.session ?? ensureSession(dependencies.sessionStorage)
   const clientEventId = dependencies.clientEventId ?? uuid()
@@ -376,13 +459,16 @@ export function buildAnalyticsEvent(eventName, fields = {}, dependencies = {}) {
     position_x: positionX,
     position_y: positionY,
     ...viewport,
-    event_data: cleanEventData(eventName, fields.eventData),
+    event_data: { ...historyContext(dependencies.env), ...eventData, ...analyticsReleaseContext(dependencies.env) },
   }
 }
 
 export function trackEvent(eventName, fields = {}, options = {}) {
   if (!isSupabaseConfigured || !supabase) return Promise.resolve(false)
-  const payload = buildAnalyticsEvent(eventName, fields, options.dependencies)
+  const location = locationActivity && sessionActivityTracker ? locationActivity.read(sessionActivityTracker.snapshot()) : null
+  const locatedFields = (eventName.startsWith('center_interaction_') || (historyEnabled() && eventName==='center_position_sample')) && location?.sceneId === fields.sceneId
+    ? { ...fields, eventData: { ...fields.eventData, roomId: location.roomId } } : fields
+  const payload = buildAnalyticsEvent(eventName, locatedFields, options.dependencies)
   if (!payload) return Promise.resolve(false)
   enqueuePendingEvent(payload, options.storage ?? globalThis.localStorage)
   if (options.deferred) {
@@ -407,9 +493,14 @@ function ensureSessionActivityTracker() {
     initialTotals: session.activity ?? {},
     onCheckpoint: (snapshot, { keepalive } = {}) => {
       persistAnalyticsSessionActivity(snapshot)
+      interactionSessions?.checkpoint()
+      historyActivity('checkpoint')
       trackEvent('session_checkpoint', {
-        sceneId: snapshot.sceneId,
+        sceneId: locationActivity?.read(snapshot)?.sceneId ?? snapshot.sceneId,
+        stepId: locationActivity?.read(snapshot)?.visitId,
         eventData: {
+          ...(historyEnabled()?{activeInteractions:interactionSessions?.snapshot()??[]}:{}),
+          ...locationActivity?.read(snapshot),
           elapsedMs: snapshot.elapsedMs,
           foregroundMs: snapshot.foregroundMs,
           engagedMs: snapshot.engagedMs,
@@ -437,13 +528,65 @@ function ensureSessionActivityTracker() {
   return sessionActivityTracker
 }
 
+export function getInteractionSessions() {
+  if (interactionSessions) return interactionSessions
+  const tracker=ensureSessionActivityTracker()
+  interactionSessions=createInteractionSessions({
+    foreground:()=>tracker.snapshot().foregroundMs,
+    location:()=> { const current=locationActivity?.read(tracker.snapshot());return {sceneId:current?.sceneId ?? null,roomId:current?.roomId ?? null} },
+    storage:globalThis.sessionStorage,
+    identity:()=>({visitorId:ensureVisitor(),sessionId:ensureSession().id,releaseContext:{...analyticsReleaseContext(),...historyContext()}}),
+    onStart: row => { if(historyContext().historyProtocol===2)trackEvent('interaction_started',{sceneId:row.sceneId,objectId:row.objectId,objectKind:row.objectKind,eventData:{interactionId:row.id,contentId:row.contentId,roomId:row.roomId,startedAt:row.startedAt} }) },
+    clock: () => historyContext().gameTimeMs ?? null,
+    emit:row=> {
+      if (!isSupabaseConfigured || !supabase) return true
+      const payload=buildAnalyticsEvent('center_object_interacted',{
+        sceneId:row.sceneId,objectId:row.objectId,objectKind:row.objectKind,
+        dwellMs:row.durationMs === null ? undefined : row.durationMs,outcome:row.result,
+        eventData:{roomId:row.roomId,contentId:row.contentId,endedAt:row.endedAt,partial:row.partial,interactionId:row.id,startedAt:row.startedAt,gameTimeStartedMs:row.gameTimeStartedMs,gameTimeEndedMs:row.gameTimeEndedMs,lastShown:row.lastShown,lastConfirmed:row.lastConfirmed},
+      },{clientEventId:row.id,now:()=>historyEnabled()?row.endedAt:row.startedAt})
+      // Number(undefined) is NaN; null duration remains NULL, not an invented 0.
+      if(!payload)return false
+      if(row.visitorId)payload.visitor_id=row.visitorId
+      if(row.sessionId)payload.session_id=row.sessionId
+      if(row.releaseContext && /^[0-9]+[.][0-9]+[.][0-9]+$/.test(row.releaseContext.release) && ['production','staging','preview','development'].includes(row.releaseContext.environment)) { payload.event_data.release=row.releaseContext.release;payload.event_data.environment=row.releaseContext.environment;Object.assign(payload.event_data,cleanHistoryData(row.releaseContext)) }
+      if(!enqueuePendingEvent(payload))return false
+      flushAnalyticsQueue({keepalive:Boolean(row.keepalive)})
+      return true
+    },
+  })
+  return interactionSessions
+}
+export function setAnalyticsLocation(sceneId, roomId) {
+  const tracker = ensureSessionActivityTracker()
+  if (!locationActivity) locationActivity = createLocationActivity({
+    onEnter: location => trackEvent('center_scene_entered', {
+      sceneId: location.sceneId, stepId: location.visitId, eventData: location,
+    }),
+    onLeave: (location, totals, reason) => trackEvent('center_scene_exited', {
+      sceneId: location.sceneId, stepId: location.visitId, eventData: location,
+      dwellMs: location.sceneForegroundMs, outcome: reason,
+    }, { deferred: true }),
+  })
+  const previous=locationActivity.read(tracker.snapshot())
+  if(previous && (previous.sceneId!==sceneId || previous.roomId!==roomId)) interactionSessions?.endLocation(previous.sceneId,previous.roomId)
+  if(locationActivity.move(sceneId, roomId, tracker.snapshot()))historyActivity('location')
+  tracker.setScene(sceneId)
+}
+export function endAnalyticsLocation(reason = 'runtime-stop') {
+  interactionSessions?.endAll('interrupted')
+  if(locationActivity?.end(ensureSessionActivityTracker().snapshot(), reason)){historyActivity('location');if(historyEnabled())trackEvent('gameplay_ended',{eventData:{reason}})}
+}
+
 /** Global user-input activity, shared by Landing, Reader, and Center. */
 export function markSessionActivity(at = Date.now()) {
+  historyActivity('input')
   return ensureSessionActivityTracker().markActivity(at)
 }
 
 /** Feature-specific counters are reported by their existing product owners. */
 export function setCenterMovementActive(moving, at = Date.now()) {
+  historyActivity('moving',moving)
   return ensureSessionActivityTracker().setMoving(moving, at)
 }
 
@@ -533,11 +676,15 @@ export function trackReaderProgress(stepId, progressRatio, context = {}) {
 
 export function installDwellTracking({ trackInputActivity = true } = {}) {
   if (typeof document === 'undefined' || typeof window === 'undefined') return () => {}
+  if (installedDwellCleanup) return installedDwellCleanup
+  const disposeHistory=installPlayerHistory({emit:(name,data)=>trackEvent(name,{sceneId:data.sceneId,eventData:data,dwellMs:data.durationMs},{keepalive:data.reason==='page-leaving-signal'}),location:()=>{const value=locationActivity?.read(ensureSessionActivityTracker().snapshot());return {sceneId:value?.sceneId??null,roomId:value?.roomId??null}}})
   const initial = ensureSession()
   const tracker = ensureSessionActivityTracker()
   let visible = document.visibilityState !== 'hidden'
   let visibleAt = Date.now()
   let visibleTotalMs = Number(initial.visibleTotalMs) || 0
+  let pageHidden = false
+  tracker.setVisible(visible, Date.now())
 
   if (visible) {
     updateSession(session => {
@@ -560,6 +707,7 @@ export function installDwellTracking({ trackInputActivity = true } = {}) {
   }
 
   const visibility = () => {
+    historyActivity('visible',document.visibilityState!=='hidden')
     if (document.visibilityState === 'hidden') {
       tracker.setVisible(false, Date.now())
       notifyLifecycleObservers('onVisibilityChange', false, Date.now())
@@ -579,7 +727,12 @@ export function installDwellTracking({ trackInputActivity = true } = {}) {
     }
   }
 
-  const pagehide = () => {
+  const pagehide = (event) => {
+    if (pageHidden) return
+    pageHidden = true
+    historyActivity('leave',event?.persisted)
+    interactionSessions?.endAll('interrupted', { keepalive: true })
+    tracker.setVisible(false, Date.now())
     tracker.checkpoint(Date.now(), { force: true, keepalive: true })
     notifyLifecycleObservers('onPagehide', Date.now())
     if (visible) closeVisibleSegment()
@@ -587,7 +740,10 @@ export function installDwellTracking({ trackInputActivity = true } = {}) {
     flushAnalyticsQueue({ keepalive: true })
   }
 
+  const pageshow = () => { if(pageHidden)historyActivity('resume');pageHidden = false; visibility() }
+  const offline=()=>historyActivity('network',false)
   const online = () => {
+    historyActivity('network',true)
     tracker.checkpointIfDue(Date.now())
     notifyLifecycleObservers('onOnline', Date.now())
     flushAnalyticsQueue()
@@ -601,8 +757,16 @@ export function installDwellTracking({ trackInputActivity = true } = {}) {
   }
   window.addEventListener('pagehide', pagehide)
   window.addEventListener('online', online)
+  window.addEventListener('offline', offline)
+  window.addEventListener('pageshow', pageshow)
+  const checkpointTimer = globalThis.setInterval(() => tracker.checkpointIfDue(Date.now()), 15000)
   flushAnalyticsQueue()
-  return () => {
+  installedDwellCleanup = () => {
+    installedDwellCleanup = null
+    disposeHistory()
+    window.removeEventListener('offline',offline)
+    globalThis.clearInterval(checkpointTimer)
+    window.removeEventListener('pageshow', pageshow)
     document.removeEventListener('visibilitychange', visibility)
     if (trackInputActivity) {
       document.removeEventListener('pointerdown', inputActivity)
@@ -611,10 +775,24 @@ export function installDwellTracking({ trackInputActivity = true } = {}) {
     window.removeEventListener('pagehide', pagehide)
     window.removeEventListener('online', online)
   }
+  return installedDwellCleanup
 }
 
 export const ANALYTICS_STORAGE_KEYS = Object.freeze({
   visitor: VISITOR_KEY,
   session: SESSION_KEY,
   pending: PENDING_EVENTS_KEY,
+  rawEventPrefix: RAW_EVENT_PREFIX,
 })
+
+// Validated presentation callbacks only; authored identifiers, never player text.
+export function recordDialogueProgress(kind, value) {
+  if(!historyContext().webVisitId)return false
+  return getInteractionSessions().progress('display',kind,value)
+}
+
+export function recordBusinessCompletion(fact) {
+  if(!historyContext().webVisitId)return false
+  const location=locationActivity?.read(ensureSessionActivityTracker().snapshot())
+  return trackEvent('business_completed',{sceneId:location?.sceneId,objectId:fact.objectId,objectKind:fact.objectKind,outcome:fact.outcome,eventData:{roomId:location?.roomId,contentId:fact.objectId}})
+}

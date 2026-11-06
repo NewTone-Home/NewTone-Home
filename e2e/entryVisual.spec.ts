@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, SAVE_EPOCH, EPOCH_PREFIX, BACKUP_PREFIX, WRITER_LOCK } from '../src/services/saveEpoch.mjs'
-type Frame = { at: number; opacity: number; y: number; animation: string; text: string; beginVisible: boolean; beginFrame: number; beginText: number }
+type Frame = { at: number; opacity: number; y: number; animation: string; text: string; beginVisible: boolean; beginSame: boolean; beginFrame: number; beginText: number }
 type Trace = { frames: Frame[]; done: boolean; error?: string }
 type GesturePoint = { type: string; x: number; y: number; at: number; pointerId: number }
 type ObserverWindow = Window & { __entryVisualMotion?: Record<string, Trace>; __entryVisualPointerTypes?: string[]; __entryVisualStartElement?: Element | null; __entryVisualPath?: GesturePoint[]; __entryVisualPathAbort?: AbortController }
@@ -40,6 +40,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
       await testInfo.attach(`${viewport.width}-${label}`, { path, contentType: 'image/png' })
     }
     const facts = () => page.evaluate(() => Object.fromEntries(Object.keys(localStorage)
+      .filter(key => !key.startsWith('newtone-analytics-')) // telemetry may record UI actions; game/save bytes must stay fixed
       .sort().map(key => [key, localStorage.getItem(key)])))
     // Observe real frames only: no animation seeking, fake clock, or app state mutation.
     const startTrace = async (key: string, selector: string, duration: number) => page.evaluate(({ key, selector, duration }) => {
@@ -55,6 +56,7 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
           const begin = document.querySelector('[data-entry-id="begin"]')
           trace.frames.push({ at: now, opacity: Number(style.opacity), y: new DOMMatrixReadOnly(style.transform).m42, animation: style.animationName, text: node.textContent ?? '',
             beginVisible: !!begin && getComputedStyle(begin).visibility !== 'hidden' && begin.getAttribute('data-entry-visible') === 'true',
+            beginSame: begin === (window as ObserverWindow).__entryVisualStartElement,
             beginFrame: Number(begin?.getAttribute('data-entry-frame-progress')), beginText: Number(begin?.getAttribute('data-entry-text-progress')) })
         }
         if (first !== null && now - first >= duration) trace.done = true
@@ -102,12 +104,17 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 375, height: 667 }
     expect(await page.evaluate(() => navigator.maxTouchPoints > 0)).toBe(touch)
     await screenshot('empty-start-framed-updates')
     const originalStart = await begin.elementHandle()
+    await originalStart!.evaluate(node => { (window as ObserverWindow).__entryVisualStartElement = node })
     await startTrace('loading-caption', '[data-entry-id="begin"] [data-entry-text-fade-value]', 1000)
     await activate(begin)
     await page.waitForFunction(() => (window as ObserverWindow).__entryVisualMotion?.['loading-caption'].frames.some(frame => frame.text === '加载游戏中' && frame.animation === 'entry-text-fade-in' && frame.opacity > .05 && frame.opacity < .95))
     await screenshot('loading-caption-fade-in', '[data-entry-id="begin"] [data-entry-text-fade-value]', false)
-    expect(await originalStart!.evaluate(node => node === document.querySelector('[data-entry-id="begin"]'))).toBe(true)
     const loadingFrames = await finishTrace('loading-caption')
+    // Screenshot completion can occur after successful entry legitimately unmounts Landing.
+    // Check identity in the actual visible animation frames, not after that handoff.
+    const visibleLoadingFrames = loadingFrames.filter(frame => frame.beginVisible)
+    expect(visibleLoadingFrames.length).toBeGreaterThanOrEqual(10)
+    expect(visibleLoadingFrames.every(frame => frame.beginSame)).toBe(true)
     expect(loadingFrames.some(frame => frame.text === '开始游戏' && frame.animation === 'entry-text-fade-out' && frame.opacity > .05 && frame.opacity < .95)).toBe(true)
     expect(loadingFrames.some(frame => frame.text === '加载游戏中' && frame.animation === 'entry-text-fade-in' && frame.opacity > .05 && frame.opacity < .95)).toBe(true)
     expect(loadingFrames.every(frame => frame.beginVisible && frame.beginFrame === 1)).toBe(true)

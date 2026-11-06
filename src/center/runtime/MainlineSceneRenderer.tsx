@@ -134,6 +134,7 @@ type MainlineSceneRendererProps = {
   onDialogueAdvance?: (intent?: 'line' | 'segment') => void
   onDialogueTypingSkip?: (sessionId: number) => void
   onDialogueTextMotionComplete?: (sessionId: number, motion: MainlineReadingTextMotion) => string | void
+  onDialogueEvidence?: (phase: 'lastShown' | 'lastConfirmed', unit: { lineId: string; sentenceIndex: number; pageIndex: number }) => void
   sceneEcho?: { id: number; conversationDisplaySessionId?: string; entityId?: string; text: string; segments: readonly string[]; segmentIndex: number; position: Point; options?: readonly string[]; textMotion: MainlineReadingTextMotion; phase?: 'leaving'; presentationKind?: 'short-prompt' | 'commercial-street-question'; exitReason?: 'natural' | 'cancel' } | null
   onSceneEchoAdvance?: () => void
   onSceneEchoTextMotionComplete?: (echoId: number, sessionKey: string, motion: MainlineReadingTextMotion) => string | void
@@ -1989,6 +1990,7 @@ export function MainlineSceneRenderer({
   onDialogueAdvance,
   onDialogueTypingSkip,
   onDialogueTextMotionComplete,
+  onDialogueEvidence,
   sceneEcho = null,
   onSceneEchoAdvance,
   onSceneEchoTextMotionComplete,
@@ -3969,6 +3971,7 @@ export function MainlineSceneRenderer({
               return onDialogueTextMotionComplete?.(sessionId, motion) ?? 'rejected:no-dialogue-handler'
             }}
             onReadyChange={(group, ready) => {
+              if (ready && dialogueLine && !sceneEcho && conversationDisplayContent.kind === 'text') onDialogueEvidence?.('lastShown',{lineId:dialogueLine.id,sentenceIndex:dialogueSegmentIndex,pageIndex:displayOverflowIndex})
               if (ready) {
                 conversationDisplayReadyKeyRef.current = conversationDisplayRequiredReadyKey
                 setConversationDisplayReadyKey(conversationDisplayRequiredReadyKey)
@@ -4127,6 +4130,7 @@ export function MainlineSceneRenderer({
                 }
                 if (!isWideDialogueConversation && displayOverflowIndex + 1 < fittedReadingSegments.length) {
                   if (!hasConversationDisplayContent) lockReadingPageAdvance()
+                  if (dialogueLine && !sceneEcho) onDialogueEvidence?.('lastConfirmed',{lineId:dialogueLine.id,sentenceIndex:dialogueSegmentIndex,pageIndex:displayOverflowIndex})
                   if (readingSessionKey) setReadingOverflowPage({ sessionKey: readingSessionKey, key: readingOverflowKey, index: displayOverflowIndex + 1, sourceOffset: fittedReadingSegments.slice(0, displayOverflowIndex + 1).join('').length })
                   return
                 }
