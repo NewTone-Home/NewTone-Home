@@ -1,3 +1,4 @@
+import { historyEnabled } from '../services/playerHistory.js'
 import { supabase } from '../lib/supabaseClient'
 
 export async function loadCenterAnalytics() {
@@ -19,9 +20,10 @@ export async function loadReleaseAnalytics({ environment = 'production', from, t
   return data
 }
 
-export async function loadPlayerHistory({ from, to, environment = 'production', visitorId = null, cursor = null }) {
+export async function loadPlayerHistory({ from, to, environment = 'production', visitorId = null, cursor = null, search = '', internal = 'all' }) {
   if (!supabase) throw new Error('Supabase unavailable')
-  const { data, error } = await supabase.rpc('owner_player_history', {
+  const { data, error } = await supabase.rpc(historyEnabled() ? 'owner_player_history_v2' : 'owner_player_history', {
+    ...(historyEnabled()?{p_search:search,p_internal:internal}:{}),
     p_release: '0.3.0', p_environment: environment, p_from: from, p_to: to,
     p_visitor: visitorId || null, p_before_time: cursor?.at ?? null, p_before_id: cursor?.id ?? null,
   })

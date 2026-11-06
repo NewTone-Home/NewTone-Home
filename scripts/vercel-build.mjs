@@ -6,6 +6,7 @@ const STAGING_SUPABASE_URL = 'https://ksrvlkcpaiowhcvzimkc.supabase.co'
 const STAGING_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_57_sSKpMOtmoLTFKZtL1uQ_v77CvquY'
 
 const env = { ...process.env }
+env.VITE_BUILD_SHA = /^[a-f0-9]{40}$/i.test(env.VERCEL_GIT_COMMIT_SHA ?? '') ? env.VERCEL_GIT_COMMIT_SHA : ''
 const branch = env.VERCEL_GIT_COMMIT_REF ?? ''
 env.VITE_ANALYTICS_ENVIRONMENT = analyticsBuildEnvironment(branch, env.VERCEL_ENV)
 
