@@ -22,7 +22,7 @@ let counter=10
 async function insert(name,data,at='2026-11-06T01:00:00Z',outcome=null,step=null,scene=null){counter++;return db.query(`insert into public.analytics_events(client_event_id,visitor_id,session_id,sequence,event_name,event_data,occurred_at,outcome,step_id,scene_id) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[`00000000-0000-4000-8000-${String(counter).padStart(12,'0')}`,visitor,session,counter,name,JSON.stringify(data),at,outcome,step,scene])}
 await insert('center_object_interacted',{release:'0.3.0',environment:'production',contentId:'old-known',endedAt:123})
 const before=await db.query('select event_data from public.analytics_events order by id')
-await db.exec(readFileSync(new URL('../docs/sql/player-history-v2-review.sql',import.meta.url),'utf8'))
+await db.exec(process.env.HISTORY_MIGRATION?'begin;\n'+readFileSync(process.env.HISTORY_MIGRATION,'utf8')+'\ncommit;':readFileSync(new URL('../docs/sql/player-history-v2-review.sql',import.meta.url),'utf8'))
 assert.deepEqual((await db.query('select event_data from public.analytics_events order by id')).rows,before.rows)
 const baseAt=Date.parse('2026-11-06T01:00:00Z')
 const common={release:'0.3.0',environment:'production',webVisitId:'visit-1',documentId:'doc-1',historyProtocol:2,internalTest:false,buildSha:'a'.repeat(40),gameTimeMs:100}
