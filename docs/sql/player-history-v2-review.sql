@@ -31,7 +31,7 @@ declare k text; v jsonb; n numeric;
 begin
  if jsonb_typeof(d) is distinct from 'object' or octet_length(d::text)>8192 then return false; end if;
  for k,v in select * from jsonb_each(d) loop
-  if k=any(array['webVisitId','documentId','interactionId','intervalId','roomId','sceneId','contentId','lineId','objectId','objectKind','slotId','shopId','visitId']) then
+  if k=any(array['webVisitId','documentId','interactionId','intervalId','roomId','sceneId','contentId','lineId','objectId','objectKind','slotId','visitId']) then
    if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' !~ '^[A-Za-z0-9:_-]{1,128}$' then return false; end if;
   elsif k='buildSha' then
    if v<>'null'::jsonb and (jsonb_typeof(v) is distinct from 'string' or v#>>'{}' !~ '^[a-fA-F0-9]{40}$') then return false; end if;
@@ -58,8 +58,22 @@ begin
    if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('production','staging','preview','development') then return false; end if;
   elsif k='historyProtocol' then
    if v is distinct from '2'::jsonb then return false; end if;
-  elsif k=any(array['intent','languageSource','storeType','drink','sugar','ice','stage']) then
-   if jsonb_typeof(v) is distinct from 'string' or length(v#>>'{}')>64 then return false; end if;
+  elsif k='intent' then
+   if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('create','continue','replace','restart','recovered','expand','request-replace','cancel','collapse') then return false; end if;
+  elsif k='languageSource' then
+   if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('user_selected','browser_default','product_default') then return false; end if;
+  elsif k='storeType' then
+   if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('果茶店','服装店','花店','眼镜店','美妆店','书店','甜品店','鞋店','潮玩店','香氛店','奶茶店','周边店','首饰店','文创店','玩具店','咖啡馆','潮牌店','快餐店','珠宝店') then return false; end if;
+  elsif k='drink' then
+   if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('原味奶茶','黑糖珍珠奶茶','芋泥奶茶','茉莉奶绿') then return false; end if;
+  elsif k='sugar' then
+   if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('少糖','正常','多糖') then return false; end if;
+  elsif k='ice' then
+   if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('少冰','正常冰','去冰') then return false; end if;
+  elsif k='stage' then
+   if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('meeting-started','mine-lead','yonghe-lead','ready-to-leave','complete') then return false; end if;
+  elsif k='shopId' then
+   if jsonb_typeof(v) is distinct from 'string' or v#>>'{}' not in ('commercial-south-slot-5','commercial-north-slot-1','commercial-cafe-slot','yonghe-eatery') then return false; end if;
   end if;
  end loop;
  if d ?& array['startedAt','endedAt'] and (d->>'endedAt')::numeric<(d->>'startedAt')::numeric then return false; end if;
@@ -84,14 +98,51 @@ begin
  if kind='idle' and (d->'possibleAfk') is distinct from to_jsonb((d->>'durationMs')::numeric>30000) then return false; end if;
  return true;
 end $$;
+-- Dedicated fields cannot be smuggled into another event, including legacy-shaped payloads.
+create function analytics_validation.event_fields(d jsonb, event text) returns boolean
+language plpgsql immutable security invoker set search_path='' as $$
+begin
+ if event is null then return false; end if;
+ if d?'intent' and (event not in ('center_entry_action','center_entry_completed') or jsonb_typeof(d->'intent') is distinct from 'string' or d->>'intent' not in ('create','continue','replace','restart','recovered','expand','request-replace','cancel','collapse')) then return false; end if;
+ if d?'languageSource' and (event not in ('landing_entry','language_selected') or jsonb_typeof(d->'languageSource') is distinct from 'string' or d->>'languageSource' not in ('user_selected','browser_default','product_default')) then return false; end if;
+ if d?'storeType' and (event not in ('commercial_storefront_interacted') or jsonb_typeof(d->'storeType') is distinct from 'string' or d->>'storeType' not in ('果茶店','服装店','花店','眼镜店','美妆店','书店','甜品店','鞋店','潮玩店','香氛店','奶茶店','周边店','首饰店','文创店','玩具店','咖啡馆','潮牌店','快餐店','珠宝店')) then return false; end if;
+ if d?'drink' and (event not in ('milk_tea_order_confirmed') or jsonb_typeof(d->'drink') is distinct from 'string' or d->>'drink' not in ('原味奶茶','黑糖珍珠奶茶','芋泥奶茶','茉莉奶绿')) then return false; end if;
+ if d?'sugar' and (event not in ('milk_tea_order_confirmed') or jsonb_typeof(d->'sugar') is distinct from 'string' or d->>'sugar' not in ('少糖','正常','多糖')) then return false; end if;
+ if d?'ice' and (event not in ('milk_tea_order_confirmed') or jsonb_typeof(d->'ice') is distinct from 'string' or d->>'ice' not in ('少冰','正常冰','去冰')) then return false; end if;
+ if d?'stage' and (event not in ('cafe_story_stage_reached') or jsonb_typeof(d->'stage') is distinct from 'string' or d->>'stage' not in ('meeting-started','mine-lead','yonghe-lead','ready-to-leave','complete')) then return false; end if;
+ if d?'shopId' and (event not in ('shop_order_submitted','shop_order_ready','shop_order_collected','shop_item_consumed') or jsonb_typeof(d->'shopId') is distinct from 'string' or d->>'shopId' not in ('commercial-south-slot-5','commercial-north-slot-1','commercial-cafe-slot','yonghe-eatery')) then return false; end if;
+ if d?'slotId' and (event not in ('commercial_storefront_interacted')) then return false; end if;
+ if d?'orderNumber' and (event not in ('milk_tea_order_confirmed','milk_tea_order_ready','milk_tea_order_picked_up')) then return false; end if;
+ if d?'queueAheadAtOrder' and (event not in ('milk_tea_order_confirmed')) then return false; end if;
+ return true;
+end $$;
 create function analytics_validation.payload(d jsonb, event text) returns boolean
 language plpgsql immutable security invoker set search_path='' as $$
 declare v jsonb; k text; introduced text[]=array['webVisitId','documentId','buildSha','internalTest','gameTimeMs','historyProtocol','interactionId','startedAt','gameTimeStartedMs','gameTimeEndedMs','lastShown','lastConfirmed','intervalId','lastKnownAt','previousLastKnownAt','endConfirmed','persisted','durationMs','possibleAfk','currentNoOperation','activeInteractions','status','reason'];
- allowed text[]=array['release','environment','webVisitId','documentId','buildSha','internalTest','gameTimeMs','historyProtocol','interactionId','startedAt','endedAt','gameTimeStartedMs','gameTimeEndedMs','lastShown','lastConfirmed','intervalId','lastKnownAt','previousLastKnownAt','endConfirmed','persisted','durationMs','possibleAfk','currentNoOperation','activeInteractions','status','reason','foregroundMs','roomId','sceneId','contentId','partial','intent','shopId','languageSource','slotId','storeType','drink','sugar','ice','orderNumber','queueAheadAtOrder','stage','visitId','sceneForegroundMs','sceneEngagedMs','elapsedMs','engagedMs','idleMs','movementMs','readingMs','phoneMs'];
+ allowed text[]=array['release','environment','webVisitId','documentId','buildSha','internalTest','gameTimeMs','historyProtocol'];
 begin
- if jsonb_typeof(d) is distinct from 'object' then return false; end if;
- -- Existing rows with no newly introduced fields retain their exact prior contract.
+ if jsonb_typeof(d) is distinct from 'object' or not analytics_validation.event_fields(d,event) then return false; end if;
+ -- Valid legacy dedicated fields keep their event contract; no v2 envelope is invented.
  if not(d ?| introduced) and event not in ('web_visit_state','foreground_no_operation','interaction_started','gameplay_ended','business_completed') then return true; end if;
+ case
+ when event='web_visit_state' then allowed=allowed||array['status','reason','foregroundMs','startedAt','lastKnownAt','endConfirmed','previousLastKnownAt','persisted','currentNoOperation'];
+ when event='foreground_no_operation' then allowed=allowed||array['intervalId','startedAt','endedAt','durationMs','possibleAfk','partial','reason','roomId','sceneId','gameTimeStartedMs'];
+ when event='interaction_started' then allowed=allowed||array['interactionId','contentId','roomId','startedAt'];
+ when event='gameplay_ended' then allowed=allowed||array['reason'];
+ when event='business_completed' then allowed=allowed||array['roomId','contentId'];
+ when event='center_object_interacted' then allowed=allowed||array['roomId','sceneForegroundMs','sceneEngagedMs','contentId','endedAt','partial','interactionId','startedAt','gameTimeStartedMs','gameTimeEndedMs','lastShown','lastConfirmed'];
+ when event in ('center_scene_entered','center_scene_exited') or event in ('center_interaction_requested','center_interaction_completed','center_interaction_blocked') then allowed=allowed||array['roomId','sceneId','sceneForegroundMs','sceneEngagedMs'];
+ when event='center_position_sample' then allowed=allowed||array['roomId'];
+ when event='session_checkpoint' then allowed=allowed||array['sceneId','roomId','activeInteractions','sceneForegroundMs','sceneEngagedMs','elapsedMs','foregroundMs','engagedMs','idleMs','movementMs','readingMs','phoneMs'];
+ when event in ('center_entry_action','center_entry_completed') then allowed=allowed||array['intent'];
+ when event in ('shop_order_submitted','shop_order_ready','shop_order_collected','shop_item_consumed') then allowed=allowed||array['shopId'];
+ when event in ('landing_entry','language_selected') then allowed=allowed||array['languageSource'];
+ when event='commercial_storefront_interacted' then allowed=allowed||array['slotId','storeType'];
+ when event='milk_tea_order_confirmed' then allowed=allowed||array['drink','sugar','ice','orderNumber','queueAheadAtOrder'];
+ when event in ('milk_tea_order_ready','milk_tea_order_picked_up') then allowed=allowed||array['orderNumber'];
+ when event='cafe_story_stage_reached' then allowed=allowed||array['stage'];
+ else null;
+ end case;
  if not analytics_validation.fields(d) or not(d ?& array['historyProtocol','webVisitId','documentId','buildSha','internalTest','gameTimeMs','release','environment']) or d-allowed<>'{}'::jsonb then return false; end if;
  if d->'historyProtocol' is distinct from '2'::jsonb then return false; end if;
  for k in select unnest(array['lastShown','lastConfirmed']) loop
@@ -116,8 +167,8 @@ begin
 end $$;
 revoke all on schema analytics_validation from public;
 grant usage on schema analytics_validation to anon,authenticated;
-revoke all on function analytics_validation.fields(jsonb),analytics_validation.unit(jsonb,text),analytics_validation.payload(jsonb,text) from public;
-grant execute on function analytics_validation.fields(jsonb),analytics_validation.unit(jsonb,text),analytics_validation.payload(jsonb,text) to anon,authenticated;
+revoke all on function analytics_validation.fields(jsonb),analytics_validation.unit(jsonb,text),analytics_validation.event_fields(jsonb,text),analytics_validation.payload(jsonb,text) from public;
+grant execute on function analytics_validation.fields(jsonb),analytics_validation.unit(jsonb,text),analytics_validation.event_fields(jsonb,text),analytics_validation.payload(jsonb,text) to anon,authenticated;
 alter table public.analytics_events add constraint analytics_events_history_v2_check
  check (analytics_validation.payload(event_data,event_name));
 

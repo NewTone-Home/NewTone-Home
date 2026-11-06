@@ -10,7 +10,7 @@ await db.exec(`create role anon;create role authenticated;
 create table public.analytics_events(
 id bigint generated always as identity primary key,client_event_id uuid unique,visitor_id uuid,session_id uuid,sequence integer,event_name text,
 step_id text,scene_id text,object_id text,object_kind text,outcome text,dwell_ms bigint,position_x numeric,position_y numeric,occurred_at timestamptz,event_data jsonb not null default '{}',
-constraint analytics_events_event_name_check check(event_name in ('landing_entry','center_object_interacted','session_checkpoint','session_end','center_scene_entered','center_scene_exited','center_position_sample')));
+constraint analytics_events_event_name_check check(event_name in ('landing_entry','center_object_interacted','session_checkpoint','session_end','center_scene_entered','center_scene_exited','center_position_sample','language_selected','commercial_storefront_interacted','milk_tea_order_confirmed','milk_tea_order_ready','milk_tea_order_picked_up','cafe_story_stage_reached')));
 alter table public.analytics_events enable row level security;
 create policy owner_select on public.analytics_events for select to authenticated using(current_setting('app.is_owner',true)='true');
 create policy public_insert on public.analytics_events for insert to anon with check(true);
@@ -36,7 +36,8 @@ await insert('session_checkpoint',{...common,roomId:'cafe',sceneForegroundMs:200
 await insert('session_checkpoint',{...common,roomId:'cafe',sceneForegroundMs:5000,sceneEngagedMs:5000},'2026-11-06T01:00:05Z',null,'room-visit','commercial-street')
 const rejected=[]
 async function reject(label,name,payload){
- await assert.rejects(insert(name,payload),error=>{assert.equal(error.code,'23514',label);assert.equal(error.constraint,'analytics_events_history_v2_check',label);return true});rejected.push(label)
+ assert.equal((await db.query('select analytics_validation.payload($1::jsonb,$2::text) as valid',[JSON.stringify(payload),name])).rows[0].valid,false,'validator itself: '+label)
+ await assert.rejects(insert(name,payload),error=>{assert.equal(error.code,'23514',label);assert.ok(['analytics_events_history_v2_check','analytics_events_v030_payload_check'].includes(error.constraint),label+': '+error.constraint);return true});rejected.push(label)
 }
 const validIdle={...common,intervalId:'idle-valid',startedAt:baseAt,endedAt:baseAt+30000,durationMs:30000,possibleAfk:false}
 const bad=[
@@ -79,12 +80,39 @@ const bad=[
  ['unknown root value','session_checkpoint',{...common,payload:{secret:'value'}}],
 ]
 for(const [label,name,payload] of bad)await reject(label,name,payload)
+const eventContract=JSON.parse(readFileSync(new URL('./history-event-enums.json',import.meta.url),'utf8'))
+const clientSource=readFileSync(new URL('../src/services/analytics.js',import.meta.url),'utf8')
+const validWeb={...common,status:'foreground',reason:'checkpoint',foregroundMs:0,startedAt:baseAt,lastKnownAt:baseAt,endConfirmed:false}
+await reject('web_visit_state private intent','web_visit_state',{...validWeb,intent:'private user text'})
+await reject('web_visit_state valid but misplaced intent','web_visit_state',{...validWeb,intent:'create'})
+let enumAcceptances=0
+for(const [key,values] of Object.entries(eventContract.enums)){
+ const declaration=clientSource.split('const '+key+' = cleanChoice(value.'+key+', ')[1].split(')')[0]
+ assert.deepEqual(JSON.parse(declaration.replaceAll("'",'"')),values,'client enum contract: '+key)
+ for(const event of eventContract.events[key]){
+  let base={}
+  if(event.startsWith('center_entry_'))base={intent:'create'}
+  if(event==='commercial_storefront_interacted')base={slotId:'commercial-south-slot-5',storeType:eventContract.enums.storeType[0]}
+  if(event==='milk_tea_order_confirmed')base={drink:eventContract.enums.drink[0],sugar:eventContract.enums.sugar[0],ice:eventContract.enums.ice[0],orderNumber:1,queueAheadAtOrder:0}
+  if(event.startsWith('shop_'))base={shopId:eventContract.enums.shopId[0]}
+  for(const value of values){
+   await insert(event,{release:'0.3.0',environment:'production',...base,[key]:value})
+   await insert(event,{...common,...base,[key]:value});enumAcceptances+=2
+  }
+  await reject('private enum: '+event+'/'+key,event,{...common,...base,[key]:'private-user-text'})
+  await reject('legacy private enum: '+event+'/'+key,event,{release:'0.3.0',environment:'production',...base,[key]:'private-user-text'})
+ }
+ await reject('misplaced enum: web_visit_state/'+key,'web_visit_state',{...validWeb,[key]:values[0]})
+}
+await reject('legacy cross-event field','landing_entry',{release:'0.3.0',environment:'production',drink:eventContract.enums.drink[0]})
 await insert('session_checkpoint',{...common,activeInteractions:[{interactionId:'one',objectId:'npc',objectKind:'npc',lastShown:{lineId:'line',sentenceIndex:0,pageIndex:1,at:baseAt,gameTimeMs:null}}]})
 await insert('web_visit_state',{...common,status:'foreground',reason:'checkpoint',foregroundMs:3000,startedAt:1000,lastKnownAt:baseAt,endConfirmed:false,currentNoOperation:{intervalId:'snapshot',startedAt:baseAt-10,gameTimeStartedMs:null,buildSha:null,internalTest:false,durationMs:10,possibleAfk:false}})
 // An actually captured browser payload must also satisfy the validator, not just hand-built fixtures.
-if(process.env.HISTORY_CAPTURE){
- const rows=JSON.parse(readFileSync(process.env.HISTORY_CAPTURE,'utf8'))
- for(const row of rows)assert.equal((await db.query('select analytics_validation.payload($1::jsonb,$2::text) as valid',[JSON.stringify(row.event_data),row.event_name])).rows[0].valid,true,row.event_name+': '+JSON.stringify(row.event_data))
+let capturedPayloadsValidated=0
+const captures=process.env.HISTORY_CAPTURES?JSON.parse(process.env.HISTORY_CAPTURES):process.env.HISTORY_CAPTURE?[process.env.HISTORY_CAPTURE]:[]
+for(const capture of captures){
+ const rows=JSON.parse(readFileSync(capture,'utf8'))
+ for(const row of rows){assert.equal((await db.query('select analytics_validation.payload($1::jsonb,$2::text) as valid',[JSON.stringify(row.event_data),row.event_name])).rows[0].valid,true,row.event_name+': '+JSON.stringify(row.event_data));capturedPayloadsValidated++}
 }
 const query=`select public.owner_player_history_v2('0.3.0','production','2026-11-06','2026-11-07',null,null,null,$1,$2) as data`
 await db.exec(`set role authenticated;set app.is_owner='true'`)
@@ -112,5 +140,5 @@ await db.exec('reset role;set role anon')
 await assert.rejects(db.query(query,['','all']))
 await insert('session_checkpoint',{...common,activeInteractions:[]})
 await reject('anon insert cannot bypass validator','session_checkpoint',{...common,lastShown:{lineId:'line',sentenceIndex:0,pageIndex:{secret:'value'}}})
-console.log(JSON.stringify({status:'passed',engine:'local in-memory PGlite',checks:['six existing migrations + draft','old raw row unchanged','new payloads accepted','wrong AFK threshold / false closed / free text rejected','real foreground and no-op totals','story completion','player prefix search','non-owner RLS empty','anon RPC denied'],rows:data.items.length,rejectedCases:rejected,intervalChecks:['midnight split','window clipping at both ends','completion reported after window','partial recovery deduplication','unknown recovery gap excluded','half-open boundaries']}))
+console.log(JSON.stringify({status:'passed',engine:'local in-memory PGlite',checks:['six existing migrations + draft','old raw row unchanged','new payloads accepted','wrong AFK threshold / false closed / free text rejected','real foreground and no-op totals','story completion','player prefix search','non-owner RLS empty','anon RPC denied'],rows:data.items.length,enumAcceptances,capturedPayloadsValidated,rejectedCases:rejected,intervalChecks:['midnight split','window clipping at both ends','completion reported after window','partial recovery deduplication','unknown recovery gap excluded','half-open boundaries']}))
 await db.close()

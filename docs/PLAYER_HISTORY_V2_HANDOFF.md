@@ -75,3 +75,15 @@ Rollback before activation: leave flag OFF. After a separately approved activati
 - Still a local review draft, NOT applied to any real database. A real historical-data preflight remains required before future authorization to apply it; a conflicting old row causes transactional failure, never deletion or silent rewriting.
 
 Revision verification: 38 direct SQL rejection cases (all expected CHECK violations), UTC intersection tests also under America/New_York session timezone, real captured browser payload validation, 113 focused tests, typecheck, 3 browser checks and local build passed. No real DB execution.
+
+## Review correction: event-specific fields and exact enumerations
+
+- Successor to `05538b210993c99d77a43506511098c5f0934158`, SQL/verifier/docs only; runtime product files are unchanged.
+- Every v2 event now has a common envelope plus its own exact extension, rather than one shared union of all event fields.
+- `intent` belongs only to entry action/completion; `languageSource` to Landing/language selection; `storeType` to storefront interaction; drink/sugar/ice to milk-tea confirmation; `stage` to the cafe milestone. Shop IDs and auxiliary slot/order fields are similarly event-bound.
+- String enumerations are the exact current `cleanChoice` lists, including all Chinese drink/specification/store labels. `scripts/history-event-enums.json` is a test contract checked against the actual client source; every allowed enum is exercised with both a valid old payload and a protocol-2 payload.
+- Dedicated field ownership and enum validation also apply before the legacy fast path: valid old clients remain accepted, but private text or misplaced dedicated fields cannot bypass checks by omitting the protocol. This narrows malformed legacy data acceptance; it does not add metadata, rewrite or delete old rows. Future real-data preflight remains required.
+- Direct rejection checks first require the new validation function itself to return false, then require INSERT to fail with the expected CHECK violation. In particular, `web_visit_state` with private `intent` text and with misplaced but otherwise valid `intent:'create'` must both fail.
+- Real captured PC/mobile payload compatibility and previous midnight/window/recovery and RLS checks remain in the local in-memory PostgreSQL verifier. No real database or deployment is touched.
+
+Event-field revision result: 75 direct SQL rejection cases (validator false plus INSERT CHECK failure), 148 accepted valid old/current enum payloads, 74 captured PC/mobile payloads validated; previous interval, recovery and owner/anon checks pass. Runtime product files are unchanged from 05538b2, so prior type/browser/build evidence is reused, not rerun or relabelled as fresh. SQL remains unapplied.
