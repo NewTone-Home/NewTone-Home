@@ -787,12 +787,12 @@ export const ANALYTICS_STORAGE_KEYS = Object.freeze({
 
 // Validated presentation callbacks only; authored identifiers, never player text.
 export function recordDialogueProgress(kind, value) {
-  if(!historyEnabled())return false
+  if(!historyContext().webVisitId)return false
   return getInteractionSessions().progress('display',kind,value)
 }
 
 export function recordBusinessCompletion(fact) {
-  if(!historyEnabled())return false
+  if(!historyContext().webVisitId)return false
   const location=locationActivity?.read(ensureSessionActivityTracker().snapshot())
   return trackEvent('business_completed',{sceneId:location?.sceneId,objectId:fact.objectId,objectKind:fact.objectKind,outcome:fact.outcome,eventData:{roomId:location?.roomId,contentId:fact.objectId}})
 }

@@ -24,24 +24,93 @@ await insert('center_object_interacted',{release:'0.3.0',environment:'production
 const before=await db.query('select event_data from public.analytics_events order by id')
 await db.exec(readFileSync(new URL('../docs/sql/player-history-v2-review.sql',import.meta.url),'utf8'))
 assert.deepEqual((await db.query('select event_data from public.analytics_events order by id')).rows,before.rows)
+const baseAt=Date.parse('2026-11-06T01:00:00Z')
 const common={release:'0.3.0',environment:'production',webVisitId:'visit-1',documentId:'doc-1',historyProtocol:2,internalTest:false,buildSha:'a'.repeat(40),gameTimeMs:100}
 await insert('web_visit_state',{...common,status:'foreground',reason:'opened',foregroundMs:0,startedAt:1000,lastKnownAt:1000,endConfirmed:false})
-await insert('web_visit_state',{...common,status:'background',reason:'visibility',foregroundMs:3000,lastKnownAt:4000,endConfirmed:false},'2026-11-06T01:00:03Z')
+await insert('web_visit_state',{...common,status:'background',reason:'visibility',foregroundMs:3000,startedAt:1000,lastKnownAt:4000,endConfirmed:false},'2026-11-06T01:00:03Z')
 await insert('center_entry_completed',{...common,intent:'create'},'2026-11-06T01:00:01Z')
-await insert('interaction_started',{...common,interactionId:'one',contentId:'counter'},'2026-11-06T01:00:02Z')
+await insert('interaction_started',{...common,interactionId:'one',contentId:'counter',startedAt:baseAt},'2026-11-06T01:00:02Z')
 await insert('center_object_interacted',{...common,interactionId:'one',lastShown:{lineId:'line-2',sentenceIndex:1},lastConfirmed:{lineId:'line-1',sentenceIndex:0},endedAt:4000},'2026-11-06T01:00:03Z','story-completed')
-await insert('foreground_no_operation',{...common,intervalId:'idle-1',startedAt:1000,endedAt:2000,durationMs:1000,possibleAfk:false},'2026-11-06T01:00:04Z')
+await insert('foreground_no_operation',{...common,intervalId:'idle-1',startedAt:baseAt,endedAt:baseAt+1000,durationMs:1000,possibleAfk:false},'2026-11-06T01:00:04Z')
 await insert('session_checkpoint',{...common,roomId:'cafe',sceneForegroundMs:2000,sceneEngagedMs:2000},'2026-11-05T23:59:59Z',null,'room-visit','commercial-street')
 await insert('session_checkpoint',{...common,roomId:'cafe',sceneForegroundMs:5000,sceneEngagedMs:5000},'2026-11-06T01:00:05Z',null,'room-visit','commercial-street')
-for(const [name,payload] of [['foreground_no_operation',{...common,durationMs:30000,possibleAfk:true}],['web_visit_state',{...common,endConfirmed:true}],['center_object_interacted',{...common,lastShown:{lineId:'safe',text:'private'}}]])await assert.rejects(insert(name,payload))
+const rejected=[]
+async function reject(label,name,payload){
+ await assert.rejects(insert(name,payload),error=>{assert.equal(error.code,'23514',label);assert.equal(error.constraint,'analytics_events_history_v2_check',label);return true});rejected.push(label)
+}
+const validIdle={...common,intervalId:'idle-valid',startedAt:baseAt,endedAt:baseAt+30000,durationMs:30000,possibleAfk:false}
+const bad=[
+ ['missing protocol', 'center_entry_completed', {release:'0.3.0',environment:'production',intent:'create',lastShown:{lineId:'line',sentenceIndex:0}}],
+ ['unbound status','session_checkpoint',{release:'0.3.0',environment:'production',status:'foreground'}],
+ ['unbound nested snapshot','session_checkpoint',{release:'0.3.0',environment:'production',currentNoOperation:{secret:'value'}}],
+ ['string protocol','session_checkpoint',{...common,historyProtocol:'2'}],
+ ['null protocol','session_checkpoint',{...common,historyProtocol:null}],
+ ['unknown protocol','session_checkpoint',{...common,historyProtocol:3}],
+ ['object identifier','session_checkpoint',{...common,webVisitId:{secret:'value'}}],
+ ['oversized identifier','session_checkpoint',{...common,documentId:'x'.repeat(129)}],
+ ['invalid identifier','session_checkpoint',{...common,interactionId:'free text with spaces'}],
+ ['object build','session_checkpoint',{...common,buildSha:{value:'a'.repeat(40)}}],
+ ['wrong SHA length','session_checkpoint',{...common,buildSha:'abc'}],
+ ['negative clock','session_checkpoint',{...common,gameTimeMs:-1}],
+ ['object clock','session_checkpoint',{...common,gameTimeMs:{secret:'value'}}],
+ ['infinite size timestamp','session_checkpoint',{...common,lastKnownAt:1e30}],
+ ['string timestamp','session_checkpoint',{...common,startedAt:'2026-11-06'}],
+ ['bad boolean','session_checkpoint',{...common,internalTest:'true'}],
+ ['unknown status','session_checkpoint',{...common,status:'closed'}],
+ ['nested progress text','center_object_interacted',{...common,lastShown:{lineId:'line',sentenceIndex:0,text:'private'}}],
+ ['nested progress object ID','center_object_interacted',{...common,lastShown:{lineId:{secret:'value'},sentenceIndex:0}}],
+ ['negative index','center_object_interacted',{...common,lastShown:{lineId:'line',sentenceIndex:-1}}],
+ ['fractional index','center_object_interacted',{...common,lastShown:{lineId:'line',sentenceIndex:0.5}}],
+ ['string index','center_object_interacted',{...common,lastShown:{lineId:'line',sentenceIndex:'0'}}],
+ ['null index','center_object_interacted',{...common,lastShown:{lineId:'line',sentenceIndex:null}}],
+ ['excessive page index','center_object_interacted',{...common,lastShown:{lineId:'line',sentenceIndex:0,pageIndex:1000001}}],
+ ['nested progress time object','center_object_interacted',{...common,lastConfirmed:{lineId:'line',sentenceIndex:0,at:{secret:'value'}}}],
+ ['active array type','session_checkpoint',{...common,activeInteractions:{secret:'value'}}],
+ ['active array count','session_checkpoint',{...common,activeInteractions:Array.from({length:9},()=>({interactionId:'one',objectId:'npc'}))}],
+ ['active arbitrary value','session_checkpoint',{...common,activeInteractions:[{interactionId:'one',objectId:'npc',payload:{secret:'value'}}]}],
+ ['active nested invalid index','session_checkpoint',{...common,activeInteractions:[{interactionId:'one',objectId:'npc',lastShown:{lineId:'line',sentenceIndex:-1}}]}],
+ ['idle snapshot arbitrary value','web_visit_state',{...common,status:'foreground',reason:'checkpoint',foregroundMs:0,startedAt:baseAt,lastKnownAt:baseAt,endConfirmed:false,currentNoOperation:{intervalId:'idle',startedAt:baseAt,durationMs:10,possibleAfk:false,payload:{secret:'value'}}}],
+ ['idle snapshot invalid clock','session_checkpoint',{...common,currentNoOperation:{intervalId:'idle',startedAt:baseAt,gameTimeStartedMs:{secret:'value'},durationMs:10,possibleAfk:false}}],
+ ['false close','web_visit_state',{...common,status:'foreground',reason:'opened',foregroundMs:0,startedAt:baseAt,lastKnownAt:baseAt,endConfirmed:true}],
+ ['missing lifecycle required','interaction_started',{...common,interactionId:'one'}],
+ ['wrong 30 second threshold','foreground_no_operation',{...validIdle,possibleAfk:true}],
+ ['duration mismatch','foreground_no_operation',{...validIdle,durationMs:1}],
+ ['reverse interval','foreground_no_operation',{...validIdle,endedAt:baseAt-1}],
+ ['unknown root value','session_checkpoint',{...common,payload:{secret:'value'}}],
+]
+for(const [label,name,payload] of bad)await reject(label,name,payload)
+await insert('session_checkpoint',{...common,activeInteractions:[{interactionId:'one',objectId:'npc',objectKind:'npc',lastShown:{lineId:'line',sentenceIndex:0,pageIndex:1,at:baseAt,gameTimeMs:null}}]})
+await insert('web_visit_state',{...common,status:'foreground',reason:'checkpoint',foregroundMs:3000,startedAt:1000,lastKnownAt:baseAt,endConfirmed:false,currentNoOperation:{intervalId:'snapshot',startedAt:baseAt-10,gameTimeStartedMs:null,buildSha:null,internalTest:false,durationMs:10,possibleAfk:false}})
+// An actually captured browser payload must also satisfy the validator, not just hand-built fixtures.
+if(process.env.HISTORY_CAPTURE){
+ const rows=JSON.parse(readFileSync(process.env.HISTORY_CAPTURE,'utf8'))
+ for(const row of rows)assert.equal((await db.query('select analytics_validation.payload($1::jsonb,$2::text) as valid',[JSON.stringify(row.event_data),row.event_name])).rows[0].valid,true,row.event_name+': '+JSON.stringify(row.event_data))
+}
 const query=`select public.owner_player_history_v2('0.3.0','production','2026-11-06','2026-11-07',null,null,null,$1,$2) as data`
 await db.exec(`set role authenticated;set app.is_owner='true'`)
 const data=(await db.query(query,['','external'])).rows[0].data
 assert.equal(data.locations[0].foreground_ms,3000);assert.equal(data.players.length,1);assert.equal(data.daily[0].foreground_ms,3000);assert.equal(data.daily[0].no_operation_ms,1000);assert.equal(data.daily[0].story_completions,1)
 assert.equal((await db.query(query,['ffffffff','all'])).rows[0].data.players.length,0)
+await db.exec('reset role')
+const interval=async(id,start,end,extra={})=>insert('foreground_no_operation',{...common,documentId:'recovery-document',intervalId:id,startedAt:Date.parse(start),endedAt:Date.parse(end),durationMs:Date.parse(end)-Date.parse(start),possibleAfk:Date.parse(end)-Date.parse(start)>30000,...extra},end)
+await interval('midnight','2026-11-06T23:59:50Z','2026-11-07T00:00:20Z')
+await interval('recovery','2026-11-07T00:00:00Z','2026-11-07T00:00:10Z',{partial:true})
+await interval('recovery','2026-11-07T00:00:00Z','2026-11-07T00:00:25Z',{partial:false})
+await interval('after-recovery-gap','2026-11-07T00:01:00Z','2026-11-07T00:01:05Z',{partial:true})
+await db.exec(`set role authenticated;set app.is_owner='true'`)
+await db.exec("set time zone 'America/New_York'")
+async function totals(from,to){return (await db.query(`select public.owner_player_history_v2('0.3.0','production',$1::timestamptz,$2::timestamptz,null,null,null,'','external') as data`,[from,to])).rows[0].data.daily.map(day=>({day:day.day.slice(0,10),ms:day.no_operation_ms}))}
+assert.deepEqual(await totals('2026-11-06T00:00:00Z','2026-11-07T00:00:00Z'),[{day:'2026-11-06',ms:11000}])
+assert.deepEqual(await totals('2026-11-07T00:00:00Z','2026-11-08T00:00:00Z'),[{day:'2026-11-07',ms:50000}])
+assert.deepEqual(await totals('2026-11-06T23:59:55Z','2026-11-07T00:00:05Z'),[{day:'2026-11-06',ms:5000},{day:'2026-11-07',ms:10000}])
+assert.deepEqual(await totals('2026-11-07T00:00:05Z','2026-11-07T00:00:15Z'),[{day:'2026-11-07',ms:20000}])
+assert.deepEqual(await totals('2026-11-07T00:00:25Z','2026-11-07T00:01:00Z'),[{day:'2026-11-07',ms:0}])
+assert.equal((await db.query(`select public.owner_player_history_v2('0.3.0','production','2026-11-07T00:00:00Z','2026-11-08T00:00:00Z',null,null,null,'','external') as data`)).rows[0].data.daily[0].players,1)
 await db.exec(`set app.is_owner='false'`)
 assert.equal((await db.query(query,['','all'])).rows[0].data.items.length,0)
 await db.exec('reset role;set role anon')
 await assert.rejects(db.query(query,['','all']))
-console.log(JSON.stringify({status:'passed',engine:'local in-memory PGlite',checks:['six existing migrations + draft','old raw row unchanged','new payloads accepted','wrong AFK threshold / false closed / free text rejected','real foreground and no-op totals','story completion','player prefix search','non-owner RLS empty','anon RPC denied'],rows:data.items.length}))
+await insert('session_checkpoint',{...common,activeInteractions:[]})
+await reject('anon insert cannot bypass validator','session_checkpoint',{...common,lastShown:{lineId:'line',sentenceIndex:0,pageIndex:{secret:'value'}}})
+console.log(JSON.stringify({status:'passed',engine:'local in-memory PGlite',checks:['six existing migrations + draft','old raw row unchanged','new payloads accepted','wrong AFK threshold / false closed / free text rejected','real foreground and no-op totals','story completion','player prefix search','non-owner RLS empty','anon RPC denied'],rows:data.items.length,rejectedCases:rejected,intervalChecks:['midnight split','window clipping at both ends','completion reported after window','partial recovery deduplication','unknown recovery gap excluded','half-open boundaries']}))
 await db.close()

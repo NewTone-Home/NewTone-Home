@@ -10,7 +10,7 @@ export function createWebVisit({ storage, now = Date.now, id = () => crypto.rand
   let foreground = visible, moving = false, interval = null, disposed = false
   let accountedAt=now()
   const settle=()=>{const at=now();if(foreground)state.foregroundMs+=Math.max(0,at-accountedAt);accountedAt=at}
-  const context = () => ({ webVisitId:state.visitId, documentId, gameTimeMs:clock() })
+  const context = () => ({ historyProtocol:2, webVisitId:state.visitId, documentId, gameTimeMs:clock() })
   const save = () => { try { storage?.setItem(HISTORY_KEY, JSON.stringify({...state, idle:interval})) } catch { /* unavailable telemetry storage must not block play */ } }
   const record = (reason, extra = {}) => { settle();state.lastKnownAt=now();save();emit('web_visit_state',{...context(),...state,...identity(),reason,...extra}) }
   const beginIdle = () => { if(foreground && !moving && !interval)interval={...identity(),intervalId:id(),startedAt:now(),gameTimeStartedMs:clock(),...location()} }

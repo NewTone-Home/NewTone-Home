@@ -61,3 +61,17 @@ Rollback before activation: leave flag OFF. After a separately approved activati
 - Local in-memory PostgreSQL: pass, including clipped room baseline (5000 minus 2000 before range = 3000ms), old-row preservation and access checks.
 - Vite build: pass; only the existing large-chunk advisory. Build uses localhost telemetry and unknown local SHA, not a deployable production configuration.
 - `git diff --check`: pass. No full-game suite, no real DB write or deployed UI verification this round.
+
+## Review correction: strict payloads and interval overlap
+
+- Successor to candidate `00bc9cc5daca6bf6be85e8d799ea19f2846a5401`; the same isolated branch is used.
+- Any introduced field binds the payload to protocol 2. Legacy fields already used before v2 (such as `foregroundMs`, `roomId`, `endedAt`, `partial`) do not alone imply v2; legacy rows without introduced fields retain their existing constraints.
+- New payloads require the complete visit/provenance envelope. IDs, bounded numeric times, nullable clocks/SHA, enums, booleans, integral indices, size and array limits are checked. Unknown root/nested keys and arbitrary JSON at scalar positions are rejected. Progress / active interaction / no-operation nesting is finite and explicitly validated.
+- Pure helper functions live in `analytics_validation`, outside the public RPC schema; execute/usage grants are explicit. They read no tables. Existing owner RLS is unchanged.
+- Runtime emits v2 metadata only inside an installed website visit; the first visit record explicitly carries its protocol. Admin/non-visit events retain their prior contract rather than producing incomplete v2 envelopes.
+- No-operation daily totals use `[startedAt, endedAt)` intersected with `[p_from, p_to)` and each UTC day. An interval's report may arrive after the requested end; its known overlap is still counted. Recovery duplicates use the furthest known endpoint for the same visitor/visit/document/interval ID, not a sum of partial and final rows. Unknown gaps are not filled.
+- Raw event pagination still uses event occurrence time; interval totals may therefore include overlap from a completion row outside the displayed event window. This is deliberate, not a synthetic event.
+- Direct SQL fixtures cover malformed payloads and anonymous inserts, midnight splits, clipping at both window ends, delayed completion, partial→final recovery deduplication, excluded recovery gaps and exact half-open boundaries. Real browser event payloads are also fed through the validator.
+- Still a local review draft, NOT applied to any real database. A real historical-data preflight remains required before future authorization to apply it; a conflicting old row causes transactional failure, never deletion or silent rewriting.
+
+Revision verification: 38 direct SQL rejection cases (all expected CHECK violations), UTC intersection tests also under America/New_York session timezone, real captured browser payload validation, 113 focused tests, typecheck, 3 browser checks and local build passed. No real DB execution.
