@@ -11,12 +11,10 @@ const LANDING_UPDATES = Object.freeze([
     dateTime: '2026-11-05',
     zh: Object.freeze({
       summary: Object.freeze([
-  "Summary",
   "这一次，我们调整了一下宇宙的配置。",
   "街道上的生活还在继续，一些新的事情也正在发生。"
 ]),
       details: Object.freeze([
-  "Details",
   "· 商业街有了更多可以进入的店铺。",
   "未来会逐步添加更多可供重复游玩的店铺。",
   "· 剧情出现了新的转机。",
@@ -33,12 +31,10 @@ const LANDING_UPDATES = Object.freeze([
     }),
     en: Object.freeze({
       summary: Object.freeze([
-  "Summary",
   "This time, we've made a few adjustments to our universe.",
   "The streets carry on as usual, while something new begins to unfold."
 ]),
       details: Object.freeze([
-  "Details",
   "· You can now enter more shops along Commercial Street.",
   "We plan to gradually introduce more shops with activities worth coming back for.",
   "· The story takes a new turn.",
