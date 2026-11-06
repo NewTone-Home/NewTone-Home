@@ -7,13 +7,24 @@
   min-height: 0;
   max-height: 100%;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: hidden;
   overscroll-behavior-y: contain;
   -webkit-overflow-scrolling: touch;
-  padding: clamp(3.5rem, 11vh, 7.5rem) clamp(1.25rem, 7vw, 7rem) clamp(5rem, 10vh, 6rem);
+  padding: clamp(3.5rem, 11vh, 7.5rem) clamp(1.25rem, 7vw, 7rem) max(clamp(5rem, 10vh, 6rem), calc(clamp(1.25rem, 6vh, 3.5rem) + 4.5rem));
   background-color: var(--reader-paper, var(--paper-base));
   color: var(--ink-strong);
   transform: translateY(100%);
+}
+
+/* The timeline scrolls independently of the existing return-button surface. */
+.landing-updates-page__scroll {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .landing-updates-page__layout {
@@ -265,7 +276,7 @@
 
 @media (max-width: 720px) {
   .landing-updates-page {
-    overflow-y: auto;
+    overflow-y: hidden;
     padding: 4.5rem 1.25rem 5.5rem;
   }
 
