@@ -6,3 +6,8 @@ export function analyticsReleaseContext(env = import.meta.env) {
     ? env.VITE_ANALYTICS_ENVIRONMENT : env.DEV ? 'development' : 'preview'
   return { release: ANALYTICS_RELEASE, environment }
 }
+
+export function analyticsBuildEnvironment(branch, target) {
+  if (branch === 'staging') return 'staging'
+  return branch === 'main' && target === 'production' ? 'production' : 'preview'
+}
