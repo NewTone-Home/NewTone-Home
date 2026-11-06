@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 const inserts = vi.hoisted(() => vi.fn(async () => ({ error: null })))
 vi.mock('../lib/supabaseClient', () => ({ isSupabaseConfigured: true, supabase: { from: () => ({ insert: inserts }) } }))
 import { buildAnalyticsEvent, flushAnalyticsQueue, trackEvent, setAnalyticsLocation, getInteractionSessions, installDwellTracking, ANALYTICS_STORAGE_KEYS } from './analytics'
-import { analyticsReleaseContext } from './analyticsRelease'
+import { analyticsReleaseContext, analyticsBuildEnvironment } from './analyticsRelease'
 const storage = () => { const data = new Map(); return { getItem: k => data.get(k) ?? null, setItem: (k,v) => data.set(k,v), removeItem:k=>data.delete(k), get length(){return data.size}, key:i=>[...data.keys()][i] } }
 const ids = { visitorId:'00000000-0000-4000-8000-000000000001', clientEventId:'00000000-0000-4000-8000-000000000002', session:{ id:'00000000-0000-4000-8000-000000000003', sequence:0 }, sessionStorage:storage(), env:{VITE_ANALYTICS_ENVIRONMENT:'staging'} }
 let cleanup
@@ -15,6 +15,10 @@ describe('0.3.0 event contract', () => {
     expect(payload.event_data).toEqual({shopId:'commercial-cafe-slot',release:'0.3.0',environment:'staging'})
     expect(analyticsReleaseContext({})).toEqual({release:'0.3.0',environment:'preview'})
     expect(analyticsReleaseContext({DEV:true})).toEqual({release:'0.3.0',environment:'development'})
+    expect(analyticsBuildEnvironment('main','production')).toBe('production')
+    expect(analyticsBuildEnvironment('main','preview')).toBe('preview')
+    expect(analyticsBuildEnvironment('staging','production')).toBe('staging')
+    expect(analyticsBuildEnvironment('feature/test','production')).toBe('preview')
   })
   it('retries old queue without inventing a release or changing its event ID',async () => {
     const old={client_event_id:ids.clientEventId,event_name:'landing_entry',event_data:{},device_category:'unknown',viewport_width:null,viewport_height:null}
