@@ -1,5 +1,7 @@
 'use client'
 
+import { recordDialogueProgress } from '../../services/analytics'
+
 import { officeBlindsRoomKey, officeRoomBlindsOpen, officeWindowRoom } from './officeRoomLighting'
 
 import { isWallMenuReading, parseWallMenuText } from './menuReading'
@@ -3665,6 +3667,7 @@ export function MainlineScenePage({
   }, [activeDialogue, activeDialogueLine?.text, commercialCafeNarrative, commercialCafeStory.narrativeCursor, commercialStreetQuestionNarrative, dialogueLineIndex, dialogueSegmentIndex])
 
   const noteDialogueAdvance = useCallback((event: string, intent: 'line' | 'segment') => {
+    if(event.startsWith('advanced:') && activeDialogueLine && !commercialCafeReplayView && !presentationSnapshot) recordDialogueProgress('lastConfirmed',{lineId:activeDialogueLine.id,sentenceIndex:dialogueSegmentIndex})
     setDialogueAdvanceDiagnostic(JSON.stringify({
       event,
       intent,
@@ -3676,7 +3679,7 @@ export function MainlineScenePage({
       handoff: dialogueHandoffActiveRef.current,
       cafePhase: commercialCafeNarrative?.phase ?? null,
     }))
-  }, [commercialCafeNarrative, commercialCafeStory.narrativeCursor, dialogueLineIndex, dialogueSegmentIndex, scene.id])
+  }, [presentationSnapshot, activeDialogueLine, commercialCafeReplayView, commercialCafeNarrative, commercialCafeStory.narrativeCursor, dialogueLineIndex, dialogueSegmentIndex, scene.id])
 
   const advanceDialogue = useCallback((tailDeletionComplete = false, advanceIntent: 'line' | 'segment' = 'segment') => {
     noteDialogueAdvance('received', advanceIntent)
@@ -3868,6 +3871,7 @@ export function MainlineScenePage({
   const completeDialogueTextMotion = useCallback((sessionId: number, motion: MainlineReadingTextMotion) => {
     if (!mainlineReadingTextMotionCompletionMatches(`dialogue:${dialogueTextSessionIdRef.current}`, `dialogue:${sessionId}`)) return `rejected:dialogue-session:${dialogueTextSessionIdRef.current}`
     if (dialogueTextMotionRef.current !== motion) return `rejected:dialogue-motion:${dialogueTextMotionRef.current}`
+    if((motion === 'typing' || motion === 'static') && activeDialogueLine && !commercialCafeReplayView && !presentationSnapshot) recordDialogueProgress('lastShown',{lineId:activeDialogueLine.id,sentenceIndex:dialogueSegmentIndex})
     const nextMotion = mainlineReadingTextMotionAfterAnimation(dialogueTextMotionRef.current)
     updateDialogueTextMotion(nextMotion)
     if (nextMotion === 'deleted') {
@@ -3883,7 +3887,7 @@ export function MainlineScenePage({
       } else advanceDialogueRef.current(true)
     }
     return `accepted:dialogue-${nextMotion}`
-  }, [updateDialogueTextMotion])
+  }, [presentationSnapshot, activeDialogueLine, commercialCafeReplayView, dialogueSegmentIndex, updateDialogueTextMotion])
 
   const walk = useCallback((point: Point) => {
     if (readingActive) return
@@ -4197,6 +4201,9 @@ export function MainlineScenePage({
                   return `accepted:replay-${motion}`
                 }
                 return completeDialogueTextMotion(sessionId, motion)
+              }}
+              onDialogueEvidence={(phase, unit) => {
+                if(!presentationSnapshot && !commercialCafeReplayView && unit.lineId===activeDialogueLine?.id && unit.sentenceIndex===dialogueSegmentIndex && dialogueTextSessionIdRef.current===dialogueTextSessionId) recordDialogueProgress(phase,unit)
               }}
               sceneEcho={commercialCafeReplayView ? null : sceneEcho}
               conversationDisplaySessionId={currentConversationDisplaySessionId}

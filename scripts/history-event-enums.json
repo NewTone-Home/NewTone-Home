@@ -1,0 +1,112 @@
+{
+  "enums": {
+    "intent": [
+      "create",
+      "continue",
+      "replace",
+      "restart",
+      "recovered",
+      "expand",
+      "request-replace",
+      "cancel",
+      "collapse"
+    ],
+    "languageSource": [
+      "user_selected",
+      "browser_default",
+      "product_default"
+    ],
+    "storeType": [
+      "果茶店",
+      "服装店",
+      "花店",
+      "眼镜店",
+      "美妆店",
+      "书店",
+      "甜品店",
+      "鞋店",
+      "潮玩店",
+      "香氛店",
+      "奶茶店",
+      "周边店",
+      "首饰店",
+      "文创店",
+      "玩具店",
+      "咖啡馆",
+      "潮牌店",
+      "快餐店",
+      "珠宝店"
+    ],
+    "drink": [
+      "原味奶茶",
+      "黑糖珍珠奶茶",
+      "芋泥奶茶",
+      "茉莉奶绿"
+    ],
+    "sugar": [
+      "少糖",
+      "正常",
+      "多糖"
+    ],
+    "ice": [
+      "少冰",
+      "正常冰",
+      "去冰"
+    ],
+    "stage": [
+      "meeting-started",
+      "mine-lead",
+      "yonghe-lead",
+      "ready-to-leave",
+      "complete"
+    ],
+    "shopId": [
+      "commercial-south-slot-5",
+      "commercial-north-slot-1",
+      "commercial-cafe-slot",
+      "yonghe-eatery"
+    ]
+  },
+  "events": {
+    "intent": [
+      "center_entry_action",
+      "center_entry_completed"
+    ],
+    "languageSource": [
+      "landing_entry",
+      "language_selected"
+    ],
+    "storeType": [
+      "commercial_storefront_interacted"
+    ],
+    "drink": [
+      "milk_tea_order_confirmed"
+    ],
+    "sugar": [
+      "milk_tea_order_confirmed"
+    ],
+    "ice": [
+      "milk_tea_order_confirmed"
+    ],
+    "stage": [
+      "cafe_story_stage_reached"
+    ],
+    "shopId": [
+      "shop_order_submitted",
+      "shop_order_ready",
+      "shop_order_collected",
+      "shop_item_consumed"
+    ],
+    "slotId": [
+      "commercial_storefront_interacted"
+    ],
+    "orderNumber": [
+      "milk_tea_order_confirmed",
+      "milk_tea_order_ready",
+      "milk_tea_order_picked_up"
+    ],
+    "queueAheadAtOrder": [
+      "milk_tea_order_confirmed"
+    ]
+  }
+}

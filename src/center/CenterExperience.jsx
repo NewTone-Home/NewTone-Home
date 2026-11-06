@@ -59,6 +59,8 @@ import './CenterExperience.css'
 import { useReducedMotion } from '../hooks/useReducedMotion'
 import {
   checkpointSessionActivityIfDue,
+  installHistoryClock,
+  recordBusinessCompletion,
   markSessionActivity,
   setAnalyticsCurrentScene,
   setAnalyticsLocation,
@@ -261,6 +263,7 @@ export default function CenterExperience({
       // The persistence coordinator throws on failure before reaching this point.
       const interactions=getInteractionSessions()
       for (const event of [...shopAnalyticsTransitions(previous, next), ...storyCompletionTransitions(previous, next)]) {
+        if(event.objectKind!=='story')recordBusinessCompletion(event)
         if(event.objectKind==='story') interactions.instant({objectId:event.objectId,objectKind:event.objectKind,contentId:event.objectId},event.outcome)
         else if(!(interactions.annotate('display',event.outcome) || interactions.annotate('phone',event.outcome))) pendingBusinessFactsRef.current.push(event)
       }
@@ -691,6 +694,7 @@ export default function CenterExperience({
     setTrialClockSnapshot(snapshot)
   }, [])
   const readSessionGameTimeMs = useCallback(() => sessionGameClockRef.current.read().gameTimeMs, [])
+  useEffect(() => installHistoryClock(readSessionGameTimeMs), [readSessionGameTimeMs])
   const cafeStoryOrderDelivery = useMemo(() => createCafeStoryOrderDeliveryController({
     readSave: () => playerSaveRef.current,
     commitSave: update => commitPlayerSave(update),
