@@ -12,7 +12,7 @@ export function PlayerAccountBootstrapView({ runtime, GuestComponent = App, Acco
   if (runtime === null) return <p role="status">正在准备账号与存档…</p>
   if (!runtime?.enabled) return <GuestComponent />
   return <AccountComponent authController={runtime.authController} saveCoordinator={runtime.saveCoordinator}
-    otpReady={runtime.otpReady} googleReady={runtime.googleReady} navigate={navigate} />
+    emailMode={runtime.emailMode} linkReady={runtime.linkReady} otpReady={runtime.otpReady} googleReady={runtime.googleReady} navigate={navigate} />
 }
 
 /** Loaded only after both main-entry feature flags are exact true. No render-time client creation. */

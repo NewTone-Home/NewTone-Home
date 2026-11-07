@@ -4,7 +4,7 @@ import PlayerAccountGate from './PlayerAccountGate'
 import { installPlayerAccountLifecycle } from '../../services/playerAccountLifecycle.mjs'
 
 /** Parent owns auth/coordinator lifetime. Source changes remount the entire entry runtime. */
-export default function PlayerAccountApp({ authController, saveCoordinator, otpReady = false, googleReady = false,
+export default function PlayerAccountApp({ authController, saveCoordinator, otpReady = false, googleReady = false, emailMode = 'otp', linkReady = false,
   navigate, language = 'zh', initiallyOpen = false, onSelectedSave, GameComponent = App,
 }) {
   const saves = useSyncExternalStore(saveCoordinator.subscribe, saveCoordinator.getSnapshot, saveCoordinator.getSnapshot)
@@ -14,7 +14,7 @@ export default function PlayerAccountApp({ authController, saveCoordinator, otpR
   const en = language === 'en'
   return <div className="player-account-host">
     <div className="player-account-host-controls">
-      <PlayerAccountGate authController={authController} saveCoordinator={saveCoordinator} otpReady={otpReady}
+      <PlayerAccountGate authController={authController} saveCoordinator={saveCoordinator} otpReady={otpReady} emailMode={emailMode} linkReady={linkReady}
         googleReady={googleReady} navigate={navigate} language={language} initiallyOpen={initiallyOpen} onSelectedSave={onSelectedSave} />
     </div>
     {source?.key && source.service

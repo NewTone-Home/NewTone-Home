@@ -19,6 +19,30 @@ describe('player authentication candidate UI', () => {
       expect(button(html, 'Continue as guest')).not.toContain('disabled')
     }
   })
+  it('clearly labels Chinese email setup as pending while keeping guest entry available', () => {
+    const html = authHtml({ language: 'zh', otpReady: false, googleReady: false })
+    expect(html).toContain('邮箱登录尚未开放')
+    expect(html).toContain('准备中')
+    expect(button(html, '发送验证码')).toContain('disabled')
+    expect(button(html, '继续以游客游玩')).not.toContain('disabled')
+    expect(html).not.toContain('使用 Google 登录')
+  })
+  it('keeps link-mode wording while verified configuration is pending', () => {
+    const html = authHtml({ language: 'zh', emailMode: 'link', linkReady: false, otpReady: true, onRequestLink: vi.fn(), emailInput: 'a@b.com' })
+    expect(html).toContain('登录 NewTone')
+    expect(html).toContain('准备中')
+    expect(button(html, '发送登录链接')).toContain('disabled')
+    expect(html).not.toContain('发送验证码')
+    expect(button(html, '继续以游客游玩')).not.toContain('disabled')
+  })
+  it('renders branded link entry and same-browser instructions without an OTP field', () => {
+    const html = authHtml({ language: 'zh', emailMode: 'link', linkReady: true, onRequestLink: vi.fn(), snapshot: { ...signedOut, email: 'a@b.com' } })
+    expect(html).toContain('登录 NewTone')
+    expect(html).toContain('同一浏览器')
+    expect(html).toContain('尚未定制为 NewTone')
+    expect(html).not.toContain('one-time-code')
+    expect(button(html, '重新发送链接')).not.toContain('disabled')
+  })
   it('renders email entry with no password or magic-link controls', () => {
     const html = authHtml({ otpReady: true, emailInput: 'player@example.com' })
     expect(button(html, 'Send code')).not.toContain('disabled')

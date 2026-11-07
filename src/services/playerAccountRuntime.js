@@ -17,11 +17,11 @@ export function createPlayerAccountRuntime({ env = import.meta.env, currentOrigi
     storage ??= globalThis.localStorage
     locks ??= globalThis.navigator?.locks
     if (!storage || typeof locks?.request !== 'function') return disabled('player_storage_unavailable')
-    const configured = makeClient({ env, currentOrigin, currentUrl })
+    const configured = makeClient({ env, currentOrigin, currentUrl, emailStorage: storage, locks })
     if (!configured.enabled) return configured
     client = configured.client
     authController = makeAuth({ auth: client.auth, verifiedOrigin: configured.verifiedOrigin,
-      callbackUrl: configured.callbackUrl, otpEmailConfigured: configured.otpReady === true, oauthFlow: configured.oauthFlow })
+      callbackUrl: configured.callbackUrl, otpEmailConfigured: configured.otpReady === true, oauthFlow: configured.oauthFlow, emailLinkFlow: configured.emailLinkFlow, emailLinkConfigured: configured.linkReady === true })
     const backend = makeBackend({ rpc: (name, args) => client.rpc(name, args), storage, locks,
       getIdentity: () => {
         const snapshot = authController.getSnapshot()
@@ -31,8 +31,8 @@ export function createPlayerAccountRuntime({ env = import.meta.env, currentOrigi
     })
     saveCoordinator = makeCoordinator({ authController, backend, storage, locks })
     let disposed = false
-    return { enabled: true, authController, saveCoordinator, otpReady: configured.otpReady === true,
-      googleReady: env.VITE_PLAYER_GOOGLE_CONFIGURED === 'true' && configured.oauthFlow?.available === true,
+    return { enabled: true, authController, saveCoordinator, emailMode: configured.emailMode, linkReady: configured.linkReady === true, otpReady: configured.otpReady === true,
+      googleReady: configured.emailMode !== 'link' && configured.otpReady === true && env.VITE_PLAYER_GOOGLE_CONFIGURED === 'true' && configured.oauthFlow?.available === true,
       async dispose() {
         if (disposed) return
         disposed = true

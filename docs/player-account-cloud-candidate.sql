@@ -1,9 +1,37 @@
 -- CANDIDATE ONLY. NOT APPLIED OR POSTGRES-VALIDATED. See player-account-cloud-contract.md.
--- Isolated local Supabase review/test required before generating a migration.
+-- Hosted PG17 draft: independent review and target verification required before execution.
 begin;
+-- Hosted migration path: PostgreSQL 17, postgres CREATEROLE but NOT SUPERUSER.
+-- No credentials are created. Automatic bootstrap ADMIN-only memberships are
+-- retained; our separate temporary SET-only memberships must not survive COMMIT.
+do $migration_preflight$
+begin
+ if current_setting('server_version_num')::integer not between 170000 and 179999 then
+  raise exception 'PLAYER_CLOUD_MIGRATION_REQUIRES_REVIEWED_PG17';
+ end if;
+ if current_user <> 'postgres' or not exists (
+  select 1 from pg_catalog.pg_roles where rolname=current_user and rolcreaterole and not rolsuper
+ ) then raise exception 'PLAYER_CLOUD_MIGRATION_REQUIRES_NONSUPERUSER_POSTGRES_CREATEROLE'; end if;
+end;
+$migration_preflight$;
+set local createrole_self_grant = '';
 create schema player_cloud_private;
 revoke all on schema player_cloud_private from public, anon, authenticated;
 create role newtone_player_cloud_executor nologin noinherit;
+-- Capture the immutable bootstrap-issued creator grant before our own grant.
+do $capture_executor_creator_grant$
+declare membership pg_catalog.pg_auth_members%rowtype;
+begin
+ select * into strict membership from pg_catalog.pg_auth_members
+  where roleid='newtone_player_cloud_executor'::regrole;
+ if membership.member <> current_user::regrole or membership.grantor=current_user::regrole
+    or not membership.admin_option or membership.inherit_option or membership.set_option then
+  raise exception 'UNEXPECTED_executor_CREATOR_MEMBERSHIP';
+ end if;
+ perform pg_catalog.set_config('newtone_migration.executor_bootstrap_grantor',membership.grantor::text,true);
+end;
+$capture_executor_creator_grant$;
+grant newtone_player_cloud_executor to current_user with admin false, inherit false, set true granted by current_user;
 grant usage on schema player_cloud_private, auth to newtone_player_cloud_executor;
 grant usage on schema player_cloud_private to authenticated;
 grant select (id,user_id,created_at) on auth.sessions to newtone_player_cloud_executor;
@@ -41,6 +69,20 @@ create table player_cloud_private.backups (
 -- Registration eligibility is issued only by this NEW auth.users INSERT trigger.
 -- Deliberately NO backfill, timestamp inference, login grant, or anonymous-upgrade grant.
 create role newtone_player_registration_issuer nologin noinherit;
+-- Capture the immutable bootstrap-issued creator grant before our own grant.
+do $capture_issuer_creator_grant$
+declare membership pg_catalog.pg_auth_members%rowtype;
+begin
+ select * into strict membership from pg_catalog.pg_auth_members
+  where roleid='newtone_player_registration_issuer'::regrole;
+ if membership.member <> current_user::regrole or membership.grantor=current_user::regrole
+    or not membership.admin_option or membership.inherit_option or membership.set_option then
+  raise exception 'UNEXPECTED_issuer_CREATOR_MEMBERSHIP';
+ end if;
+ perform pg_catalog.set_config('newtone_migration.issuer_bootstrap_grantor',membership.grantor::text,true);
+end;
+$capture_issuer_creator_grant$;
+grant newtone_player_registration_issuer to current_user with admin false, inherit false, set true granted by current_user;
 grant usage on schema player_cloud_private to newtone_player_registration_issuer;
 create table player_cloud_private.registration_grants (
  user_id uuid primary key references auth.users(id) on delete cascade,
@@ -49,7 +91,7 @@ create table player_cloud_private.registration_grants (
  check ((consumed_at is null) = (consumed_operation_id is null))
 );
 alter table player_cloud_private.registration_grants enable row level security;
--- Issuer can only insert. It has no membership grants, Auth reads, UPDATE, or RPC access.
+-- Issuer can only insert. No client membership, Auth reads, UPDATE or RPC access.
 create policy registration_issue on player_cloud_private.registration_grants
  for insert to newtone_player_registration_issuer with check (true);
 create policy registration_self_read on player_cloud_private.registration_grants
@@ -69,11 +111,9 @@ begin
  return new;
 end;
 $$;
-grant create on schema player_cloud_private to newtone_player_registration_issuer;
-alter function player_cloud_private.issue_registration_grant() owner to newtone_player_registration_issuer;
-revoke create on schema player_cloud_private from newtone_player_registration_issuer;
 revoke all on function player_cloud_private.issue_registration_grant() from public,anon,authenticated,newtone_player_cloud_executor;
--- Must be installed/tested by the migration owner, never by the player RPC executor.
+-- postgres still owns this function here, so CREATE TRIGGER has its required EXECUTE.
+-- Transfer ownership only after all function ACLs and this trigger are finalized.
 -- A permission/trigger failure can reject signup: exercise this in isolated Supabase first.
 create trigger newtone_player_registration_grant
  after insert on auth.users for each row
@@ -113,7 +153,7 @@ begin
  insert into player_cloud_private.accounts(user_id) values(u) on conflict do nothing;
  select * into a from player_cloud_private.accounts where user_id=u for update;
  -- Refresh does not change this server creation order. No client timestamps accepted.
- select id into latest from auth.sessions where user_id=u order by created_at desc,id desc limit 1;
+ select id into latest from auth.sessions where user_id=u and created_at is not null order by created_at desc,id desc limit 1;
  if latest is distinct from sid then raise exception 'SESSION_REPLACED' using errcode='42501'; end if;
  stamp := clock_timestamp();
  if p_action='activate' then
@@ -250,10 +290,7 @@ begin
  return result;
 end;
 $$;
--- Transfer execution to least-privilege role, not postgres/service_role.
-grant create on schema player_cloud_private to newtone_player_cloud_executor;
-alter function player_cloud_private.dispatch(text,jsonb) owner to newtone_player_cloud_executor;
-revoke create on schema player_cloud_private from newtone_player_cloud_executor;
+-- Finalize function ACLs while postgres still owns the function.
 revoke all on function player_cloud_private.dispatch(text,jsonb) from public,anon,authenticated;
 grant execute on function player_cloud_private.dispatch(text,jsonb) to authenticated;
 create function public.player_cloud_v1(p_action text,p_args jsonb)
@@ -262,4 +299,65 @@ returns jsonb language sql security invoker set search_path='' as $$
 $$;
 revoke all on function public.player_cloud_v1(text,jsonb) from public,anon,authenticated;
 grant execute on function public.player_cloud_v1(text,jsonb) to authenticated;
+-- No function GRANT/REVOKE is issued by postgres after its ownership transfer.
+-- SET capability and target-schema CREATE are both required by ALTER OWNER.
+grant create on schema player_cloud_private to newtone_player_registration_issuer;
+alter function player_cloud_private.issue_registration_grant() owner to newtone_player_registration_issuer;
+revoke create on schema player_cloud_private from newtone_player_registration_issuer;
+grant create on schema player_cloud_private to newtone_player_cloud_executor;
+alter function player_cloud_private.dispatch(text,jsonb) owner to newtone_player_cloud_executor;
+revoke create on schema player_cloud_private from newtone_player_cloud_executor;
+-- Remove only grants made by this migration role; never impersonate the bootstrap grantor.
+revoke newtone_player_registration_issuer from current_user granted by current_user restrict;
+revoke newtone_player_cloud_executor from current_user granted by current_user restrict;
+
+do $verify_migration_security$
+declare target text; tag text; membership pg_catalog.pg_auth_members%rowtype; client text;
+begin
+ foreach target in array array['newtone_player_cloud_executor','newtone_player_registration_issuer'] loop
+  tag:=case target when 'newtone_player_cloud_executor' then 'executor' else 'issuer' end;
+  -- STRICT requires exactly one member: the original bootstrap ADMIN-only grant.
+  select * into strict membership from pg_catalog.pg_auth_members where roleid=target::regrole;
+  if membership.member<>current_user::regrole
+     or membership.grantor<>current_setting('newtone_migration.'||tag||'_bootstrap_grantor')::oid
+     or not membership.admin_option or membership.inherit_option or membership.set_option then
+   raise exception 'UNEXPECTED_FINAL_MEMBERSHIP_FOR_%',target;
+  end if;
+  if exists(select 1 from pg_catalog.pg_auth_members where member=target::regrole) then
+   raise exception 'UNEXPECTED_PARENT_ROLE_FOR_%',target;
+  end if;
+  if pg_catalog.pg_has_role(current_user,target,'SET') or pg_catalog.pg_has_role(current_user,target,'USAGE') then
+   raise exception 'TEMPORARY_ROLE_ACCESS_NOT_REVOKED_FOR_%',target;
+  end if;
+  if pg_catalog.has_schema_privilege(target,'player_cloud_private','CREATE') then
+   raise exception 'TEMPORARY_SCHEMA_CREATE_NOT_REVOKED_FOR_%',target;
+  end if;
+  foreach client in array array['anon','authenticated','service_role'] loop
+   if pg_catalog.pg_has_role(client,target,'MEMBER')
+      or pg_catalog.pg_has_role(client,target,'SET') or pg_catalog.pg_has_role(client,target,'USAGE') then
+    raise exception 'CLIENT_ROLE_MEMBERSHIP_FOR_%',target;
+   end if;
+  end loop;
+  if exists(select 1 from pg_catalog.pg_roles where oid=target::regrole
+     and (rolcanlogin or rolinherit or rolbypassrls or rolsuper or rolcreaterole or rolcreatedb or rolreplication)) then
+   raise exception 'UNEXPECTED_ROLE_ATTRIBUTES_FOR_%',target;
+  end if;
+ end loop;
+ if not exists(select 1 from pg_catalog.pg_proc where oid='player_cloud_private.dispatch(text,jsonb)'::regprocedure
+   and proowner='newtone_player_cloud_executor'::regrole and prosecdef)
+ or not exists(select 1 from pg_catalog.pg_proc where oid='player_cloud_private.issue_registration_grant()'::regprocedure
+   and proowner='newtone_player_registration_issuer'::regrole and prosecdef) then
+  raise exception 'PLAYER_CLOUD_DEFINER_OWNER_MISMATCH';
+ end if;
+end;
+$verify_migration_security$;
+-- Non-sensitive deployment audit output; preserve with the migration result.
+select granted.rolname as granted_role, member.rolname as member_role,
+       grantor.rolname as grantor_role,m.admin_option,m.inherit_option,m.set_option
+from pg_catalog.pg_auth_members m
+join pg_catalog.pg_roles granted on granted.oid=m.roleid
+join pg_catalog.pg_roles member on member.oid=m.member
+join pg_catalog.pg_roles grantor on grantor.oid=m.grantor
+where granted.rolname in ('newtone_player_cloud_executor','newtone_player_registration_issuer')
+order by granted.rolname;
 commit;

@@ -1,3 +1,4 @@
+import { createPlayerEmailLinkFlow } from '../services/playerEmailLinkFlow.mjs'
 import { createClient } from '@supabase/supabase-js'
 import { validatePlayerAuthCallback } from '../services/playerAuth.mjs'
 import { createPlayerOAuthFlow } from '../services/playerOAuthFlow.mjs'
@@ -7,10 +8,10 @@ export const PLAYER_AUTH_STORAGE_KEY = 'newtone-player-auth-v1'
 const blocked = code => ({ enabled: false, client: null, error: { code, message: 'Player accounts are not configured for this deployment.' } })
 
 /** No module-level client. Explicit deployment configuration and origin required. */
-export function createPlayerSupabase({ env = import.meta.env, currentOrigin, currentUrl, oauthStorage,
+export function createPlayerSupabase({ env = import.meta.env, currentOrigin, currentUrl, oauthStorage, emailStorage, locks,
   replaceUrl = url => globalThis.history?.replaceState(null, '', url), createClientImpl = createClient } = {}) {
   if (env?.VITE_PLAYER_ACCOUNTS_ENABLED !== 'true') return blocked('player_accounts_disabled')
-  if (env?.VITE_PLAYER_OTP_CONFIGURED !== 'true') return blocked('player_otp_not_configured')
+  // Email readiness is a capability, not a prerequisite for the guest/account shell.
   const verifiedOrigin = env.VITE_PLAYER_AUTH_ORIGIN
   const callbackUrl = env.VITE_PLAYER_AUTH_CALLBACK_URL
   let redirectTo, url
@@ -32,6 +33,9 @@ export function createPlayerSupabase({ env = import.meta.env, currentOrigin, cur
     })
     try { oauthStorage ??= globalThis.sessionStorage } catch { /* Google stays unavailable. */ }
     const oauthFlow = createPlayerOAuthFlow({ auth: client.auth, callbackUrl: redirectTo, currentUrl, storage: oauthStorage, replaceUrl })
-    return { enabled: true, client, verifiedOrigin: new URL(verifiedOrigin).origin, callbackUrl: redirectTo, otpReady: true, oauthFlow, error: null }
+    const emailMode = env.VITE_PLAYER_EMAIL_MODE === 'link' ? 'link' : 'otp'
+    try { emailStorage ??= globalThis.localStorage; locks ??= globalThis.navigator?.locks } catch { /* Link sign-in stays unavailable. */ }
+    const emailLinkFlow = createPlayerEmailLinkFlow({ auth: client.auth, callbackUrl: redirectTo, currentUrl, storage: emailStorage, locks, replaceUrl })
+    return { enabled: true, client, emailMode, emailLinkFlow, linkReady: emailMode === 'link' && env.VITE_PLAYER_EMAIL_LINK_CONFIGURED === 'true' && emailLinkFlow.available, verifiedOrigin: new URL(verifiedOrigin).origin, callbackUrl: redirectTo, otpReady: env.VITE_PLAYER_OTP_CONFIGURED === 'true', oauthFlow, error: null }
   } catch { return blocked('player_client_initialization_failed') }
 }

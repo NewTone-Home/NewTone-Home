@@ -13,7 +13,7 @@ const readUnknownSaves = () => unknownSaves
 
 /** Account entry shell. Dependencies and source adoption remain owned by the parent. */
 export default function PlayerAccountGate({ authController, saveCoordinator, onSelectedSave,
-  navigate, otpReady = false, googleReady = false, language = 'zh', initiallyOpen = false,
+  navigate, otpReady = false, googleReady = false, emailMode = 'otp', linkReady = false, language = 'zh', initiallyOpen = false,
 }) {
   const auth = useSyncExternalStore(authController?.subscribe ?? subscribeNone, authController?.getSnapshot ?? readUnknownAuth, authController?.getSnapshot ?? readUnknownAuth)
   const saves = useSyncExternalStore(saveCoordinator?.subscribe ?? subscribeNone, saveCoordinator?.getSnapshot ?? readUnknownSaves, saveCoordinator?.getSnapshot ?? readUnknownSaves)
@@ -43,6 +43,7 @@ export default function PlayerAccountGate({ authController, saveCoordinator, onS
   }, [authController, saveCoordinator, navigate])
   useEffect(() => { setCode(''); setError(null) }, [auth.user?.id, auth.email])
   useEffect(() => { callback.current?.(saves.source ?? null) }, [saves.source])
+  useEffect(() => { if (auth.error) setOpen(true) }, [auth.error])
   useEffect(() => { if (saves.status === 'conflict') setOpen(true) }, [saves.status, saves.conflict?.token])
   const en = language === 'en'
   const conflictScope = JSON.stringify([auth.user?.id, auth.sessionEpoch, saves.conflict?.slotId, saves.conflict?.token])
@@ -55,9 +56,9 @@ export default function PlayerAccountGate({ authController, saveCoordinator, onS
       {en ? 'Account & saves' : '账号与存档'}
     </button>
     {open && <div className="player-account-gate-panels">
-      <PlayerAuthPanel snapshot={auth} language={language} otpReady={otpReady} googleReady={googleReady && typeof navigate === 'function'}
+      <PlayerAuthPanel snapshot={auth} language={language} otpReady={otpReady} emailMode={emailMode} linkReady={linkReady} googleReady={googleReady && typeof navigate === 'function'}
         emailInput={email} codeInput={code} onEmailChange={setEmail} onCodeChange={setCode} pending={Boolean(pending)} error={error}
-        onRequestOtp={value => actions.current?.requestOtp(value)} onVerifyOtp={(address, value) => actions.current?.verifyOtp(address, value)}
+        onRequestLink={value => actions.current?.requestLink(value)} onRequestOtp={value => actions.current?.requestOtp(value)} onVerifyOtp={(address, value) => actions.current?.verifyOtp(address, value)}
         onGoogle={() => actions.current?.google()} onLogout={() => actions.current?.logout()} onCancel={() => actions.current?.changeEmail()}
         onGuest={() => actions.current?.continueGuest()} />
       {!['conflict', 'recovering'].includes(saves.status) && <PlayerSaveSlots status={slotStatus} slots={saves.slots} selectedSlotId={saves.selectedSlotId} language={language}

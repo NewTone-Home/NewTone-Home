@@ -37,6 +37,7 @@ export function createPlayerAccountGateActions({ authController, saveCoordinator
     })()
   }
   return {
+    requestLink: email => run('request_link', () => authController?.requestEmailLink(email) ?? unavailable()),
     requestOtp: email => run('request_otp', () => authController?.requestEmailOtp(email) ?? unavailable()),
     verifyOtp: (email, code) => run('verify_otp', async current => {
       const result = await (authController?.verifyEmailOtp(email, code) ?? unavailable())

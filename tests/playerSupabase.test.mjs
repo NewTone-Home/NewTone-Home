@@ -25,12 +25,18 @@ describe('dedicated gated player client factory', () => {
     expect(s.result.enabled).toBe(false)
     expect(s.createClientImpl).not.toHaveBeenCalled()
   })
-  it('requires explicit OTP setup and does not use shared admin environment fallback', () => {
-    for (const overrides of [{ VITE_PLAYER_OTP_CONFIGURED: 'false' }, { VITE_PLAYER_SUPABASE_URL: undefined, VITE_SUPABASE_URL: 'https://admin.example' }]) {
+  it('does not use shared admin environment fallback', () => {
+    for (const overrides of [{ VITE_PLAYER_SUPABASE_URL: undefined, VITE_SUPABASE_URL: 'https://admin.example' }]) {
       const s = setup(overrides)
       expect(s.result.enabled).toBe(false)
       expect(s.createClientImpl).not.toHaveBeenCalled()
     }
+  })
+  it.each([undefined, false, true, 'false', 'TRUE'])('keeps configured shell available but OTP disabled for %s', flag => {
+    const s = setup({ VITE_PLAYER_OTP_CONFIGURED: flag })
+    expect(s.result.enabled).toBe(true)
+    expect(s.result.otpReady).toBe(false)
+    expect(s.createClientImpl).toHaveBeenCalledTimes(1)
   })
   it.each(['https://other.example', 'https://game.example/unsafe', undefined])('rejects unverified current origin %s', currentOrigin => {
     const createClientImpl = vi.fn()
@@ -52,6 +58,25 @@ describe('dedicated gated player client factory', () => {
     const s = setup({ VITE_PLAYER_SUPABASE_URL: url })
     expect(s.result.enabled).toBe(false)
     expect(s.createClientImpl).not.toHaveBeenCalled()
+  })
+  it('enables explicit link mode independently of the numeric OTP template', () => {
+    const auth = { exchangeCodeForSession: vi.fn() }
+    const result = createPlayerSupabase({ env: { ...env, VITE_PLAYER_EMAIL_MODE: 'link', VITE_PLAYER_EMAIL_LINK_CONFIGURED: 'true', VITE_PLAYER_OTP_CONFIGURED: 'false' },
+      currentOrigin: 'https://game.example', createClientImpl: () => ({ auth }),
+      emailStorage: { getItem() {}, setItem() {}, removeItem() {} }, locks: { request() {} } })
+    expect(result.enabled).toBe(true)
+    expect(result.emailMode).toBe('link')
+    expect(result.linkReady).toBe(true)
+    expect(result.otpReady).toBe(false)
+    expect(auth.exchangeCodeForSession).not.toHaveBeenCalled()
+  })
+  it.each([undefined, false, true, 'false', 'TRUE'])('requires exact verified link configuration flag %s', flag => {
+    const result = createPlayerSupabase({ env: { ...env, VITE_PLAYER_EMAIL_MODE: 'link', VITE_PLAYER_EMAIL_LINK_CONFIGURED: flag },
+      currentOrigin: 'https://game.example', createClientImpl: () => ({ auth: { exchangeCodeForSession() {} } }),
+      emailStorage: { getItem() {}, setItem() {}, removeItem() {} }, locks: { request() {} } })
+    expect(result.enabled).toBe(true)
+    expect(result.emailMode).toBe('link')
+    expect(result.linkReady).toBe(false)
   })
   it('contains initialization errors without exposing credentials', () => {
     const result = createPlayerSupabase({ env, currentOrigin: 'https://game.example', createClientImpl: () => { throw new Error('raw credential') } })

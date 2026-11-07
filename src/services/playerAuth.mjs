@@ -1,5 +1,6 @@
 // UI-only authentication state. Never use it instead of server-side RLS.
 const messages = {
+  email_link_restart: '请在发送链接的同一浏览器中打开邮件；链接已失效或浏览器不匹配时，请重新发送。',
   unavailable: 'Player authentication is not configured.',
   disposed: 'This authentication controller has been disposed.',
   busy: 'Wait for the current authentication request to finish.',
@@ -53,7 +54,7 @@ export function validatePlayerAuthCallback(verifiedOrigin, callbackUrl) {
  * otpEmailConfigured must only be true after verifying the {{ .Token }} email template.
  * subscribe/getSnapshot support useSyncExternalStore. Snapshots omit session tokens.
  */
-export function createPlayerAuthController({ auth = null, verifiedOrigin, callbackUrl, otpEmailConfigured = false, oauthFlow = null } = {}) {
+export function createPlayerAuthController({ auth = null, verifiedOrigin, callbackUrl, otpEmailConfigured = false, oauthFlow = null, emailLinkFlow = null, emailLinkConfigured = false } = {}) {
   const redirectTo = validatePlayerAuthCallback(verifiedOrigin, callbackUrl)
   let state = Object.freeze({ status: 'unknown', user: null, sessionEpoch: 0, sessionOrigin: 'signed_out', pending: null, email: null, error: null })
   let observedSessionId = null
@@ -170,7 +171,7 @@ export function createPlayerAuthController({ auth = null, verifiedOrigin, callba
     bootstrap: () => {
       let callbackCompleted = false
       return run('bootstrap', async () => {
-        const result = await oauthFlow?.complete()
+        const result = await (emailLinkConfigured ? emailLinkFlow?.complete() : oauthFlow?.complete())
         if (result) { callbackCompleted = true; return result }
         return auth.getSession()
       }, (data, current) => {
@@ -180,6 +181,16 @@ export function createPlayerAuthController({ auth = null, verifiedOrigin, callba
       })
     },
     refresh: () => run('refresh', () => auth.refreshSession(), sessionResult),
+    requestEmailLink(email) {
+      if (disposed) return Promise.resolve(failure('disposed'))
+      if (emailLinkConfigured !== true || !emailLinkFlow?.available) return Promise.resolve(failure('unavailable'))
+      const normalized = typeof email === 'string' ? email.trim() : ''
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) || normalized.length > 254) return Promise.resolve(failure('invalid_email'))
+      const requestedRevision = otpRevision
+      return run('request_link', () => emailLinkFlow.send(normalized), () => {
+        if (requestedRevision === otpRevision && state.user === null) publish({ email: normalized })
+      })
+    },
     requestEmailOtp(email) {
       if (disposed) return Promise.resolve(failure('disposed'))
       if (otpEmailConfigured !== true) return Promise.resolve(failure('otp_not_configured'))

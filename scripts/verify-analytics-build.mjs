@@ -3,6 +3,7 @@ import vm from 'node:vm'
 import assert from 'node:assert/strict'
 import {readFileSync} from 'node:fs'
 import {analyticsBuildEnvironment} from '../src/services/analyticsRelease.js'
+import {resolveVercelBuildIdentity} from './vercelBuildIdentity.mjs'
 const source=readFileSync(new URL('./vercel-build.mjs',import.meta.url),'utf8')
 for(const [branch,target,override,expected] of [['main','production',undefined,'production'],['staging','production',undefined,'staging'],['feature/test','preview',undefined,'preview'],['main','production','false','production']]){
  let written,buildEnv,exitCode
@@ -11,6 +12,7 @@ for(const [branch,target,override,expected] of [['main','production',undefined,'
  const context=vm.createContext({URL,process:{env:input,platform:'linux',exit:code=>{exitCode=code}},console:{log(){},error(){}}})
  const stub=(names,values)=>new vm.SyntheticModule(names,function(){names.forEach((name,index)=>this.setExport(name,values[index]))},{context})
  const dependencies={
+ './vercelBuildIdentity.mjs':stub(['resolveVercelBuildIdentity'],[resolveVercelBuildIdentity]),
  'node:child_process':stub(['spawnSync'],[(_cmd,_args,options)=>{buildEnv=options.env;return {status:0}}]),
  'node:fs':stub(['writeFileSync'],[(_path,body)=>{written=JSON.parse(body)}]),
  '../src/services/analyticsRelease.js':stub(['analyticsBuildEnvironment'],[analyticsBuildEnvironment]),

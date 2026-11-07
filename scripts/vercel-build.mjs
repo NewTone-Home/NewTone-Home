@@ -1,3 +1,4 @@
+import { resolveVercelBuildIdentity } from './vercelBuildIdentity.mjs'
 import { spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { analyticsBuildEnvironment } from '../src/services/analyticsRelease.js'
@@ -7,8 +8,9 @@ const STAGING_SUPABASE_URL = 'https://ksrvlkcpaiowhcvzimkc.supabase.co'
 const STAGING_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_57_sSKpMOtmoLTFKZtL1uQ_v77CvquY'
 
 const env = { ...process.env }
-env.VITE_BUILD_SHA = /^[a-f0-9]{40}$/i.test(env.VERCEL_GIT_COMMIT_SHA ?? '') ? env.VERCEL_GIT_COMMIT_SHA : ''
-const branch = env.VERCEL_GIT_COMMIT_REF ?? ''
+// Explicit staging selection also isolates file-upload deployments without Git metadata.
+const { branch, buildSha } = resolveVercelBuildIdentity(env)
+env.VITE_BUILD_SHA = buildSha
 env.VITE_ANALYTICS_ENVIRONMENT = analyticsBuildEnvironment(branch, env.VERCEL_ENV)
 // Explicit false remains a deployment-level kill switch; reviewed public branches default on.
 env.VITE_PLAYER_HISTORY_V2 ??= ['main','staging'].includes(branch) ? 'true' : 'false'
