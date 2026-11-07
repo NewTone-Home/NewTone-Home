@@ -16,9 +16,9 @@ import { getReaderThemeVariables, migrateThemePosition } from './reader/readerTh
 import { WORLD_ENTRY_INITIAL_STATE, worldEntryReducer } from './center/worldEntryTransition'
 import './components/SaveEntry.css'
 
-export default function App() {
+export default function App({ saveService } = {}) {
   const controllerRef = useRef(null)
-  if (!controllerRef.current) controllerRef.current = createEntryController(getSaveEntryService())
+  if (!controllerRef.current) controllerRef.current = createEntryController(saveService ?? getSaveEntryService())
   const controller = controllerRef.current
   const [entry, setEntry] = useState(controller.getState)
   const [world, dispatch] = useReducer(worldEntryReducer, WORLD_ENTRY_INITIAL_STATE)

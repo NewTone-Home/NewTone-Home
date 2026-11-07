@@ -1,8 +1,9 @@
 import { createInitialPlayerSave } from '../center/runtime/playerSave.ts';
 import { selectLaoZhouCafeSeat } from '../center/runtime/commercialCafeSeatSelection.ts';
 import { validateNew, rewindUnfinished } from './saveMigration.mjs';
-import { createJournalStorage, installGameStorage } from '../save-session.mjs';
+import { createJournalStorage, installGameStorage, clearGameStorage } from '../save-session.mjs';
 import { openingGuidancePatch } from '../center/runtime/openingGuidance';
+import { createPlayerGuestRepository } from './playerGuestStorage.mjs';
 
 import { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX, RETIRED_PREFIX, WRITER_LOCK } from './saveEpoch.mjs';
 export { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX, RETIRED_PREFIX };
@@ -55,6 +56,7 @@ function validateAuthority(j){
   requireThat(Object.values(j.sources).every(v=>v===null||typeof v==='string'),'INVALID_INVARIANT');
   requireThat(Object.keys(j).every(k=>['saveEpoch','protocolVersion','revision','generation','origin','placement','operationReceipt','sources','archive','values','recoveryHolds'].includes(k)),'UNSUPPORTED_FORMAT');validateValues(j.values);return j;
 }
+export function validateSaveEntryAuthority(value){return validateAuthority(value);}
 function sources(raw){assertKnownNamespace(raw);return Object.fromEntries(physicalKeys(raw).filter(legacyKey).map(k=>[k,raw.getItem(k)]));}
 function preferences(s){const prefs={};for(const family of ['newtone-isolated-progress-v','newtone-progress-v'])for(const v of [4,3,2,1]){try{const x=JSON.parse(s[family+v]??'null');if(!object(x))continue;for(const [k,valid] of Object.entries(PREF_FIELDS))if(!Object.hasOwn(prefs,k)&&valid(x[k]))prefs[k]=x[k];}catch{}}return prefs;}
 function startupPreview(i){
@@ -88,21 +90,25 @@ const guidanceWarnings=()=>[];
 const inspectionWarnings=()=>[];
 function ticketEqual(a,b){return a&&b&&a.operationId===b.operationId&&a.requestHash===b.requestHash&&a.baseSnapshotHash===b.baseSnapshotHash;}
 export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID(),digest=async text=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}}={}){
-  let activeLease=null,activeHandle=null,preparing=false,releasing=Promise.resolve();
-  const raw=()=>storage??globalThis.localStorage;
+  let activeLease=null,activeHandle=null,preparing=false,releasing=Promise.resolve(),disposed=false,defaultGuestStorage=null;
+  // Feature flags or unavailable account configuration must never reopen a
+  // retained guest that a previous account session has already claimed.
+  const raw=()=>{requireThat(!disposed,'SAVE_SERVICE_DISPOSED');if(storage)return storage;return defaultGuestStorage??=createPlayerGuestRepository({storage:globalThis.localStorage,locks}).openCurrent();};
   const failure=(status,e)=>({status,reasonCodes:[e instanceof Error?e.message:String(e)]});
   async function acquire(){
     // Resolving the lock callback is not the native request completion barrier.
     await releasing;
+    requireThat(!disposed,'SAVE_SERVICE_DISPOSED');
     if(activeLease)return activeLease;
     const manager=locks??globalThis.navigator?.locks;if(!manager?.request)throw Error('LOCKING_UNAVAILABLE');
     return new Promise((resolve,reject)=>{let settled=false;const finished=Promise.resolve().then(()=>manager.request(LOCK,{mode:'exclusive',ifAvailable:true},lock=>{
       if(!lock){settled=true;resolve(null);return;}
+      if(disposed){settled=true;reject(Error('SAVE_SERVICE_DISPOSED'));return;}
       return new Promise(release=>{const lease={release(){if(activeLease===lease)activeLease=null;releasing=finished;release();return finished;}};activeLease=lease;settled=true;resolve(lease);});
     })).then(()=>undefined,error=>{if(!settled)reject(error);});});
   }
-  const release=()=>{stop('lease-released');installGameStorage(null);return activeLease?.release()??releasing;};
-  function stop(reason){const h=activeHandle;activeHandle=null;if(h)h.revoke(reason);}
+  const release=()=>{stop('lease-released');return activeLease?.release()??releasing;};
+  function stop(reason){const h=activeHandle;activeHandle=null;if(h){h.revoke(reason);clearGameStorage(h.storage);}}
   async function inspectInternal(){
     const r=raw();assertKnownNamespace(r);
     for(const record of retirements(r)){const {recordHash,...payload}=record;requireThat(await digest(canonical(payload))===recordHash,'INVALID_RETIREMENT_INTEGRITY');}
@@ -160,8 +166,8 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
   function openHandle(j){
     stop('session-replaced');const listeners=new Set();let stopped=false,stopReason=null,cleanup=()=>{};
     const r=raw(),baseline=r.getItem(GUARD);requireThat(baseline!==null,'EPOCH_GUARD_MISSING');
-    const handle={generation:j.generation.id,storage:null,get isOpen(){return !stopped;},get stopReason(){return stopReason;},check(){handle.storage.check();},onStop(fn){if(stopped){fn(stopReason);return()=>{};}listeners.add(fn);return()=>listeners.delete(fn);},revoke(reason){if(stopped)return;stopped=true;stopReason=reason;try{cleanup();}catch{}try{handle.storage?.stop(reason);}catch{}for(const fn of listeners){try{fn(reason);}catch{}}},close(){handle.revoke('session-closed');if(activeHandle===handle){activeHandle=null;installGameStorage(null);return release();}return releasing;}};
-    handle.storage=createJournalStorage(r,j,baseline,store=>store.getItem(GUARD),reason=>{handle.revoke(reason);if(activeHandle===handle){activeHandle=null;installGameStorage(null);release();}});
+    const handle={generation:j.generation.id,storage:null,get isOpen(){return !stopped;},get stopReason(){return stopReason;},check(){handle.storage.check();},onStop(fn){if(stopped){fn(stopReason);return()=>{};}listeners.add(fn);return()=>listeners.delete(fn);},revoke(reason){if(stopped)return;stopped=true;stopReason=reason;try{cleanup();}catch{}try{handle.storage?.stop(reason);}catch{}for(const fn of listeners){try{fn(reason);}catch{}}},close(){handle.revoke('session-closed');if(activeHandle===handle){activeHandle=null;clearGameStorage(handle.storage);return release();}return releasing;}};
+    handle.storage=createJournalStorage(r,j,baseline,store=>store.getItem(GUARD),reason=>{handle.revoke(reason);if(activeHandle===handle){activeHandle=null;clearGameStorage(handle.storage);release();}});
     handle.storage.setValidator(validateValues);installGameStorage(handle.storage);activeHandle=handle;
     if(globalThis.window){const target=globalThis.window;const check=()=>{try{handle.check();}catch{}};const timer=target.setInterval(check,250);target.addEventListener('storage',check);target.document?.addEventListener('visibilitychange',check);cleanup=()=>{target.clearInterval(timer);target.removeEventListener('storage',check);target.document?.removeEventListener('visibilitychange',check);};}
     return handle;
@@ -208,6 +214,7 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
 
   async function retireUncommitted(p){
     requireThat(activeLease,'SESSION_NOT_OWNED');
+    const ownedLease=activeLease;
     const r=raw();
     requireThat(['create','restart'].includes(p.intent)&&p.backup.authorityRaw===null,'RETIREMENT_NOT_PROVEN');
     requireThat(r.getItem(AUTHORITY)===null&&r.getItem(ACKNOWLEDGED)===null,'RETIREMENT_NOT_PROVEN');
@@ -220,6 +227,7 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     requireThat(backupRaw===null||backupRaw===JSON.stringify(p.backup),'BACKUP_CONFLICT');
     const payload={schema:1,saveEpoch:SAVE_EPOCH,ticket:p.ticket,pendingRaw:JSON.stringify(p),guardRaw:ownedGuard,backupKey:p.backupKey,backupRaw,reason:'source-changed-before-first-commit'};
     const record=JSON.stringify({...payload,recordHash:await digest(canonical(payload))});
+    requireThat(!disposed&&activeLease===ownedLease,'SESSION_NOT_OWNED');
     // Recheck after asynchronous hashing. No handle was ever published for a prepared guard.
     requireThat(r.getItem(AUTHORITY)===null&&r.getItem(ACKNOWLEDGED)===null&&r.getItem(PENDING)===payload.pendingRaw&&r.getItem(GUARD)===guardRaw&&r.getItem(p.backupKey)===backupRaw,'RETIREMENT_NOT_PROVEN');
     const key=RETIRED_PREFIX+p.ticket.operationId,previous=r.getItem(key);
@@ -234,7 +242,24 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
       const i=await inspectInternal();const same=i.baseSnapshotHash===ticket.baseSnapshotHash;if(!same){await retireUncommitted(p);await release();return {status:'superseded',ticket,resumeAllowed:false,reasonCodes:['UNCOMMITTED_OPERATION_RETIRED'],warnings:[]};}await release();return {status:'not-committed',ticket,resumeAllowed:true,warnings:guidanceWarnings(parse(parse(p.candidateRaw).values[PLAYER]))};
     }catch(e){await release();return {...failure('unresolved',e),ticket};}finally{preparing=false;}
   }
-  return {inspectSave,prepareEntry,commitEntry,getRecoveryState,resolveOperation,acknowledgeEntry};
+  // Read-only transfer boundary. The caller owns WRITER_LOCK for the complete
+  // transfer; this method neither acquires a second lease nor rewinds gameplay.
+  async function exportCurrentSave(){try{
+    requireThat(!activeHandle&&!activeLease,'SOURCE_RUNTIME_STILL_ACTIVE');
+    const i=await inspectInternal();requireThat(i.authority&&i.guard?.phase==='committed','NO_COMMITTED_CURRENT_SAVE');
+    const recovery=await getRecoveryState();requireThat(recovery.status==='no-pending-operation','SOURCE_ENTRY_RECOVERY_REQUIRED');
+    const again=await inspectInternal();requireThat(again.baseSnapshotHash===i.baseSnapshotHash&&again.authorityRaw===i.authorityRaw,'SOURCE_CHANGED_DURING_EXPORT');
+    return {status:'exported',authorityRaw:i.authorityRaw,guardRaw:raw().getItem(GUARD),snapshot:structuredClone(i.authority),snapshotToken:i.baseSnapshotHash};
+  }catch(e){return failure('blocked',e);}}
+  async function dispose(){disposed=true;await release();}
+  async function exportActiveSave(){try{
+    const handle=activeHandle,lease=activeLease;requireThat(handle&&lease,'SOURCE_RUNTIME_NOT_ACTIVE');handle.check();
+    const i=await inspectInternal();handle.check();
+    requireThat(!disposed&&activeHandle===handle&&activeLease===lease&&raw().getItem(AUTHORITY)===i.authorityRaw,'SOURCE_CHANGED_DURING_EXPORT');
+    requireThat(i.authority&&i.guard?.phase==='committed','NO_COMMITTED_CURRENT_SAVE');
+    return {status:'exported',snapshot:structuredClone(i.authority),authorityRaw:i.authorityRaw,guardRaw:raw().getItem(GUARD)};
+  }catch(e){return failure('blocked',e);}}
+  return {inspectSave,prepareEntry,commitEntry,getRecoveryState,resolveOperation,acknowledgeEntry,exportCurrentSave,exportActiveSave,dispose};
 }
 let browserService;
 export function getSaveEntryService(){return browserService??=createSaveEntryService();}

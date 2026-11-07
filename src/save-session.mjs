@@ -5,6 +5,9 @@ export const PUBLICATION_KEY = 'newtone-reader-publication-v1';
 let activeStorage=null;
 export function getGameStorage(){if(activeStorage)return activeStorage;if(typeof window==='undefined')return null;throw Error('save-session-not-open');}
 export function installGameStorage(storage){activeStorage=storage;}
+// Cleanup belongs to the exact facade that installed this pointer. A failed
+// entry in another account must not detach the currently running game.
+export function clearGameStorage(storage){if(activeStorage!==storage)return false;activeStorage=null;return true;}
 export function assertGameSession(){const storage=getGameStorage();storage?.check?.();return storage;}
 export function rethrowStoppedSession(storage=activeStorage){if(storage?.isOpen===false)throw Error(storage.stopReason??'save-session-stopped');storage?.check?.();}
 export function runSaveTransaction(storage,callback){return storage?.transaction?storage.transaction(callback):callback();}
