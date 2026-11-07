@@ -12,17 +12,40 @@ describe('first-release boundary', () => {
     expect(existsSync(`${root}/supabase/seed/reader-content-v1.json`)).toBe(false)
   })
 
-  it('keeps admin authenticated and independent of the public Center entry', () => {
-    expect(source('src/main.jsx')).toContain("window.location.pathname === '/admin'")
+  it('does not expose or bundle the retired Reader admin app', () => {
+    const main = source('src/main.jsx')
+    expect(main).toContain("window.location.pathname === '/admin/analytics'")
+    expect(main).not.toContain("window.location.pathname === '/admin'")
+    expect(main).not.toContain("startsWith('/admin/')")
+    expect(main).not.toContain('adminRoute')
+    expect(main).toContain('const playerEnabled = !analyticsRoute && playerAccountsRequested(import.meta.env)')
+    expect(main).toContain('loadPlayerAccountModule')
+    expect(source('src/App.jsx')).not.toContain('AdminSequenceGate')
     expect(source('src/views/Landing.jsx')).not.toContain('/admin')
-    expect(source('src/admin/AdminApp.jsx')).toContain("phase === 'ready' && draft")
-    expect(source('src/admin/AdminApp.jsx')).toContain('loadOwnerDraft(session.user.id)')
+    expect(existsSync(`${root}/src/admin/adminAccessSequence.js`)).toBe(false)
+    expect(existsSync(`${root}/src/admin/AdminSequenceGate.jsx`)).toBe(false)
+  })
+
+  it('keeps analytics owner-only without loading or writing Reader drafts', () => {
+    const admin = source('src/admin/AdminApp.jsx')
+    expect(admin).toContain("phase === 'ready' && session")
+    expect(admin).toContain("supabase.rpc('owner_center_analytics_v2')")
+    expect(admin).toContain("if (error) throw error")
+    expect(admin).toContain("error.code === '42501' ? 'unauthorized' : 'error'")
+    const migration = source('supabase/migrations/20261003023500_session_trajectory_analytics.sql')
+    const rpc = migration.slice(migration.indexOf('create or replace function public.owner_center_analytics_v2()'))
+    expect(rpc).toContain('if not private.is_owner(auth.uid()) then')
+    expect(rpc).toContain("using errcode = '42501'")
+    expect(admin).toContain('<CenterAnalyticsDashboard />')
+    for (const retired of ['adminContentService', 'loadOwnerDraft', 'OwnerWorkbench', 'OwnerReaderPreview', 'reader_drafts']) expect(admin).not.toContain(retired)
+    expect(source('src/admin/CenterAnalyticsDashboard.jsx')).toContain('<ReleaseAnalyticsDashboard />')
+    expect(source('src/admin/CenterAnalyticsDashboard.jsx')).not.toContain('href="/admin"')
     expect(source('src/admin/OwnerReaderPreview.jsx')).not.toContain("import('../App.jsx')")
     expect(source('src/admin/ownerPreviewSession.mjs')).toContain('createReaderPreviewStores')
     expect(source('src/admin/ownerPreviewSession.mjs')).not.toContain('installGameStorage')
   })
 
-  it('keeps Center independent of Reader availability while preserving owner authentication and Reader tools', () => {
+  it('keeps Center independent of Reader availability while preserving shared Reader tools', () => {
     expect(source('src/main.jsx')).not.toContain('loadPublishedContent')
     expect(source('src/main.jsx')).not.toContain('<EmptyContentApp')
     expect(source('src/App.jsx')).toContain('<EntrySurface')
@@ -32,10 +55,6 @@ describe('first-release boundary', () => {
     expect(source('src/views/ReaderStage.jsx')).toContain('<ReaderTools')
     expect(source('src/views/ReaderStage.jsx')).toContain('reader-empty-document')
     expect(source('src/views/ReaderStage.jsx')).not.toContain('ReaderUnavailable')
-    expect(source('src/admin/adminAccessSequence.js')).toContain("ADMIN_ACCESS_SEQUENCE = '9989'")
-    expect(source('src/admin/adminAccessSequence.js')).not.toContain('credential')
-    expect(source('src/admin/AdminSequenceGate.jsx')).toContain("window.location.assign('/admin')")
-    expect(source('src/admin/AdminApp.jsx')).toContain('loadOwnerDraft(session.user.id)')
   })
 
   it('allows only the dedicated release branch to create a protected Preview', () => {

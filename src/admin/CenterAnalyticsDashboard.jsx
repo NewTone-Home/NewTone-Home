@@ -30,14 +30,14 @@ function LegacyCenterAnalyticsDashboard() {
   useEffect(load, [])
 
   if (status === 'loading') return <section className="admin-analytics"><p>正在读取 Center 数据…</p></section>
-  if (status === 'error') return <section className="admin-analytics"><h2>历史累计</h2><p role="alert">{message}</p><button type="button" onClick={load}>重试</button><a href="/admin">返回工作台</a></section>
+  if (status === 'error') return <section className="admin-analytics"><h2>历史累计</h2><p role="alert">{message}</p><button type="button" onClick={load}>重试</button><a href="/">返回公开页面</a></section>
 
   const summary = data?.summary || {}
   return (
     <section className="admin-analytics">
       <header className="admin-analytics__header">
         <div><p>NewTone / Center</p><h1>匿名玩家数据</h1><small>仅管理员可见；数据来自真实埋点与反馈提交。</small></div>
-        <nav><button type="button" onClick={load}>刷新</button><a href="/admin">返回工作台</a></nav>
+        <nav><button type="button" onClick={load}>刷新</button><a href="/">返回公开页面</a></nav>
       </header>
 
       <h2>历史累计（含旧版本，不用于 0.3.0 投放漏斗）</h2>
@@ -57,7 +57,7 @@ function LegacyCenterAnalyticsDashboard() {
 export default function CenterAnalyticsDashboard() {
   const [legacy, setLegacy] = useState(false)
   return <main className="admin-analytics">
-    <header className="admin-analytics__header"><h1>NewTone 数据</h1><a href="/admin">返回管理台</a></header>
+    <header className="admin-analytics__header"><h1>NewTone 数据</h1><a href="/">返回公开页面</a></header>
     <ReleaseAnalyticsDashboard />
     <details onToggle={event => setLegacy(event.currentTarget.open)}>
       <summary>历史累计报告（旧版本，非本轮投放漏斗）</summary>

@@ -8,16 +8,16 @@ import { loadPlayerAccountModule, playerAccountsRequested } from './components/p
 import { installDwellTracking } from './services/analytics'
 
 // Retired Reader publication loading and reset controls must not initialize game storage.
-const AdminApp = lazy(() => import('./admin/AdminApp.jsx'))
+const AdminAnalyticsApp = lazy(() => import('./admin/AdminApp.jsx'))
 const PlayerAccountBootstrap = lazy(() => loadPlayerAccountModule(() => import('./components/player/PlayerAccountBootstrap.jsx'), App))
-const adminRoute = window.location.pathname === '/admin' || window.location.pathname.startsWith('/admin/')
-const disposeAnalytics = adminRoute ? () => {} : installDwellTracking()
+const analyticsRoute = window.location.pathname === '/admin/analytics'
+const disposeAnalytics = analyticsRoute ? () => {} : installDwellTracking()
 if (import.meta.hot) import.meta.hot.dispose(disposeAnalytics)
 // Disabled deployments do not load player UI, backend or the dedicated client factory.
-const playerEnabled = !adminRoute && playerAccountsRequested(import.meta.env)
+const playerEnabled = !analyticsRoute && playerAccountsRequested(import.meta.env)
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {adminRoute ? <Suspense fallback={<p>正在打开管理界面…</p>}><AdminApp /></Suspense>
+    {analyticsRoute ? <Suspense fallback={<p role="status">正在打开数据页面…</p>}><AdminAnalyticsApp /></Suspense>
       : playerEnabled ? <Suspense fallback={<p role="status">正在准备账号与存档…</p>}><PlayerAccountBootstrap /></Suspense> : <App />}
   </StrictMode>,
 )

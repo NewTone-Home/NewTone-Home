@@ -3,7 +3,7 @@ import { adminRedirectUrl, requestAdminMagicLink, signInAdminWithGitHub } from '
 
 describe('owner authentication methods', () => {
   it('keeps both methods on the same protected admin return route', () => {
-    expect(adminRedirectUrl('https://preview.example')).toBe('https://preview.example/admin')
+    expect(adminRedirectUrl('https://preview.example')).toBe('https://preview.example/admin/analytics')
   })
 
   it('prevents email sign-in from creating an unapproved account', async () => {
@@ -11,7 +11,7 @@ describe('owner authentication methods', () => {
     await requestAdminMagicLink({ auth: { signInWithOtp } }, 'owner@example.com', 'https://preview.example')
     expect(signInWithOtp).toHaveBeenCalledWith({
       email: 'owner@example.com',
-      options: { shouldCreateUser: false, emailRedirectTo: 'https://preview.example/admin' },
+      options: { shouldCreateUser: false, emailRedirectTo: 'https://preview.example/admin/analytics' },
     })
   })
 
@@ -20,7 +20,7 @@ describe('owner authentication methods', () => {
     await signInAdminWithGitHub({ auth: { signInWithOAuth } }, 'https://preview.example')
     expect(signInWithOAuth).toHaveBeenCalledWith({
       provider: 'github',
-      options: { redirectTo: 'https://preview.example/admin' },
+      options: { redirectTo: 'https://preview.example/admin/analytics' },
     })
   })
 })

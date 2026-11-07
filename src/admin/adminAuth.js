@@ -1,5 +1,5 @@
 export function adminRedirectUrl(origin = window.location.origin) {
-  return `${origin}/admin`
+  return `${origin}/admin/analytics`
 }
 
 export function requestAdminMagicLink(supabase, email, origin) {
