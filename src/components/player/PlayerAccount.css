@@ -23,3 +23,9 @@
 .player-account-host-wait { display:grid; place-items:center; min-height:100dvh; box-sizing:border-box; padding:5rem 1.5rem; color:var(--reader-ink,#302e2b); background:var(--reader-paper,#f5f1e9); }
 .player-account-host-wait > div { max-width:32rem; line-height:1.7; }
 .player-account-host-wait h1 { font-weight:500; font-size:1.4rem; }
+.player-save-comparison { display:grid; gap:.75rem; }
+.player-save-version { padding:.75rem; border:1px solid var(--reader-border,#a9a297); }
+.player-save-version h3, .player-save-confirmation h3 { margin:0; font-size:1rem; font-weight:500; }
+.player-save-version button[aria-pressed="true"] { border-width:2px; }
+.player-save-confirmation { border-top:1px solid var(--reader-border,#a9a297); margin-top:1rem; padding-top:1rem; }
+.player-save-summary { white-space:pre-line; }

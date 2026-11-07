@@ -5,7 +5,7 @@ const url = `http://127.0.0.1:${port}`
 
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['accountSaveSlots.spec.ts', 'playerAccountHost.spec.ts'],
+  testMatch: ['accountSaveSlots.spec.ts', 'playerAccountHost.spec.ts', 'playerRecoveryUI.spec.ts'],
   timeout: 45_000,
   workers: 1,
   use: { baseURL: url, channel: process.env.PLAYWRIGHT_CHANNEL, screenshot: 'off', trace: 'off' },

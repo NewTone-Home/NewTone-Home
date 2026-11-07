@@ -1,5 +1,5 @@
 /** Isolated candidate client. Never signs in, mounts runtime storage, or resolves conflicts itself. */
-const ACTIONS = new Set(['create', 'adopt', 'write', 'resolve', 'release']);
+const ACTIONS = new Set(['create', 'adopt', 'write', 'resolve', 'restore', 'release']);
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const requireThat = (condition, code) => { if (!condition) throw Error(code); };
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -71,6 +71,8 @@ export function createPlayerCloudService({ rpc, getScope, persistPending, clearP
     renew: () => call('renew', args()),
     listSlots: () => call('list', args()),
     readSlot: slotId => call('read', args({ slotId })),
+    listBackups: slotId => call('list_backups', args({slotId})),
+    readBackup: (slotId,backupId) => call('read_backup',args({slotId,backupId})),
     getReceipt: operationId => call('receipt', args({ operationId })),
     get isActive() { return !!active && sameScope(active, getScope()) && now() < active.deadline; },
   });

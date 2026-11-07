@@ -24,3 +24,23 @@ test('access guard and allowed fields prevent cross-account or token storage',as
  const queue=make(memoryStorage(),()=>false);await expect(queue.persistPending(request)).rejects.toThrow('CLOUD_QUEUE_ACCESS_DENIED');
  await expect(make(memoryStorage()).persistPending({...request,parameters:{...request.parameters,accessToken:'not allowed'}})).rejects.toThrow('INVALID_CLOUD_QUEUE_FIELDS');
 });
+test('definitive CAS rejection is retained but no longer blocks a new explicit resolution',async()=>{
+ const storage=memoryStorage(),queue=make(storage);await queue.persistPending(request);
+ await expect(queue.rejectPending(request,{ok:false,code:'OUTCOME_UNCERTAIN'})).rejects.toThrow('UNPROVEN_CLOUD_REJECTION');
+ expect(queue.listPending(ownerId)).toHaveLength(1);
+ await queue.rejectPending(request,{ok:false,code:'REVISION_CONFLICT'});expect(queue.listPending(ownerId)).toEqual([]);expect(storage.length).toBe(1);
+});
+test('write compaction requires a durable baseline and preserves hash-verified idempotent retry',async()=>{
+ const storage=memoryStorage(),queue=make(storage);await queue.persistPending(request);
+ await queue.compactAcknowledgedWrites(ownerId,()=>true);expect(queue.listPending(ownerId)[0].request.parameters.payloadRaw).toBe('{}');
+ await queue.clearPending(request,{ok:true,revision:'2'});await queue.compactAcknowledgedWrites(ownerId,()=>false);
+ expect(queue.listAcknowledged(ownerId)[0].request.parameters.payloadRaw).toBe('{}');
+ expect((await queue.compactAcknowledgedWrites(ownerId,()=>true)).compacted).toBe(1);
+ const compact=queue.listAcknowledged(ownerId)[0];expect(compact.request.parameters.payloadRaw).toBeUndefined();expect(compact.requestHash).toMatch(/^[0-9a-f]{64}$/);expect(compact.acknowledgement.revision).toBe('2');
+ await queue.persistPending(request);await queue.clearPending(request,{ok:true,revision:'2'});
+ await expect(queue.persistPending({...request,parameters:{...request.parameters,payloadRaw:'{"changed":true}'}})).rejects.toThrow('CLOUD_QUEUE_IDEMPOTENCY_MISMATCH');
+});
+test('adoption and explicit backup-bearing operation payloads are not checkpoint-compacted',async()=>{
+ const queue=make(memoryStorage());const adopt={...request,action:'adopt'};await queue.persistPending(adopt);await queue.clearPending(adopt,{ok:true,revision:'1'});
+ await queue.compactAcknowledgedWrites(ownerId,()=>true);expect(queue.listAcknowledged(ownerId)[0].request.parameters.payloadRaw).toBe('{}');
+});

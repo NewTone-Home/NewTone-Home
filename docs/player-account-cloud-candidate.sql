@@ -16,13 +16,14 @@ create table player_cloud_private.accounts (
 create table player_cloud_private.slots (
  user_id uuid not null references auth.users(id) on delete cascade,
  slot_no smallint not null check(slot_no between 1 and 3), slot_id uuid not null unique,
- revision bigint not null check(revision>=1), payload jsonb not null,
+ revision bigint not null check(revision>=1), payload jsonb not null, payload_raw text not null,
+ check(payload_raw::jsonb=payload),
  updated_at timestamptz not null default clock_timestamp(),
  primary key(user_id,slot_no), unique(user_id,slot_id)
 );
 create table player_cloud_private.operations (
  user_id uuid not null references auth.users(id) on delete cascade, operation_id uuid not null,
- request jsonb not null, result jsonb not null, primary key(user_id,operation_id)
+ request_hash text not null check(request_hash ~ '^[0-9a-f]{64}$'), result jsonb not null, primary key(user_id,operation_id)
 );
 create table player_cloud_private.adoptions (
  user_id uuid not null, generation_id text not null, slot_id uuid not null,
@@ -31,8 +32,9 @@ create table player_cloud_private.adoptions (
 );
 create table player_cloud_private.backups (
  user_id uuid not null, operation_id uuid not null, slot_id uuid not null,
- kind text not null check(kind in ('cloud-before-replace','local-not-chosen')),
- payload jsonb not null, created_at timestamptz not null default clock_timestamp(),
+ kind text not null check(kind in ('cloud-before-replace','local-not-chosen','cloud-conflict-snapshot','local-conflict-snapshot')),
+ payload jsonb not null, payload_raw text not null, created_at timestamptz not null default clock_timestamp(),
+ check(payload_raw::jsonb=payload),
  primary key(user_id,operation_id,kind),
  foreign key(user_id,slot_id) references player_cloud_private.slots(user_id,slot_id)
 );
@@ -97,8 +99,8 @@ returns jsonb language plpgsql security definer set search_path='' as $$
 declare
  u uuid := auth.uid(); sid uuid; born timestamptz; latest uuid;
  a player_cloud_private.accounts%rowtype; s player_cloud_private.slots%rowtype;
- op player_cloud_private.operations%rowtype; adopted player_cloud_private.adoptions%rowtype;
- oid uuid; slot uuid; number smallint; body jsonb; req jsonb; result jsonb;
+ op player_cloud_private.operations%rowtype; adopted player_cloud_private.adoptions%rowtype; saved player_cloud_private.backups%rowtype;
+ oid uuid; slot uuid; number smallint; body jsonb; req jsonb; reqhash text; result jsonb;
  expected bigint; stamp timestamptz; k text; v jsonb;
 begin
  if u is null or not exists(select 1 from auth.users where id=u and is_anonymous=false) then
@@ -147,19 +149,30 @@ begin
  if p_action='read' then
   select * into s from player_cloud_private.slots where user_id=u and slot_id=(p_args->>'slotId')::uuid;
   if not found then raise exception 'SLOT_NOT_FOUND'; end if;
-  return jsonb_build_object('ok',true,'slotId',s.slot_id,'revision',s.revision::text,'payload',s.payload,'updatedAt',s.updated_at);
+  return jsonb_build_object('ok',true,'slotId',s.slot_id,'revision',s.revision::text,'payload',s.payload,'payloadRaw',s.payload_raw,'sourceFingerprint',encode(sha256(convert_to(s.payload_raw,'UTF8')),'hex'),'updatedAt',s.updated_at);
+ end if;
+ if p_action='list_backups' then
+  select coalesce(jsonb_agg(jsonb_build_object('backupId',operation_id::text||':'||kind,'summary',jsonb_build_object('kind',kind,'createdAt',created_at,'sourceFingerprint',encode(sha256(convert_to(payload_raw,'UTF8')),'hex'))) order by created_at desc,operation_id,kind),'[]'::jsonb)
+  into result from player_cloud_private.backups where user_id=u and slot_id=(p_args->>'slotId')::uuid;
+  return jsonb_build_object('ok',true,'slotId',p_args->>'slotId','backups',result);
+ end if;
+ if p_action='read_backup' then
+  select * into saved from player_cloud_private.backups where user_id=u and slot_id=(p_args->>'slotId')::uuid and operation_id::text||':'||kind=p_args->>'backupId';
+  if not found then raise exception 'BACKUP_NOT_FOUND'; end if;
+  return jsonb_build_object('ok',true,'slotId',saved.slot_id,'backupId',p_args->>'backupId','payload',saved.payload,'payloadRaw',saved.payload_raw,'sourceFingerprint',encode(sha256(convert_to(saved.payload_raw,'UTF8')),'hex'));
  end if;
  if p_action='receipt' then
   select o.result into result from player_cloud_private.operations o where o.user_id=u and o.operation_id=(p_args->>'operationId')::uuid;
   return jsonb_build_object('ok',true,'receipt',result);
  end if;
- if p_action not in ('create','adopt','write','resolve','release') then raise exception 'UNSUPPORTED_ACTION'; end if;
+ if p_action not in ('create','adopt','write','resolve','restore','release') then raise exception 'UNSUPPORTED_ACTION'; end if;
  oid := (p_args->>'operationId')::uuid;
  if oid is null then raise exception 'OPERATION_ID_REQUIRED'; end if;
  req := jsonb_build_object('action',p_action,'args',p_args-'fence'-'operationId');
+ reqhash:=encode(sha256(convert_to(req::text,'UTF8')),'hex');
  select * into op from player_cloud_private.operations where user_id=u and operation_id=oid;
  if found then
-  if op.request<>req then raise exception 'IDEMPOTENCY_MISMATCH'; end if;
+  if op.request_hash<>reqhash then raise exception 'IDEMPOTENCY_MISMATCH'; end if;
   return op.result || jsonb_build_object('replayed',true);
  end if;
  if p_action='release' then
@@ -201,7 +214,7 @@ begin
   if slot is null then raise exception 'SLOT_ID_REQUIRED'; end if;
   if p_action in ('create','adopt') then
    if number is null or number not between 1 and 3 then raise exception 'SLOT_LIMIT'; end if;
-   insert into player_cloud_private.slots(user_id,slot_no,slot_id,revision,payload) values(u,number,slot,1,body) returning * into s;
+   insert into player_cloud_private.slots(user_id,slot_no,slot_id,revision,payload,payload_raw) values(u,number,slot,1,body,p_args->>'payloadRaw') returning * into s;
    update player_cloud_private.accounts set adoption_claimed=true where user_id=u;
    if p_action='adopt' then insert into player_cloud_private.adoptions values(u,body->'generation'->>'id',slot,oid); end if;
   else
@@ -209,20 +222,31 @@ begin
    if not found then raise exception 'SLOT_NOT_FOUND'; end if;
    expected:=(p_args->>'expectedRevision')::bigint;
    if expected is distinct from s.revision then return jsonb_build_object('ok',false,'code','REVISION_CONFLICT','revision',s.revision::text); end if;
-   if p_action='resolve' then
-    if p_args->>'choice'='local' then
-     insert into player_cloud_private.backups values(u,oid,slot,'cloud-before-replace',s.payload,stamp);
-    elsif p_args->>'choice'='cloud' then
-     insert into player_cloud_private.backups values(u,oid,slot,'local-not-chosen',body,stamp);
-    else raise exception 'INVALID_CHOICE'; end if;
+   if p_action in ('resolve','restore') then
+    if (p_args->>'expectedCloudFingerprint') is distinct from encode(sha256(convert_to(s.payload_raw,'UTF8')),'hex') then
+     return jsonb_build_object('ok',false,'code','REVISION_CONFLICT','revision',s.revision::text);
+    end if;
+    if p_action='resolve' and ((p_args->>'choice') is null or (p_args->>'choice') not in ('local','cloud')) then raise exception 'INVALID_CHOICE'; end if;
+    if p_action='restore' then
+     select * into saved from player_cloud_private.backups where user_id=u and slot_id=slot and operation_id::text||':'||kind=p_args->>'backupId';
+     if not found then raise exception 'BACKUP_NOT_FOUND'; end if;
+    end if;
+    -- Preserve BOTH exact branches in the same transaction before any selection.
+    insert into player_cloud_private.backups values(u,oid,slot,'cloud-conflict-snapshot',s.payload,s.payload_raw,stamp);
+    insert into player_cloud_private.backups values(u,oid,slot,'local-conflict-snapshot',body,p_args->>'payloadRaw',stamp);
    end if;
-   if p_action='write' or p_args->>'choice'='local' then
-    update player_cloud_private.slots set payload=body,revision=revision+1,updated_at=stamp where user_id=u and slot_id=slot returning * into s;
+   if p_action='restore' then
+    update player_cloud_private.slots set payload=saved.payload,payload_raw=saved.payload_raw,revision=revision+1,updated_at=stamp where user_id=u and slot_id=slot returning * into s;
+   elsif p_action='write' or p_args->>'choice'='local' then
+    update player_cloud_private.slots set payload=body,payload_raw=p_args->>'payloadRaw',revision=revision+1,updated_at=stamp where user_id=u and slot_id=slot returning * into s;
    end if;
   end if;
   result:=jsonb_build_object('ok',true,'slotId',s.slot_id,'slotNo',s.slot_no,'revision',s.revision::text,'ownerId',u,'operationId',oid,'sourceFingerprint',p_args->>'sourceFingerprint');
+  if p_action in ('resolve','restore') then
+   result:=result||jsonb_build_object('choice',case when p_action='restore' then 'backup' else p_args->>'choice' end,'backupId',p_args->>'backupId','chosenPayloadRaw',s.payload_raw,'chosenFingerprint',encode(sha256(convert_to(s.payload_raw,'UTF8')),'hex'),'backupKinds',jsonb_build_array('cloud-conflict-snapshot','local-conflict-snapshot'));
+  end if;
  end if;
- insert into player_cloud_private.operations values(u,oid,req,result);
+ insert into player_cloud_private.operations values(u,oid,reqhash,result);
  return result;
 end;
 $$;

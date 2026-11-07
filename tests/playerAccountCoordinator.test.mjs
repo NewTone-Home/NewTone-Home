@@ -135,3 +135,39 @@ test('manual logout stops the local runtime before uploading its final snapshot'
   r.backend.syncSlot.mockImplementation(async slotId => { expect(slotId).toBe(source.slotId); expect(current.sessionHandle.isOpen).toBe(false); return { ok: true }; });
   expect((await r.coordinator.logout()).ok).toBe(true); expect(r.backend.syncSlot).toHaveBeenCalledWith(source.slotId); expect(r.coordinator.getSnapshot().source).toBeNull();
 });
+
+test('a real committed story boundary queues one account checkpoint, not dialogue cursor changes', async () => {
+  const r=rig();await r.coordinator.bootstrap();r.authController.login();await r.coordinator.bootstrap();await r.coordinator.createSlot();
+  const source=r.coordinator.getSnapshot().source,current=await enter(source.service),view=current.sessionHandle.storage;
+  let player=JSON.parse(view.getItem('newtone-player-save-v1'));
+  player.sceneState['commercial-street'].commercialCafeNarrativePhase='dialogue';view.setItem('newtone-player-save-v1',JSON.stringify(player));
+  await vi.waitFor(()=>expect(r.backend.syncSnapshot).toHaveBeenCalledTimes(1));
+  player=JSON.parse(view.getItem('newtone-player-save-v1'));player.walletBalance-=1;view.setItem('newtone-player-save-v1',JSON.stringify(player));await flush();expect(r.backend.syncSnapshot).toHaveBeenCalledTimes(1);
+  player.sceneState['commercial-street'].commercialCafeStoryStatus='ready-to-leave';player.sceneState['commercial-street'].commercialCafeNarrativePhase='complete';view.setItem('newtone-player-save-v1',JSON.stringify(player));await vi.waitFor(()=>expect(r.backend.syncSnapshot).toHaveBeenCalledTimes(2));
+});
+
+async function conflictRig(){
+ const r=rig();await r.coordinator.bootstrap();r.authController.login();await r.coordinator.bootstrap();await r.coordinator.createSlot();const slotId=r.coordinator.getSnapshot().selectedSlotId;
+ r.backend.inspectConflict=vi.fn(async()=>({ok:true,conflict:{slotId,token:'comparison-1',local:{summary:'Local'},cloud:{summary:'Cloud'}}}));
+ r.backend.resolveConflict=vi.fn(async()=>({ok:true,slotId}));r.backend.ensureLocalSlot.mockResolvedValue({ok:false,code:'LOCAL_CLOUD_CONFLICT',slotId});
+ await r.coordinator.selectSlot(slotId);expect(r.coordinator.getSnapshot().status).toBe('conflict');return {...r,slotId};
+}
+test('detected divergence pauses gameplay and requires the displayed exact conflict token',async()=>{
+ const r=await conflictRig();expect(r.coordinator.getSnapshot().source).toBeNull();expect(r.backend.resolveConflict).not.toHaveBeenCalled();
+ expect((await r.coordinator.resolveConflict({slotId:r.slotId,token:'stale',choice:'cloud'})).ok).toBe(false);expect(r.backend.resolveConflict).not.toHaveBeenCalled();
+});
+test('explicit conflict resolution reloads only the selected slot after backend success',async()=>{
+ const r=await conflictRig();r.backend.ensureLocalSlot.mockResolvedValue({ok:true});
+ expect((await r.coordinator.resolveConflict({slotId:r.slotId,token:'comparison-1',choice:'local'})).ok).toBe(true);
+ expect(r.backend.resolveConflict).toHaveBeenCalledWith({slotId:r.slotId,token:'comparison-1',choice:'local'});expect(r.coordinator.getSnapshot().source.slotId).toBe(r.slotId);expect(r.coordinator.getSnapshot().conflict).toBeNull();
+});
+test('backup restore requires the reviewed list token and one of its backup IDs',async()=>{
+ const r=await conflictRig();r.backend.listBackups=vi.fn(async()=>({ok:true,slotId:r.slotId,token:'backup-list-1',backups:[{backupId:'backup-1',summary:'Original'}]}));r.backend.restoreBackup=vi.fn(async()=>({ok:true}));
+ expect((await r.coordinator.listBackups(r.slotId)).ok).toBe(true);
+ expect((await r.coordinator.restoreBackup({slotId:r.slotId,token:'backup-list-1',backupId:'unknown'})).ok).toBe(false);expect(r.backend.restoreBackup).not.toHaveBeenCalled();
+ r.backend.ensureLocalSlot.mockResolvedValue({ok:true});expect((await r.coordinator.restoreBackup({slotId:r.slotId,token:'backup-list-1',backupId:'backup-1'})).ok).toBe(true);expect(r.coordinator.getSnapshot().recovery).toBeNull();
+});
+test('changing accounts immediately removes prior conflict and backup summaries',async()=>{
+ const r=await conflictRig();r.backend.listBackups=vi.fn(async()=>({ok:true,slotId:r.slotId,token:'backup-list-1',backups:[{backupId:'backup-1',summary:'Private'}]}));await r.coordinator.listBackups(r.slotId);
+ r.authController.login(OTHER);expect(r.coordinator.getSnapshot().conflict).toBeNull();expect(r.coordinator.getSnapshot().recovery).toBeNull();expect(r.coordinator.getSnapshot().slots).toEqual([]);await r.coordinator.bootstrap();
+});

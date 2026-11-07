@@ -5,7 +5,7 @@ import { validateSaveEntryAuthority } from './saveEntryService.mjs';
 import { AUTHORITY, GUARD, SAVE_EPOCH, WRITER_LOCK } from './saveEpoch.mjs';
 import { createPlayerCloudPayloadFromAuthority, fingerprintPlayerCloudPayload, serializePlayerCloudPayload } from './playerCloudService.mjs';
 const assert=(ok,code)=>{if(!ok)throw Error(code);};
-function authorityFromPortable(p,operationId,fingerprint) {
+export function authorityFromPortable(p,operationId,fingerprint) {
  assert(p?.format==='newtone-player-state'&&p.formatVersion===1&&p.localProtocolVersion===2&&p.saveEpoch===SAVE_EPOCH,'UNSUPPORTED_CLOUD_FORMAT');
  const candidate={saveEpoch:SAVE_EPOCH,protocolVersion:2,revision:p.localRevision,generation:p.generation,
   origin:{kind:'new',sourceFormatId:'service-epoch-1',sourceSetHash:fingerprint,parentGenerationId:null},

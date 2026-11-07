@@ -66,6 +66,31 @@ export function createPlayerAccountGateActions({ authController, saveCoordinator
     }, true),
     selectSlot: slotId => run('select_slot', () => saveCoordinator?.selectSlot(slotId) ?? unavailable()),
     createSlot: () => run('create_slot', () => saveCoordinator?.createSlot() ?? unavailable()),
+    resolveConflict: request => run('resolve_conflict', () => {
+      const snapshot = saveCoordinator?.getSnapshot?.(), conflict = snapshot?.conflict
+      if (snapshot?.status !== 'conflict' || !['local', 'cloud'].includes(request?.choice)
+        || typeof request?.token !== 'string' || !request.token || conflict?.token !== request.token || conflict?.slotId !== request.slotId
+        || (conflict.pendingChoice != null && conflict.pendingChoice !== request.choice)) {
+        return failed('stale_conflict', 'The save comparison changed. Review both versions again.')
+      }
+      return saveCoordinator?.resolveConflict?.({ slotId: request.slotId, token: request.token, choice: request.choice }) ?? unavailable()
+    }),
+    listBackups: slotId => run('list_backups', () => {
+      const snapshot = saveCoordinator?.getSnapshot?.()
+      const known = snapshot?.selectedSlotId === slotId || snapshot?.conflict?.slotId === slotId
+        || snapshot?.slots?.some(slot => slot.slotId === slotId)
+      if (typeof slotId !== 'string' || !slotId || !known) return failed('unknown_slot', 'Choose a known save before viewing its backups.')
+      return saveCoordinator?.listBackups?.(slotId) ?? unavailable()
+    }),
+    restoreBackup: request => run('restore_backup', () => {
+      const snapshot = saveCoordinator?.getSnapshot?.(), recovery = snapshot?.recovery
+      if (snapshot?.conflict?.pendingChoice != null || recovery?.status !== 'ready' || typeof request?.token !== 'string' || !request.token
+        || recovery.token !== request.token || recovery.slotId !== request.slotId
+        || !recovery.backups?.some(backup => backup.backupId === request.backupId)) {
+        return failed('stale_backup', 'The backup list changed. Review the backup again before restoring.')
+      }
+      return saveCoordinator?.restoreBackup?.({ slotId: request.slotId, backupId: request.backupId, token: request.token }) ?? unavailable()
+    }),
     retry: () => run('load_slots', () => saveCoordinator?.bootstrap() ?? unavailable()),
     changeEmail() {
       if (disposed || pending) return

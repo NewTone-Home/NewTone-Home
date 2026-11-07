@@ -22,7 +22,8 @@ export default function PlayerAccountApp({ authController, saveCoordinator, otpR
       : <main className="player-account-host-wait" aria-live="polite">
         <div><h1>{en ? 'Your next story' : '你的下一段故事'}</h1>
           <p>{saves.status === 'error' ? (en ? 'Your saves are protected. Open Account & saves to retry or continue as a guest.' : '原有存档已保留。请打开「账号与存档」重试，或继续以游客游玩。')
-            : ['loading', 'switching', 'adopting'].includes(saves.status) ? (en ? 'Preparing your saves. Account & saves remains available above.' : '正在准备存档，你仍可打开上方「账号与存档」。')
+            : saves.status === 'conflict' ? (en ? 'Local and cloud saves differ. Open Account & saves to compare and confirm your choice.' : '本地与云端存档不同。请打开「账号与存档」比较并确认你的选择。')
+              : ['loading', 'switching', 'adopting', 'recovering'].includes(saves.status) ? (en ? 'Preparing your saves. Account & saves remains available above.' : '正在准备存档，你仍可打开上方「账号与存档」。')
               : (en ? 'Open Account & saves to choose a save or continue as a guest.' : '打开「账号与存档」，选择存档或继续以游客游玩。')}</p>
         </div>
       </main>}

@@ -2,6 +2,7 @@
 // inspect this browser's storage. Authentication and encryption are separate.
 import { assertAdoptionVisible, assertGuestId } from './playerAdoptionRecord.mjs';
 import { assertCloudImportVisible } from './accountCloudImportRecord.mjs';
+import { assertCloudReplacementVisible } from './accountCloudReplaceRecord.mjs';
 export const ACCOUNT_SAVE_PREFIX = 'newtone-account-save:v1:';
 export const ACCOUNT_SLOT_SCHEMA = 1;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -92,6 +93,7 @@ export function createAccountSaveStorage({ storage, ownerId, slotId, assertAcces
   const metadata = readAccountSlotRecord(storage, ownerId, slotId);
   assertAdoptionVisible(storage, metadata.record);
   assertCloudImportVisible(storage, metadata.record);
+  assertCloudReplacementVisible(storage, ownerId, slotId);
   const baseline = metadata.raw;
   let revoked = false;
   function check() {
@@ -100,6 +102,7 @@ export function createAccountSaveStorage({ storage, ownerId, slotId, assertAcces
     requireThat(storage.getItem(metaKey) === baseline, 'ACCOUNT_SLOT_RECORD_CHANGED');
     assertAdoptionVisible(storage, metadata.record);
     assertCloudImportVisible(storage, metadata.record);
+    assertCloudReplacementVisible(storage, ownerId, slotId);
     validateAccountSlotNamespace(storage, ownerId, slotId);
   }
   function keys() {

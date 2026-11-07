@@ -28,7 +28,7 @@ export function memoryStorage(values={}){
   const data=new Map(Object.entries(values));
   return {getItem:k=>data.get(k)??null,setItem:(k,v)=>data.set(k,String(v)),removeItem:k=>data.delete(k),key:i=>[...data.keys()][i]??null,get length(){return data.size;}};
 }
-export function createJournalStorage(raw,initial,sourceSnapshot,readSources,onStop=()=>{}){
+export function createJournalStorage(raw,initial,sourceSnapshot,readSources,onStop=()=>{},onCommit=()=>{}){
   // This baseline MUST correspond to initial, never a newly re-read disk value.
   let expected=JSON.stringify(initial);
   let journal=structuredClone(initial);
@@ -73,6 +73,9 @@ export function createJournalStorage(raw,initial,sourceSnapshot,readSources,onSt
     }catch(error){transaction=null;throw error;}
     try{for(const callback of pending.publish.values()){check();callback();}}
     catch(error){if(stopped)throw error;return stop('state-publication-failed');}
+    // Observers see only verified durable transactions after state publication.
+    // Their notification failure cannot roll back or invalidate committed data.
+    if(pending.changed&&!stopped){try{Promise.resolve(onCommit({...journal.values})).catch(()=>{});}catch{/* notification cannot invalidate a durable transaction */}}
     return result;
   };
   const write=(key,value)=>transact(()=>{

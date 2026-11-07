@@ -4,6 +4,7 @@ import { validateNew, rewindUnfinished } from './saveMigration.mjs';
 import { createJournalStorage, installGameStorage, clearGameStorage } from '../save-session.mjs';
 import { openingGuidancePatch } from '../center/runtime/openingGuidance';
 import { createPlayerGuestRepository } from './playerGuestStorage.mjs';
+import { createPlayerStoryCheckpointObserver } from './playerStoryCheckpoints.mjs';
 
 import { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX, RETIRED_PREFIX, WRITER_LOCK } from './saveEpoch.mjs';
 export { SAVE_EPOCH, AUTHORITY, PENDING, ACKNOWLEDGED, GUARD, BACKUP_PREFIX, RETIRED_PREFIX };
@@ -89,7 +90,7 @@ function initialAux(s){
 const guidanceWarnings=()=>[];
 const inspectionWarnings=()=>[];
 function ticketEqual(a,b){return a&&b&&a.operationId===b.operationId&&a.requestHash===b.requestHash&&a.baseSnapshotHash===b.baseSnapshotHash;}
-export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID(),digest=async text=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}}={}){
+export function createSaveEntryService({storage,locks,onStoryCheckpoint,uuid=()=>crypto.randomUUID(),digest=async text=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}}={}){
   let activeLease=null,activeHandle=null,preparing=false,releasing=Promise.resolve(),disposed=false,defaultGuestStorage=null;
   // Feature flags or unavailable account configuration must never reopen a
   // retained guest that a previous account session has already claimed.
@@ -164,10 +165,12 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     }catch(e){await release();return {...failure(prepareWriteAttempted?'outcome-uncertain':/STALE/.test(e.message)?'stale':'blocked',e),...(ticketForRecovery?{ticket:ticketForRecovery,warnings:warningsForRecovery}:{})};}finally{preparing=false;}
   }
   function openHandle(j){
-    stop('session-replaced');const listeners=new Set();let stopped=false,stopReason=null,cleanup=()=>{};
+    stop('session-replaced');const listeners=new Set();let stopped=false,stopReason=null,cleanup=()=>{},storyObserver=null;
     const r=raw(),baseline=r.getItem(GUARD);requireThat(baseline!==null,'EPOCH_GUARD_MISSING');
     const handle={generation:j.generation.id,storage:null,get isOpen(){return !stopped;},get stopReason(){return stopReason;},check(){handle.storage.check();},onStop(fn){if(stopped){fn(stopReason);return()=>{};}listeners.add(fn);return()=>listeners.delete(fn);},revoke(reason){if(stopped)return;stopped=true;stopReason=reason;try{cleanup();}catch{}try{handle.storage?.stop(reason);}catch{}for(const fn of listeners){try{fn(reason);}catch{}}},close(){handle.revoke('session-closed');if(activeHandle===handle){activeHandle=null;clearGameStorage(handle.storage);return release();}return releasing;}};
-    handle.storage=createJournalStorage(r,j,baseline,store=>store.getItem(GUARD),reason=>{handle.revoke(reason);if(activeHandle===handle){activeHandle=null;clearGameStorage(handle.storage);release();}});
+    storyObserver=typeof onStoryCheckpoint==='function'?createPlayerStoryCheckpointObserver({initialValues:j.values,isActive:()=>activeHandle===handle&&handle.isOpen&&!disposed,onCheckpoint:events=>onStoryCheckpoint({sessionHandle:handle,events})}):null;
+    handle.onStop(()=>storyObserver?.dispose());
+    handle.storage=createJournalStorage(r,j,baseline,store=>store.getItem(GUARD),reason=>{handle.revoke(reason);if(activeHandle===handle){activeHandle=null;clearGameStorage(handle.storage);release();}},values=>storyObserver?.committed(values));
     handle.storage.setValidator(validateValues);installGameStorage(handle.storage);activeHandle=handle;
     if(globalThis.window){const target=globalThis.window;const check=()=>{try{handle.check();}catch{}};const timer=target.setInterval(check,250);target.addEventListener('storage',check);target.document?.addEventListener('visibilitychange',check);cleanup=()=>{target.clearInterval(timer);target.removeEventListener('storage',check);target.document?.removeEventListener('visibilitychange',check);};}
     return handle;
@@ -252,12 +255,12 @@ export function createSaveEntryService({storage,locks,uuid=()=>crypto.randomUUID
     return {status:'exported',authorityRaw:i.authorityRaw,guardRaw:raw().getItem(GUARD),snapshot:structuredClone(i.authority),snapshotToken:i.baseSnapshotHash};
   }catch(e){return failure('blocked',e);}}
   async function dispose(){disposed=true;await release();}
-  async function exportActiveSave(){try{
+  function exportActiveSave(){try{
     const handle=activeHandle,lease=activeLease;requireThat(handle&&lease,'SOURCE_RUNTIME_NOT_ACTIVE');handle.check();
-    const i=await inspectInternal();handle.check();
-    requireThat(!disposed&&activeHandle===handle&&activeLease===lease&&raw().getItem(AUTHORITY)===i.authorityRaw,'SOURCE_CHANGED_DURING_EXPORT');
-    requireThat(i.authority&&i.guard?.phase==='committed','NO_COMMITTED_CURRENT_SAVE');
-    return {status:'exported',snapshot:structuredClone(i.authority),authorityRaw:i.authorityRaw,guardRaw:raw().getItem(GUARD)};
+    const authorityRaw=raw().getItem(AUTHORITY),authority=validateAuthority(parse(authorityRaw)),guardRaw=raw().getItem(GUARD),guard=readGuard(raw());handle.check();
+    requireThat(!disposed&&activeHandle===handle&&activeLease===lease&&raw().getItem(AUTHORITY)===authorityRaw&&raw().getItem(GUARD)===guardRaw,'SOURCE_CHANGED_DURING_EXPORT');
+    requireThat(guard?.phase==='committed','NO_COMMITTED_CURRENT_SAVE');
+    return {status:'exported',snapshot:structuredClone(authority),authorityRaw,guardRaw};
   }catch(e){return failure('blocked',e);}}
   return {inspectSave,prepareEntry,commitEntry,getRecoveryState,resolveOperation,acknowledgeEntry,exportCurrentSave,exportActiveSave,dispose};
 }

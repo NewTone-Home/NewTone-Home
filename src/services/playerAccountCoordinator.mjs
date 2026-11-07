@@ -18,9 +18,11 @@ const messages = {
   ACCOUNT_SESSION_NOT_ACTIVE: '账号连接已中断，游戏已暂停，请重新连接后重试。',
   ACCOUNT_OPERATION_CANCELLED: '账号状态已改变，已停止上一个操作。',
   ACCOUNT_BUSY: '正在处理存档，请稍后再试。',
+  LOCAL_STORAGE_FULL: '本机存储空间不足，恢复已暂停。请先不要清除网站数据，原有存档需要保留。',
 };
 const failure = error => { const code = error instanceof Error ? error.message : String(error); return { ok: false, error: { code, message: messages[code] ?? '暂时无法完成账号存档操作。原有存档和恢复记录已保留，请重试。' } }; };
 const encodePortable = authority => fingerprintPlayerCloudPayload(createPlayerCloudPayloadFromAuthority(authority));
+function backendError(result, fallback, slotId) { const error = Error(result?.code ?? fallback); error.slotId = result?.slotId ?? slotId; return error; }
 
 /** Owns runtime teardown and account/guest routing. Backend must enforce server authority. */
 export function createPlayerAccountCoordinator({ authController, backend, storage, locks,
@@ -28,7 +30,7 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
   setInterval: schedule = globalThis.setInterval, clearInterval: unschedule = globalThis.clearInterval,
 } = {}) {
   const guests = createPlayerGuestRepository({ storage, locks, uuid });
-  let state = Object.freeze({ status: 'loading', slots: [], selectedSlotId: null, error: null, source: null });
+  let state = Object.freeze({ status: 'loading', slots: [], selectedSlotId: null, error: null, source: null, conflict: null, recovery: null });
   let disposed = false, revision = 0, queue = Promise.resolve(), closing = Promise.resolve(), unsubscribe = null, timer = null, checkpointTimer = null, sourceSerial = 0, lastIdentity = null, checkpointRunning = false;
   const listeners = new Set();
   const auth = () => authController.getSnapshot();
@@ -43,7 +45,7 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
     await closing;
     if (sync && old?.ownerId && backend?.isActive && backend.syncSlot) {
       const result = await backend.syncSlot(old.slotId);
-      assert(result?.ok === true, result?.code ?? 'ACCOUNT_SYNC_FAILED');
+      if (result?.ok !== true) throw backendError(result, 'ACCOUNT_SYNC_FAILED', old.slotId);
     }
   }
   function stopTimer() { if (timer !== null) unschedule(timer); if (checkpointTimer !== null) unschedule(checkpointTimer); timer = null; checkpointTimer = null; }
@@ -62,9 +64,13 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
   }
   function enqueue(work) {
     const ticket = revision;
-    const task = queue.then(async () => { check(ticket); return work(ticket); }).then(() => ({ ok: true })).catch(error => {
+    const task = queue.then(async () => { check(ticket); return work(ticket); }).then(() => ({ ok: true })).catch(async error => {
       const result = failure(error);
-      if (!disposed && ticket === revision) publish({ status: 'error', error: result.error });
+      if (!disposed && ticket === revision) {
+        if (['LOCAL_CLOUD_CONFLICT','CONFLICT_CHANGED','REVISION_CONFLICT'].includes(error.message) && error.slotId && backend?.inspectConflict) {
+          try { await showConflict(ticket, error.slotId); return result; } catch (inspectionError) { if (ticket === revision) publish({ status: 'error', error: failure(inspectionError).error }); }
+        } else publish({ status: 'error', error: result.error });
+      }
       return result;
     });
     queue = task.then(() => undefined); return task;
@@ -74,9 +80,9 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
     let inspected = guests.inspect();
     if (inspected.status === 'claimed' && fresh) { await guests.startFresh(); check(ticket); inspected = guests.inspect(); }
     assert(inspected.status !== 'pending', 'GUEST_ADOPTION_PENDING');
-    if (inspected.status !== 'available') { publish({ status: 'guest', slots: [], error: null }); return; }
+    if (inspected.status !== 'available') { publish({ status: 'guest', slots: [], error: null, conflict: null, recovery: null }); return; }
     const view = guests.openCurrent(), service = makeEntryService({ storage: view, locks });
-    publish({ status: 'guest', slots: [], error: null, source: { key: `guest:${inspected.guestId}:${++sourceSerial}`, guestId: inspected.guestId, storage: view, service } });
+    publish({ status: 'guest', slots: [], error: null, conflict: null, recovery: null, source: { key: `guest:${inspected.guestId}:${++sourceSerial}`, guestId: inspected.guestId, storage: view, service } });
   }
   function repositoryFor(ownerId, epoch) {
     return createAccountSaveSlots({ storage, locks, assertAccess: scope => scope.ownerId === ownerId && access(ownerId, epoch), canCreateSlot: canCreatePlayerSaveSlot });
@@ -86,10 +92,21 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
     publish({ status: 'switching', error: null }); await closeSource(true); check(ticket);
     assert(access(user.id, sessionEpoch), 'ACCOUNT_SESSION_NOT_ACTIVE');
     const ready = await backend.ensureLocalSlot(slotId); check(ticket);
-    assert(ready?.ok === true, ready?.code ?? 'LOCAL_CLOUD_CONFLICT');
+    if (ready?.ok !== true) throw backendError(ready, 'LOCAL_CLOUD_CONFLICT', slotId);
     const view = repositoryFor(user.id, sessionEpoch).openStorage({ ownerId: user.id, slotId });
-    const service = makeEntryService({ storage: view, locks });
-    publish({ status: 'ready', selectedSlotId: slotId, source: { key: `account:${user.id}:${slotId}:${++sourceSerial}`, ownerId: user.id, slotId, storage: view, service }, error: null });
+    const service = makeEntryService({ storage: view, locks, onStoryCheckpoint: () => {
+      if (state.source?.service !== service || !access(user.id, sessionEpoch)) return;
+      return checkpoint();
+    } });
+    publish({ status: 'ready', selectedSlotId: slotId, source: { key: `account:${user.id}:${slotId}:${++sourceSerial}`, ownerId: user.id, slotId, storage: view, service }, error: null, conflict: null, recovery: null });
+  }
+  async function showConflict(ticket, slotId) {
+    await closeSource(); check(ticket);
+    const result = await backend.inspectConflict(slotId); check(ticket);
+    if (result?.ok !== true) throw backendError(result, 'CONFLICT_INSPECTION_FAILED', slotId);
+    const conflict = result.conflict ?? result;
+    assert(conflict.slotId === slotId && typeof conflict.token === 'string' && conflict.token.length > 0, 'INVALID_CONFLICT_RESPONSE');
+    publish({ status: 'conflict', conflict: { slotId, token: conflict.token, pendingChoice: conflict.pendingChoice ?? null, local: { summary: conflict.local?.summary }, cloud: { summary: conflict.cloud?.summary } }, recovery: null, error: null });
   }
   function readIntent(guestId) {
     const raw = storage.getItem(adoptionIntentKey(guestId)); if (raw === null) return null;
@@ -140,9 +157,10 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
   async function reconcile(ticket) {
     await closeSource(); check(ticket); stopTimer();
     if (auth().status !== 'authenticated') { backend?.stop(); return guestSource(ticket); }
-    assert(backend, 'ACCOUNT_BACKEND_NOT_READY'); publish({ status: 'loading', slots: [], error: null });
+    assert(backend, 'ACCOUNT_BACKEND_NOT_READY'); publish({ status: 'loading', slots: [], error: null, conflict: null, recovery: null });
     const opened = await backend.openSession({ origin: auth().sessionOrigin ?? 'restored' }); check(ticket);
     assert(opened?.ok === true, opened?.code ?? 'ACCOUNT_SESSION_NOT_ACTIVE'); beginTimer();
+    if (backend.recoverPendingResolution) { const recovered = await backend.recoverPendingResolution(); check(ticket); if (recovered?.ok !== true) throw backendError(recovered, 'PENDING_CLOUD_OPERATION', recovered?.slotId); }
     if (backend.recoverPendingCreate) { const recovered = await backend.recoverPendingCreate(); check(ticket); assert(recovered?.ok === true, recovered?.code ?? 'PENDING_CLOUD_OPERATION'); }
     let catalogue = await backend.listSlots(); check(ticket); assert(catalogue?.ok === true, catalogue?.code ?? 'ACCOUNT_BACKEND_NOT_READY');
     const adopted = await preserveGuest(ticket, catalogue); check(ticket);
@@ -156,7 +174,7 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
     // Revoke synchronously before the asynchronous serialized transition.
     const old = state.source;
     if (old) { old.storage.revoke?.(); closing = Promise.all([closing, old.service.dispose()]).then(() => undefined); }
-    publish({ source: null, selectedSlotId: null, status: 'loading' });
+    publish({ source: null, selectedSlotId: null, status: 'loading', slots: [], conflict: null, recovery: null, error: null });
     enqueue(reconcile);
   }
   async function bootstrap() {
@@ -164,6 +182,7 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
     if (!unsubscribe) unsubscribe = authController.subscribe(observeAuth);
     if (auth().status === 'unknown') { const loaded = await authController.bootstrap(); if (loaded?.ok === false && auth().status === 'unknown') return guestSource(revision).then(() => loaded); }
     if (identity() !== lastIdentity) { observeAuth(); return queue.then(() => ({ ok: state.status !== 'error', error: state.error })); }
+    if (state.status === 'conflict' && state.conflict?.slotId) return enqueue(ticket => showConflict(ticket, state.conflict.slotId));
     if (state.status !== 'error') return queue.then(() => ({ ok: state.status !== 'error', error: state.error }));
     return enqueue(reconcile);
   }
@@ -177,7 +196,7 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
       const payload = await encodePortable(exported.snapshot); check(ticket);
       assert(state.source === source, 'ACCOUNT_OPERATION_CANCELLED');
       const result = await backend.syncSnapshot(source.slotId, payload); check(ticket);
-      assert(result?.ok === true, result?.code ?? 'ACCOUNT_SYNC_FAILED'); return { ok: true };
+      if (result?.ok !== true) throw backendError(result, 'ACCOUNT_SYNC_FAILED', source.slotId); return { ok: true };
     } catch (error) {
       const result = failure(error);
       if (ticket === revision && !disposed) { await closeSource(); publish({ status: 'error', error: result.error }); }
@@ -190,6 +209,29 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     bootstrap,
     checkpoint,
+    resolveConflict(request) { return enqueue(async ticket => {
+      assert(state.status === 'conflict' && state.conflict?.token === request.token && state.conflict.slotId === request.slotId && ['local','cloud'].includes(request.choice), 'STALE_CONFLICT_CHOICE');
+      publish({ status: 'recovering', error: null }); await closeSource(); check(ticket);
+      const result = await backend.resolveConflict(request); check(ticket); if (result?.ok !== true) throw backendError(result, 'RESOLUTION_FAILED', request.slotId);
+      const catalogue = await backend.listSlots(); check(ticket); assert(catalogue?.ok === true, 'ACCOUNT_BACKEND_NOT_READY');
+      publish({ status: 'ready', slots: catalogue.slots, conflict: null, recovery: null }); await selectedSlot(ticket, request.slotId);
+    }); },
+    listBackups(slotId) { return enqueue(async ticket => {
+      assert(state.slots.some(slot => slot.slotId === slotId) || state.conflict?.slotId === slotId, 'UNKNOWN_ACCOUNT_SLOT');
+      await closeSource(); check(ticket); publish({ recovery: { status: 'loading', slotId, token: null, backups: [], error: null } });
+      const result = await backend.listBackups(slotId); check(ticket);
+      if (result?.ok !== true) { publish({ recovery: { status: 'error', slotId, token: null, backups: [], error: failure(backendError(result, 'BACKUP_LIST_FAILED', slotId)).error } }); throw backendError(result, 'BACKUP_LIST_FAILED', slotId); }
+      assert(result.slotId === slotId && typeof result.token === 'string' && Array.isArray(result.backups), 'INVALID_BACKUP_LIST');
+      publish({ status: state.conflict ? 'conflict' : 'ready', recovery: { ...result, status: 'ready', error: null }, error: null });
+    }); },
+    restoreBackup(request) { return enqueue(async ticket => {
+      const recovery = state.recovery;
+      assert(recovery?.status === 'ready' && recovery.slotId === request.slotId && recovery.token === request.token && recovery.backups.some(backup => backup.backupId === request.backupId), 'STALE_BACKUP_CHOICE');
+      publish({ status: 'recovering', error: null }); await closeSource(); check(ticket);
+      const result = await backend.restoreBackup(request); check(ticket); if (result?.ok !== true) throw backendError(result, 'BACKUP_RESTORE_FAILED', request.slotId);
+      const catalogue = await backend.listSlots(); check(ticket); assert(catalogue?.ok === true, 'ACCOUNT_BACKEND_NOT_READY');
+      publish({ status: 'ready', slots: catalogue.slots, conflict: null, recovery: null }); await selectedSlot(ticket, request.slotId);
+    }); },
     async suspend(reason = 'ACCOUNT_SESSION_NOT_ACTIVE') { revision += 1; stopTimer(); backend?.stop(); await closeSource(); publish({ status: 'error', error: failure(Error(reason)).error }); },
     selectSlot(slotId) { return enqueue(async ticket => { assert(state.slots.some(slot => slot.slotId === slotId), 'UNKNOWN_ACCOUNT_SLOT'); await selectedSlot(ticket, slotId); }); },
     createSlot() { return enqueue(async ticket => {
@@ -214,7 +256,7 @@ export function createPlayerAccountCoordinator({ authController, backend, storag
       publish({ slots: catalogue.slots }); await selectedSlot(ticket, result.slotId);
     }); },
     continueGuest() { revision += 1; return enqueue(ticket => guestSource(ticket, true)); },
-    logout() { revision += 1; return enqueue(async ticket => { stopTimer(); await closeSource(true); check(ticket); backend?.stop(); publish({ status: 'guest', slots: [], error: null }); }); },
+    logout() { revision += 1; return enqueue(async ticket => { stopTimer(); await closeSource(true); check(ticket); backend?.stop(); publish({ status: 'guest', slots: [], error: null, conflict: null, recovery: null }); }); },
     async dispose() { if (disposed) return; revision += 1; stopTimer(); unsubscribe?.(); unsubscribe = null; backend?.stop(); await closeSource(); disposed = true; listeners.clear(); },
   });
 }
